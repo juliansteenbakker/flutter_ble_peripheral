@@ -1,0 +1,22 @@
+name: flutter_ble_peripheral
+description: Flutter plugin for advertising in peripheral mode
+version: 0.0.1
+author: Julian Steenbakker <juliansteenbakker@outlook.com>
+homepage: https://github.com/juliansteenbakker/flutter_ble_peripheral
+
+environment:
+  sdk: ">=2.1.0 <3.0.0"
+  flutter: ">=1.12.0 <2.0.0"
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+flutter:
+  plugin:
+    androidPackage: dev.steenbakker.flutter_ble_peripheral
+    pluginClass: FlutterBlePeripheralPlugin

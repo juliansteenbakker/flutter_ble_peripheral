@@ -1,0 +1,3 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+  package="dev.steenbakker.flutter_ble_peripheral">
+</manifest>
