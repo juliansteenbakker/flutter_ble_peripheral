@@ -18,5 +18,9 @@ dev_dependencies:
 
 flutter:
   plugin:
-    androidPackage: dev.steenbakker.flutter_ble_peripheral
-    pluginClass: FlutterBlePeripheralPlugin
+    platform:
+      android:
+        package: dev.steenbakker.flutter_ble_peripheral
+        pluginClass: FlutterBlePeripheralPlugin
+      ios:
+        pluginClass: FlutterBlePeripheralPlugin

@@ -1,9 +1,9 @@
-//
-//  Peripheral.swift
-//  flutter_ble_peripheral
-//
-//  Created by bever on 30/03/2020.
-//
+/*
+* Copyright (c) 2020. Julian Steenbakker.
+* All rights reserved. Use of this source code is governed by a
+* BSD-style license that can be found in the LICENSE file.
+*/
+
 
 import Foundation
 import CoreBluetooth
