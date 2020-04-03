@@ -12,7 +12,9 @@ import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
+import android.os.Build
 import android.os.ParcelUuid
+import androidx.annotation.RequiresApi
 import io.flutter.Log
 
 class Peripheral {
@@ -67,7 +69,19 @@ class Peripheral {
 
     fun stop() {
         Log.d(tag, "Stopped advertising")
-        mBluetoothLeAdvertiser!!.stopAdvertising(advertiseCallback)
+        
+        mBluetoothLeAdvertiser!!.stopAdvertising(object : AdvertiseCallback() {
+            override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
+                super.onStartSuccess(settingsInEffect)
+                advertiseCallback = null
+                isAdvertising = false
+            }
+
+            override fun onStartFailure(errorCode: Int) {
+                super.onStartFailure(errorCode)
+                Log.d(tag, "ERROR advertising: $errorCode")
+            }
+        })
         advertiseCallback = null
         isAdvertising = false
     }

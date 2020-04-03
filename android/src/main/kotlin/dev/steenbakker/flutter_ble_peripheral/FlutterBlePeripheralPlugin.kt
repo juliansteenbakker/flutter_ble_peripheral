@@ -10,11 +10,8 @@ import android.content.Context
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.*
-import io.flutter.plugin.common.MethodChannel.MethodCallHandler
-import io.flutter.plugin.common.MethodChannel.Result
 
-/** FlutterBlePeripheralPlugin */
-class FlutterBlePeripheralPlugin: FlutterPlugin, MethodCallHandler, EventChannel.StreamHandler {
+class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
   private var applicationContext: Context? = null
   private var methodChannel: MethodChannel? = null
@@ -25,7 +22,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodCallHandler, EventChannel
     eventSink?.success(isAdvertising)
   }
 
-/** Plugin registration embedding v1 */
+  /** Plugin registration embedding v1 */
   companion object {
     @JvmStatic
     fun registerWith(registrar: PluginRegistry.Registrar) {
@@ -33,15 +30,15 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodCallHandler, EventChannel
     }
   }
 
-/** Plugin registration embedding v2 */
+  /** Plugin registration embedding v2 */
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-  onAttachedToEngine(flutterPluginBinding.applicationContext, flutterPluginBinding.binaryMessenger)
+    onAttachedToEngine(flutterPluginBinding.applicationContext, flutterPluginBinding.binaryMessenger)
   }
 
   private fun onAttachedToEngine(applicationContext: Context, messenger: BinaryMessenger) {
     this.applicationContext = applicationContext
-    methodChannel = MethodChannel(messenger, "flutter_ble_peripheral_method")
-    eventChannel = EventChannel(messenger, "flutter_ble_peripheral_event")
+    methodChannel = MethodChannel(messenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
+    eventChannel = EventChannel(messenger, "dev.steenbakker.flutter_ble_peripheral/ble_event")
     methodChannel!!.setMethodCallHandler(this)
     eventChannel!!.setStreamHandler(this)
     peripheral = Peripheral()
@@ -58,17 +55,23 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodCallHandler, EventChannel
   }
 
   // TODO: Add different functions
-  override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: Result) {
+  // TODO: Add permission check
+  override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: MethodChannel.Result) {
     when (call.method) {
-      "start" -> startPeripheral(call, result)
-      "stop" -> stopPeripheral(result)
+      "start" -> {
+        print("Start advertising")
+        startPeripheral(call, result)
+      }
+      "stop" -> {
+        stopPeripheral(result)
+      }
       "isAdvertising" -> result.success(peripheral!!.isAdvertising())
 //      "isTransmissionSupported" -> isTransmissionSupported(result)
       else -> result.notImplemented()
     }
   }
 
-  private fun startPeripheral(call: MethodCall, result: Result) {
+  private fun startPeripheral(call: MethodCall, result: MethodChannel.Result) {
     if (call.arguments !is Map<*, *>) {
       throw IllegalArgumentException("Arguments are not a map! " + call.arguments)
     }
@@ -86,7 +89,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodCallHandler, EventChannel
     result.success(null)
   }
 
-  private fun stopPeripheral(result: Result) {
+  private fun stopPeripheral(result: MethodChannel.Result) {
     peripheral!!.stop()
     result.success(null)
   }
@@ -100,8 +103,3 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodCallHandler, EventChannel
   }
 }
 
-data class Data(
-        val uuid: String
-//        val transmissionPower: Int?,
-//        val manufacturerId: Int?
-)
