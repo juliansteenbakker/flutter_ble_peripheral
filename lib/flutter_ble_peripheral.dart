@@ -7,13 +7,28 @@
 import 'dart:async';
 
 import 'package:flutter/services.dart';
+import 'package:flutter/widgets.dart';
 
 class FlutterBlePeripheral {
-  static const MethodChannel _channel =
-      const MethodChannel('flutter_ble_peripheral_method');
+  factory FlutterBlePeripheral() {
+    if (_instance == null) {
+      final MethodChannel methodChannel =
+      const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
-  static const EventChannel _eventChannel =
-      const EventChannel('flutter_ble_peripheral_event');
+      final EventChannel eventChannel =
+      const EventChannel('dev.steenbakker.flutter_ble_peripheral/ble_event');
+      _instance = FlutterBlePeripheral.private(methodChannel, eventChannel);
+    }
+    return _instance;
+  }
+
+  @visibleForTesting
+  FlutterBlePeripheral.private(this._methodChannel, this._eventChannel);
+
+  static FlutterBlePeripheral _instance;
+
+  final MethodChannel _methodChannel;
+  final EventChannel _eventChannel;
 
   /// Start advertising uuid
   Future<void> start(String uuid) async {
@@ -30,17 +45,17 @@ class FlutterBlePeripheral {
 //      "manufacturerId": _manufacturerId,
     };
 
-    await _channel.invokeMethod('start', params);
+    await _methodChannel.invokeMethod('start', params);
   }
 
   /// Stops beacon advertising
   Future<void> stop() async {
-    await _channel.invokeMethod('stop');
+    await _methodChannel.invokeMethod('stop');
   }
 
   /// Returns `true` if beacon is advertising
   Future<bool> isAdvertising() async {
-    return await _channel.invokeMethod('isAdvertising');
+    return await _methodChannel.invokeMethod('isAdvertising');
   }
 
   /// Returns Stream of booleans indicating if beacon is advertising.

@@ -46,6 +46,13 @@ class _MyAppState extends State<MyApp> {
     });
   }
 
+  FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
+
+  void startBroadcast() {
+    String uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
+    blePeripheral.start(uuid);
+  }
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
@@ -54,7 +61,15 @@ class _MyAppState extends State<MyApp> {
           title: const Text('FlutterBlePeripheral'),
         ),
         body: Center(
-          child: Text('TODO: Create example application'),
+            child: FlatButton(
+                onPressed: () => startBroadcast(),
+                child: Text(
+                  'start broadcasting',
+                  style: Theme.of(context)
+                      .primaryTextTheme
+                      .button
+                      .copyWith(color: Colors.blue),
+                ))
         ),
       ),
     );
