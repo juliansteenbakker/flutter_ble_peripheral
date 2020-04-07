@@ -1,9 +1,3 @@
-/*
-* Copyright (c) 2020. Julian Steenbakker.
-* All rights reserved. Use of this source code is governed by a
-* BSD-style license that can be found in the LICENSE file.
-*/
-
 #import "FlutterBlePeripheralPlugin.h"
 #if __has_include(<flutter_ble_peripheral/flutter_ble_peripheral-Swift.h>)
 #import <flutter_ble_peripheral/flutter_ble_peripheral-Swift.h>
