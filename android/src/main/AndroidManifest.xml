@@ -1,2 +1,5 @@
-<manifest package="dev.steenbakker.flutter_ble_peripheral">
+<manifest package="dev.steenbakker.flutter_ble_peripheral"
+    xmlns:android="http://schemas.android.com/apk/res/android">
+    <uses-permission android:name="android.permission.BLUETOOTH" />
+    <uses-permission android:name="android.permission.BLUETOOTH_ADMIN" />
 </manifest>

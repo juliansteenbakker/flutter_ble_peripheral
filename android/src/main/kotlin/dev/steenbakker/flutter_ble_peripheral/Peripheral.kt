@@ -23,65 +23,46 @@ class Peripheral {
     private var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
     private var advertiseCallback: AdvertiseCallback? = null
     private val tag = "FlutterBlePeripheral"
+    
+    private val mAdvertiseCallback = object : AdvertiseCallback() {
+        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
+            super.onStartSuccess(settingsInEffect)
+            Log.i(tag, "LE Advertise Started.")
+            //advertisingCallback(true)
+            isAdvertising = true
+        }
 
-    fun init(context: Context) {
-        if (mBluetoothLeAdvertiser == null) {
-            val mBluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager?
-            if (mBluetoothManager != null) {
-                val mBluetoothAdapter = mBluetoothManager.adapter
-                if (mBluetoothAdapter != null) {
-                    mBluetoothLeAdvertiser = mBluetoothAdapter.bluetoothLeAdvertiser
-                }
-            }
+        override fun onStartFailure(errorCode: Int) {
+            super.onStartFailure(errorCode)
+            Log.e(tag, "ERROR while starting advertising: $errorCode")
+            //advertisingCallback(false)
+            isAdvertising = false
         }
     }
-
-    fun start(data: Data, advertisingCallback: ((Boolean) -> Unit)) {
+    
+    fun init(context: Context) {
+        if (mBluetoothLeAdvertiser == null) {
+            mBluetoothLeAdvertiser = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeAdvertiser
+        }
+    }
+    
+    fun start(data: Data) {
         val settings = buildAdvertiseSettings()
         val advertiseData = buildAdvertiseData(data.uuid, false)
-
-        advertiseCallback = object : AdvertiseCallback() {
-            override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                super.onStartSuccess(settingsInEffect)
-                Log.d(tag, "Started advertising")
-                advertisingCallback(true)
-                isAdvertising = true
-            }
-
-            override fun onStartFailure(errorCode: Int) {
-                super.onStartFailure(errorCode)
-                Log.d(tag, "ERROR advertising: $errorCode")
-                advertisingCallback(false)
-                isAdvertising = false
-            }
-        }
-
-        mBluetoothLeAdvertiser?.startAdvertising(settings, advertiseData, advertiseCallback)
+        mBluetoothLeAdvertiser!!.startAdvertising(settings, advertiseData, mAdvertiseCallback)
     }
 
     fun isAdvertising(): Boolean {
         return isAdvertising
     }
 
+    // TODO: Fix transmission supported type
 //    fun isTransmissionSupported(): Int {
 //        return checkTransmissionSupported(context)
 //    }
 
     fun stop() {
-        Log.d(tag, "Stopped advertising")
-        
-        mBluetoothLeAdvertiser!!.stopAdvertising(object : AdvertiseCallback() {
-            override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                super.onStartSuccess(settingsInEffect)
-                advertiseCallback = null
-                isAdvertising = false
-            }
-
-            override fun onStartFailure(errorCode: Int) {
-                super.onStartFailure(errorCode)
-                Log.d(tag, "ERROR advertising: $errorCode")
-            }
-        })
+        mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
         advertiseCallback = null
         isAdvertising = false
     }
@@ -111,3 +92,4 @@ class Peripheral {
         return settingsBuilder.build()
     }
 }
+

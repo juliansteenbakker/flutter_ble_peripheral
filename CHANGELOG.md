@@ -1,3 +1,7 @@
+## 0.0.3
+
+Fixed callback on Android
+
 ## 0.0.2
 
 Fixed flutter v2 embedding
