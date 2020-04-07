@@ -1,6 +1,5 @@
 name: flutter_ble_peripheral
-description: This plugin enables a device to be set into peripheral mode, and advertise custom
-  services and characteristics.
+description: Flutter plugin for advertising in peripheral mode
 version: 0.0.2
 homepage: https://github.com/juliansteenbakker/flutter_ble_peripheral
 
