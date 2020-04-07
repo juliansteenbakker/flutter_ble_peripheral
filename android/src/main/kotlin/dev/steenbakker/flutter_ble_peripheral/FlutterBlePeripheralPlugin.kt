@@ -18,9 +18,6 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
   private var eventChannel: EventChannel? = null
   private var peripheral: Peripheral? = null
   private var eventSink: EventChannel.EventSink? = null
-  private var advertiseCallback: (Boolean) -> Unit = { isAdvertising ->
-    eventSink?.success(isAdvertising)
-  }
 
   /** Plugin registration embedding v1 */
   companion object {
@@ -58,13 +55,8 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
   // TODO: Add permission check
   override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: MethodChannel.Result) {
     when (call.method) {
-      "start" -> {
-        print("Start advertising")
-        startPeripheral(call, result)
-      }
-      "stop" -> {
-        stopPeripheral(result)
-      }
+      "start" -> startPeripheral(call, result)
+      "stop" -> stopPeripheral(result)
       "isAdvertising" -> result.success(peripheral!!.isAdvertising())
 //      "isTransmissionSupported" -> isTransmissionSupported(result)
       else -> result.notImplemented()
@@ -85,7 +77,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
 //            arguments["manufacturerId"] as Int?
     )
 
-    peripheral!!.start(beaconData, advertiseCallback)
+    peripheral!!.start(beaconData)
     result.success(null)
   }
 
@@ -94,6 +86,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     result.success(null)
   }
 
+  // TODO: Fix listeners
   override fun onListen(event: Any?, eventSink: EventChannel.EventSink) {
     this.eventSink = eventSink
   }

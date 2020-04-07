@@ -4,12 +4,14 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'flutter_ble_peripheral'
-  s.version          = '0.0.1'
-  s.summary          = 'A new flutter plugin project.'
+  s.version          = '0.0.3'
+  s.summary          = 'This plugin enables a device to be set into peripheral mode, and advertise custom
+                          services and characteristics.'
   s.description      = <<-DESC
-A new flutter plugin project.
+This plugin enables a device to be set into peripheral mode, and advertise custom
+  services and characteristics.
                        DESC
-  s.homepage         = 'http://example.com'
+  s.homepage         = 'https://steenbakker.dev'
   s.license          = { :file => '../LICENSE' }
   s.author           = { 'Your Company' => 'email@example.com' }
   s.source           = { :path => '.' }
