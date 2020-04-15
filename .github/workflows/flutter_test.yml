@@ -20,4 +20,3 @@ jobs:
         flutter-version: '1.12.13+hotfix.9'
     - run: flutter pub get
     - run: flutter test
-    - run: flutter build apk
