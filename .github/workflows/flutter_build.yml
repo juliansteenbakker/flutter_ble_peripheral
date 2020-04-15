@@ -25,12 +25,15 @@ jobs:
       - run: dart --version
       - run: flutter --version
       - run: flutter pub get
+        working-directory: ./example
       - run: flutter test
+        working-directory: ./example
       - run: flutter build apk --debug --split-per-abi
+        working-directory: ./example
       - name: Create a Release APK
         uses: ncipollo/release-action@v1.6.1
         with:
-          artifactios: "/build/app/outputs/apk/debug/*.apk"
+          artifactios: "./example/build/app/outputs/apk/debug/*.apk"
           token: ${{ secrets.TOKEN }}
 
   build-ios:
@@ -47,5 +50,8 @@ jobs:
       - run: dart --version
       - run: flutter --version
       - run: flutter pub get
+        working-directory: ./example
       - run: flutter test
+        working-directory: ./example
       - run: flutter build ios --release --no-codesign
+        working-directory: ./example
