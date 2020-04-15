@@ -11,7 +11,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_ble_peripheral_example/main.dart';
 
 void main() {
-  testWidgets('Verify Platform version', (WidgetTester tester) async {
+
+  testWidgets('Verify advertising button', (WidgetTester tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(MyApp());
 
@@ -19,7 +20,7 @@ void main() {
     expect(
       find.byWidgetPredicate(
         (Widget widget) =>
-            widget is Text && widget.data.startsWith('Running on:'),
+            widget is Text && widget.data.startsWith('Toggle advertising'),
       ),
       findsOneWidget,
     );
