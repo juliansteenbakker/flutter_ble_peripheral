@@ -37,7 +37,7 @@ jobs:
         with:
           channel: 'dev'
       - name: Cache pods dependencies
-        uses: actions/cache@v1.1.12
+        uses: actions/cache@v1.1.2
         with:
           path: ios/Pods
           key: ${{ runner.OS }}-pods-cache-${{ hashFiles('**/ios/Podfile.lock') }}
