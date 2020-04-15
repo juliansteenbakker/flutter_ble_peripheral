@@ -2,7 +2,11 @@
 
 This Flutter plugin allows a device to be used in Peripheral mode, and advertise data over BLE to central devices.
 
-## Not stable
+## Help develop this plugin!
+
+If you want to contribute to this plugin, feel free to make issues and pull-requests.
+
+### Not stable
 
 Since this plugin is currently being developed, limited functionality will be available. Check the release page for the most recent release.
 
