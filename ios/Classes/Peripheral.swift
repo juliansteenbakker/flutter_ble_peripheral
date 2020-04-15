@@ -15,22 +15,28 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
     var peripheralData: NSDictionary!
     var onAdvertisingStateChanged: ((Bool) -> Void)?
     var dataToBeAdvertised: [String: [CBUUID]]!
-    
     var shouldStartAdvertise: Bool = false
     
+    override init() {
+        super.init()
+        peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
+    }
     
     func start(advertiseData: AdvertiseData) {
         dataToBeAdvertised = [
             CBAdvertisementDataServiceUUIDsKey : [CBUUID(string: advertiseData.uuid)],
         ]
-        peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
         shouldStartAdvertise = true
+        peripheralManagerDidUpdateState(peripheralManager)
     }
     
     func stop() {
         if (peripheralManager != nil) {
+            print("Stop advertising")
             peripheralManager.stopAdvertising()
             onAdvertisingStateChanged!(false)
+        } else {
+            print("Cannot stop because periperalManager is nil")
         }
     }
     
@@ -47,6 +53,7 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
     
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         if (peripheral.state == .poweredOn && shouldStartAdvertise) {
+            print("Start advertising")
             peripheralManager.startAdvertising(dataToBeAdvertised)
             shouldStartAdvertise = false
         }
