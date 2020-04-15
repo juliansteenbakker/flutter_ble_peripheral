@@ -36,6 +36,10 @@ jobs:
       - uses: subosito/flutter-action@v1.3.0
         with:
           channel: 'dev'
+      - run: dart --version
+      - run: flutter --version
+      - run: flutter pub get
+        working-directory: ./example
       - name: Cache pods dependencies
         uses: actions/cache@v1.1.2
         with:
@@ -44,10 +48,6 @@ jobs:
           restore-keys: |
             ${{ runner.OS }}-pods-cache-
       - run: cd ./example/ios && pod install
-      - run: dart --version
-      - run: flutter --version
-      - run: flutter pub get
-        working-directory: ./example
       - run: flutter test
         working-directory: ./example
       - run: flutter build ios --release --no-codesign
