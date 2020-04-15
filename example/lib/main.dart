@@ -7,7 +7,8 @@
 import 'package:flutter/material.dart';
 import 'dart:async';
 
-import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:flutter_ble_peripheral/main.dart';
+
 
 void main() => runApp(MyApp());
 
@@ -56,23 +57,22 @@ class _MyAppState extends State<MyApp> {
           title: const Text('Flutter BLE Peripheral'),
         ),
         body: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: <Widget>[
-                Text('Is advertising: ' + _isBroadcasting.toString()),
-                Text('Current uuid is ' + _uuid),
-                FlatButton(
-                    onPressed: () => _toggleAdvertise(),
-                    child: Text(
-                      'Toggle advertising',
-                      style: Theme.of(context)
-                          .primaryTextTheme
-                          .button
-                          .copyWith(color: Colors.blue),
-                    )),
-            ])
-        ),
+            child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: <Widget>[
+              Text('Is advertising: ' + _isBroadcasting.toString()),
+              Text('Current uuid is ' + _uuid),
+              FlatButton(
+                  onPressed: () => _toggleAdvertise(),
+                  child: Text(
+                    'Toggle advertising',
+                    style: Theme.of(context)
+                        .primaryTextTheme
+                        .button
+                        .copyWith(color: Colors.blue),
+                  )),
+            ])),
       ),
     );
   }
