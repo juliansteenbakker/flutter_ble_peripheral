@@ -43,12 +43,7 @@ jobs:
           key: ${{ runner.OS }}-pods-cache-${{ hashFiles('**/ios/Podfile.lock') }}
           restore-keys: |
             ${{ runner.OS }}-pods-cache-
-      - name: Install pod dependencies
-        run: |
-          cd example
-          cd ios
-          pod install
-        shell: bash
+      - run: cd ./example/ios && pod install
       - run: dart --version
       - run: flutter --version
       - run: flutter pub get
