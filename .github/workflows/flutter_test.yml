@@ -3,6 +3,7 @@ on:
   push:
     branches:
       - master
+      - develop
       
 name: Test Flutter
 jobs:
