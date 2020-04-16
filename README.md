@@ -18,7 +18,7 @@ If you want to contribute to this plugin, feel free to make issues and pull-requ
 Since this plugin is currently being developed, limited functionality will be available. Check the release page for the most recent release.
 
 | Functionality        | Android           | iOS  | Description |
-| -------------------- |:----------------:|:-----:| --------------:|
+| -------------------- |:----------------:|:-----:| --------------|
 | Advertise UUID     | :white_check_mark: | :white_check_mark:  | Set and advertise a custom uuid. |
 | Advertise custom service    |  |   | Advertise a custom service. |
 | Advertise custom characteristic   |  |   | Advertise a custom characteristic with any of the following specifications. |
