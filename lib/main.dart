@@ -12,11 +12,11 @@ import 'package:flutter/widgets.dart';
 class FlutterBlePeripheral {
   factory FlutterBlePeripheral() {
     if (_instance == null) {
-      final MethodChannel methodChannel =
-      const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+      final MethodChannel methodChannel = const MethodChannel(
+          'dev.steenbakker.flutter_ble_peripheral/ble_state');
 
-      final EventChannel eventChannel =
-      const EventChannel('dev.steenbakker.flutter_ble_peripheral/ble_event');
+      final EventChannel eventChannel = const EventChannel(
+          'dev.steenbakker.flutter_ble_peripheral/ble_event');
       _instance = FlutterBlePeripheral.private(methodChannel, eventChannel);
     }
     return _instance;

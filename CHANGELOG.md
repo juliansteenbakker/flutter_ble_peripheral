@@ -1,3 +1,7 @@
+## 0.0.4
+
+Fixed iOS advertising not working
+
 ## 0.0.3
 
 Fixed callback on Android
