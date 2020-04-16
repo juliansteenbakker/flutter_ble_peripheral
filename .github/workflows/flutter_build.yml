@@ -7,12 +7,10 @@ on:
       - master
       
 name: Build Flutter
-env:
-  DEVELOPER_DIR: /Applications/Xcode_11.4.app/Contents/Developer
 jobs:
-  build:
-    name: Build Android & iOS on MacOS
-    runs-on: macos-latest
+  build-android:
+    name: Build Android on Ubuntu
+    runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v2.1.0
       - uses: actions/setup-java@v1.3.0
@@ -29,6 +27,28 @@ jobs:
         working-directory: ./example
       - run: flutter build apk --debug --split-per-abi
         working-directory: ./example
+
+  build-ios:
+    name: Build iOS on macOS
+    runs-on: macos-latest
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_11.4.app/Contents/Developer
+    steps:
+      - uses: actions/checkout@v2.1.0
+      - uses: subosito/flutter-action@v1.3.0
+        with:
+          channel: 'dev'
+      - run: dart --version
+      - run: flutter --version
+      - run: flutter pub get
+        working-directory: ./example
+      - name: Cache pods dependencies
+        uses: actions/cache@v1.1.2
+        with:
+          path: example/ios/Pods
+          key: ${{ runner.OS }}-pods-cache-${{ hashFiles('**/ios/Podfile.lock') }}
+          restore-keys: |
+            ${{ runner.OS }}-pods-cache-
       - run: cd ./example/ios && pod install
       - run: flutter test
         working-directory: ./example
