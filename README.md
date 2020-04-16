@@ -19,7 +19,7 @@ Since this plugin is currently being developed, limited functionality will be av
 
 | Functionality        | Android           | iOS  | Description |
 | -------------------- |:----------------:|:-----:| --------------:|
-| Broadcasting UUID     | :white_check_mark: | :white_check_mark:  | Set and broadcast a custom uuid. |
+| Advertise UUID     | :white_check_mark: | :white_check_mark:  | Set and advertise a custom uuid. |
 | Advertise custom service    |  |   | Advertise a custom service. |
 | Advertise custom characteristic   |  |   | Advertise a custom characteristic with any of the following specifications. |
 | Read characteristic     |  |   | Enable the possibility to read a value. |
