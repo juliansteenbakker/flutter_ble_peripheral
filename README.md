@@ -4,7 +4,6 @@
 Dev: [![Workflow](https://github.com/juliansteenbakker/flutter_ble_peripheral/workflows/Build%20Flutter/badge.svg?branch=develop)](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions)
 Master: [![Workflow](https://github.com/juliansteenbakker/flutter_ble_peripheral/workflows/Build%20Flutter/badge.svg?branch=master)](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions)
 
-
 # FlutterBlePeripheral
 
 This Flutter plugin allows a device to be used in Peripheral mode, and advertise data over BLE to central devices.
