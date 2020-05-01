@@ -6,10 +6,12 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
+import android.R.bool
 import android.content.Context
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.*
+
 
 class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
@@ -69,12 +71,14 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     }
 
     val arguments = call.arguments as Map<String, Any>
-
-    // TODO: Add arguments for advertising
     val beaconData = Data(
-            arguments["uuid"] as String
-//            arguments["transmissionPower"] as Int?,
-//            arguments["manufacturerId"] as Int?
+            arguments["uuid"] as String,
+            arguments["transmissionPowerIncluded"] as Boolean?,
+            arguments["manufacturerId"] as Int?,
+            arguments["manufacturerData"] as List<Int>?,
+            arguments["serviceDataUuid"] as String?,
+            arguments["serviceData"] as List<Int>?,
+            arguments["includeDeviceName"] as Boolean?
     )
 
     peripheral!!.start(beaconData)

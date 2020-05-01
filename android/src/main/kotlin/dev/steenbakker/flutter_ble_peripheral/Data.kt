@@ -7,7 +7,11 @@
 package dev.steenbakker.flutter_ble_peripheral
 
 class Data(
-        val uuid: String
-//        val transmissionPower: Int?,
-//        val manufacturerId: Int?
+        val uuid: String,
+        val transmissionPowerIncluded: Boolean?,
+        val manufacturerId: Int?,
+        val manufacturerData: List<Int>?,
+        val serviceDataUuid: String?,
+        val serviceData: List<Int>?,
+        val includeDeviceName: Boolean?
 )
