@@ -5,10 +5,8 @@
  */
 
 import 'package:flutter/material.dart';
-import 'dart:async';
-
+import 'package:flutter_ble_peripheral/data.dart';
 import 'package:flutter_ble_peripheral/main.dart';
-
 
 void main() => runApp(MyApp());
 
@@ -19,7 +17,7 @@ class MyApp extends StatefulWidget {
 
 class _MyAppState extends State<MyApp> {
   FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
-  String _uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
+  AdvertiseData _data = AdvertiseData();
   bool _isBroadcasting = false;
 
   @override
@@ -32,6 +30,11 @@ class _MyAppState extends State<MyApp> {
     bool isAdvertising = await blePeripheral.isAdvertising();
     setState(() {
       _isBroadcasting = isAdvertising;
+      _data.includeDeviceName = false;
+      _data.uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
+      _data.manufacturerId = 1234;
+      _data.manufacturerData = [
+        1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
     });
   }
 
@@ -42,7 +45,7 @@ class _MyAppState extends State<MyApp> {
         _isBroadcasting = false;
       });
     } else {
-      blePeripheral.start(_uuid);
+      blePeripheral.start(_data);
       setState(() {
         _isBroadcasting = true;
       });
@@ -62,7 +65,7 @@ class _MyAppState extends State<MyApp> {
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
               Text('Is advertising: ' + _isBroadcasting.toString()),
-              Text('Current uuid is ' + _uuid),
+              Text('Current uuid is ' + _data.uuid),
               FlatButton(
                   onPressed: () => _toggleAdvertise(),
                   child: Text(
