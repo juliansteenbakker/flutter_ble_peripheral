@@ -34,7 +34,7 @@ class _MyAppState extends State<MyApp> {
       _data.uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
       _data.manufacturerId = 1234;
       _data.manufacturerData = [
-        1, 2, 3, 4, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0];
+        1, 2, 3, 4, 5, 6];
     });
   }
 
