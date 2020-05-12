@@ -9,6 +9,8 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
+import 'data.dart';
+
 class FlutterBlePeripheral {
   factory FlutterBlePeripheral() {
     if (_instance == null) {
@@ -26,42 +28,44 @@ class FlutterBlePeripheral {
   FlutterBlePeripheral.private(this._methodChannel, this._eventChannel);
 
   static FlutterBlePeripheral _instance;
-
   final MethodChannel _methodChannel;
   final EventChannel _eventChannel;
 
-  /// Start advertising uuid
-  Future<void> start(String uuid) async {
-    if (uuid == null || uuid.isEmpty) {
+  /// Start advertising
+  Future<void> start(AdvertiseData data) async {
+    if (data.uuid == null) {
       throw new IllegalArgumentException(
           "Illegal arguments! UUID must not be null or empty");
     }
 
-    /// TODO: Add more parameters
     Map params = <String, dynamic>{
-      "uuid": uuid,
-//      "transmissionPower": _transmissionPower,
-//      "identifier": _identifier,
-//      "manufacturerId": _manufacturerId,
+      "uuid": data.uuid,
+      "transmissionPowerIncluded": data.transmissionPowerIncluded,
+      "manufacturerId": data.manufacturerId,
+      "manufacturerData": data.manufacturerData,
+      "serviceDataUuid": data.serviceDataUuid,
+      "serviceData": data.serviceData,
+      "includeDeviceName": data.includeDeviceName
     };
 
     await _methodChannel.invokeMethod('start', params);
   }
 
-  /// Stops beacon advertising
+  /// Stop advertising
   Future<void> stop() async {
     await _methodChannel.invokeMethod('stop');
   }
 
-  /// Returns `true` if beacon is advertising
+  // TODO: Fix isAdvertising
+  /// Returns `true` if advertising
   Future<bool> isAdvertising() async {
     return await _methodChannel.invokeMethod('isAdvertising');
   }
 
-  /// Returns Stream of booleans indicating if beacon is advertising.
+  /// Returns Stream of booleans indicating if advertising.
   ///
-  /// After listening to this Stream, you'll be notified about changes in beacon advertising state.
-  /// Returns `true` if beacon is advertising. See also: [isAdvertising()]
+  /// After listening to this Stream, you'll be notified about changes in advertising state.
+  /// Returns `true` if advertising. See also: [isAdvertising()]
   Stream<bool> getAdvertisingStateChange() {
     return _eventChannel.receiveBroadcastStream().cast<bool>();
   }
