@@ -12,6 +12,14 @@ import 'package:flutter/widgets.dart';
 import 'data.dart';
 
 class FlutterBlePeripheral {
+
+  @visibleForTesting
+  FlutterBlePeripheral.private(this._methodChannel, this._eventChannel);
+
+  static FlutterBlePeripheral _instance;
+  final MethodChannel _methodChannel;
+  final EventChannel _eventChannel;
+
   factory FlutterBlePeripheral() {
     if (_instance == null) {
       final MethodChannel methodChannel = const MethodChannel(
@@ -23,13 +31,6 @@ class FlutterBlePeripheral {
     }
     return _instance;
   }
-
-  @visibleForTesting
-  FlutterBlePeripheral.private(this._methodChannel, this._eventChannel);
-
-  static FlutterBlePeripheral _instance;
-  final MethodChannel _methodChannel;
-  final EventChannel _eventChannel;
 
   /// Start advertising
   Future<void> start(AdvertiseData data) async {

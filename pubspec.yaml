@@ -24,3 +24,5 @@ flutter:
         pluginClass: FlutterBlePeripheralPlugin
       ios:
         pluginClass: FlutterBlePeripheralPlugin
+      macos:
+        pluginClass: FlutterBlePeripheralPlugin
