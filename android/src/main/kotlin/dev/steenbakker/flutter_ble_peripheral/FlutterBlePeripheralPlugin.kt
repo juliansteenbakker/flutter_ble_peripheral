@@ -6,7 +6,6 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
-import android.R.bool
 import android.content.Context
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin

@@ -4,8 +4,7 @@
 * BSD-style license that can be found in the LICENSE file.
 */
 
-import Flutter
-import UIKit
+import FlutterMacOS
 
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
     FlutterStreamHandler {
@@ -16,10 +15,10 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
   public static func register(with registrar: FlutterPluginRegistrar) {
     let instance = SwiftFlutterBlePeripheralPlugin()
 
-    let channel = FlutterMethodChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state", binaryMessenger: registrar.messenger())
+    let channel = FlutterMethodChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state", binaryMessenger: registrar.messenger)
 
     let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_event",
-                                           binaryMessenger: registrar.messenger())
+                                           binaryMessenger: registrar.messenger)
     eventChannel.setStreamHandler(instance)
     instance.registerAdvertiserListener()
 
