@@ -21,7 +21,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
     let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_event",
                                            binaryMessenger: registrar.messenger())
     eventChannel.setStreamHandler(instance)
-    instance.registerBeaconListener()
+    instance.registerAdvertiserListener()
 
     registrar.addMethodCallDelegate(instance, channel: channel)
   }
@@ -32,7 +32,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
         return nil
     }
 
-    func registerBeaconListener() {
+    func registerAdvertiserListener() {
         peripheral.onAdvertisingStateChanged = {isAdvertising in
             if (self.eventSink != nil) {
                 self.eventSink!(isAdvertising)
@@ -48,9 +48,9 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
   public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
       switch (call.method) {
       case "start":
-          startBeacon(call, result)
+          startAdvertising(call, result)
       case "stop":
-          stopBeacon(call, result)
+          stopAdvertising(call, result)
       case "isAdvertising":
           isAdvertising(call, result)
       case "isTransmissionSupported":
@@ -60,7 +60,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
       }
   }
 
-    private func startBeacon(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    private func startAdvertising(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let map = call.arguments as? Dictionary<String, Any>
         let advertiseData = AdvertiseData(
             uuid: map?["uuid"] as! String,
@@ -71,7 +71,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
         result(nil)
     }
 
-    private func stopBeacon(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    private func stopAdvertising(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         peripheral.stop()
         result(nil)
     }
