@@ -18,8 +18,9 @@ Since this plugin is currently being developed, limited functionality will be av
 | Functionality        | Android           | iOS  | Description |
 | -------------------- |:----------------:|:-----:| --------------|
 | Advertise UUID     | :white_check_mark: | :white_check_mark:  | Set and advertise a custom uuid. |
-| Advertise custom service    | :white_check_mark:  |   | Advertise a custom service. |
-| Advertise custom characteristic   | :white_check_mark:  |   | Advertise a custom characteristic with any of the following specifications. |
+| Advertise ManufacturerData     | :white_check_mark: | :x:  | Set and advertise custom data. *not possible on iOS* |
+| Advertise custom service    |  |   | Advertise a custom service. |
+| Advertise custom characteristic   |   |   | Advertise a custom characteristic with any of the following specifications. |
 | Read characteristic     |  |   | Enable the possibility to read a value. |
 | Write characteristic     |  |   | Enable the possibility to write a value. |
 | Notify characteristic    |  |   | Enable the possibility to subscribe and notify a value. |
