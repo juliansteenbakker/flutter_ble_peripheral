@@ -68,6 +68,7 @@ class Peripheral {
         }
     }
     
+    
     fun init(context: Context) {
         if (mBluetoothLeAdvertiser == null) {
             mBluetoothLeAdvertiser = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeAdvertiser
@@ -83,11 +84,6 @@ class Peripheral {
     fun isAdvertising(): Boolean {
         return isAdvertising
     }
-
-    // TODO: Fix transmission supported type
-//    fun isTransmissionSupported(): Int {
-//        return checkTransmissionSupported(context)
-//    }
 
     fun stop() {
         mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)

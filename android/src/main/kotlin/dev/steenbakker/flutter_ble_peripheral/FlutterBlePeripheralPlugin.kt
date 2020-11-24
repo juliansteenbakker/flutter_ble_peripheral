@@ -6,6 +6,7 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
+import android.bluetooth.le.AdvertiseSettings
 import android.content.Context
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -70,7 +71,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     }
 
     val arguments = call.arguments as Map<String, Any>
-    val beaconData = Data(
+    val advertiseData = Data(
             arguments["uuid"] as String,
             arguments["transmissionPowerIncluded"] as Boolean?,
             arguments["manufacturerId"] as Int?,
@@ -80,7 +81,15 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
             arguments["includeDeviceName"] as Boolean?
     )
 
-    peripheral!!.start(beaconData)
+    // TODO: Fix advertise settings
+    val advertiseSettings: AdvertiseSettings = AdvertiseSettings.Builder()
+            .setAdvertiseMode(arguments["advertiseMode"] as Int)
+            .setConnectable(arguments["connectable"] as Boolean)
+            .setTimeout(arguments["timeout"] as Int)
+            .setTxPowerLevel(arguments["txPowerLevel"] as Int)
+            .build()
+
+    peripheral!!.start(advertiseData)
     result.success(null)
   }
 

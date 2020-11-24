@@ -1,0 +1,138 @@
+analyzer:
+  strong-mode:
+#    implicit-casts: false
+
+    # Disabled for now because future.then forces the use of dynamics
+#    implicit-dynamic: false
+
+#  enable-experiment:
+#    - non-nullable
+  errors:
+    # treat missing required parameters as a warning (not a hint)
+    missing_required_param: warning
+
+linter:
+  rules:
+    # STYLE
+    - prefer_const_constructors
+    - camel_case_types
+    - camel_case_extensions
+    - library_names
+    - file_names
+    - library_prefixes
+    - non_constant_identifier_names
+    - constant_identifier_names # prefer
+    - directives_ordering
+#    - lines_longer_than_80_chars # avoid
+    - curly_braces_in_flow_control_structures
+
+    # DOCUMENTATION
+    - slash_for_doc_comments
+    - package_api_docs # prefer
+#    - public_member_api_docs # prefer
+    #- comment_references # Unused because https://github.com/dart-lang/sdk/issues/36974
+
+    # USAGE
+    - implementation_imports
+    - avoid_relative_lib_imports
+    - prefer_relative_imports
+    - prefer_adjacent_string_concatenation
+    - prefer_interpolation_to_compose_strings # prefer
+    - unnecessary_brace_in_string_interps # avoid
+    - prefer_collection_literals
+    - prefer_is_empty
+    - prefer_is_not_empty
+    - avoid_function_literals_in_foreach_calls # avoid
+    - prefer_iterable_whereType
+    - prefer_function_declarations_over_variables
+    - unnecessary_lambdas
+    - prefer_equal_for_default_values
+    - avoid_init_to_null
+    - unnecessary_getters_setters
+    #- unnecessary_getters # prefer # Disabled pending fix: https://github.com/dart-lang/linter/issues/23
+    #- prefer_expression_function_bodies # consider
+    - unnecessary_this
+    - prefer_initializing_formals
+    - type_init_formals
+    - empty_constructor_bodies
+    - unnecessary_new
+    - unnecessary_const
+    - avoid_catches_without_on_clauses # avoid
+    - avoid_catching_errors
+    - use_rethrow_when_possible
+
+    # DESIGN
+    - use_to_and_as_if_applicable # prefer
+    - one_member_abstracts # avoid
+    # TODO: move static members
+#    - avoid_classes_with_only_static_members # avoid
+    - prefer_mixin
+    - prefer_final_fields # prefer
+    - use_setters_to_change_properties
+    - avoid_setters_without_getters
+    - avoid_returning_null # avoid
+    - avoid_returning_this # avoid
+    - type_annotate_public_apis # prefer
+    #- prefer_typing_uninitialized_variables # consider
+    - omit_local_variable_types # avoid
+    - avoid_types_on_closure_parameters # avoid
+    - avoid_return_types_on_setters
+    - prefer_generic_function_type_aliases
+    - avoid_private_typedef_functions # prefer
+    #- use_function_type_syntax_for_parameters # consider
+    - avoid_positional_boolean_parameters # avoid
+    - hash_and_equals
+    - avoid_equals_and_hash_code_on_mutable_classes # avoid
+    - avoid_null_checks_in_equality_operators
+
+    # PEDANTIC
+    - always_declare_return_types
+    - always_require_non_null_named_parameters
+    - annotate_overrides
+    - avoid_empty_else
+    - avoid_shadowing_type_parameters
+    - avoid_types_as_parameter_names
+    - empty_catches
+    - no_duplicate_case_values
+    - null_closures
+    - prefer_conditional_assignment
+    - prefer_contains
+    - prefer_for_elements_to_map_fromIterable
+    - prefer_if_null_operators
+    - prefer_single_quotes
+    - prefer_spread_collections
+    - recursive_getters
+    - unawaited_futures
+    - unnecessary_null_in_if_null_operators
+    - unrelated_type_equality_checks
+    - use_function_type_syntax_for_parameters
+    - valid_regexps
+
+    # FLUTTER STYLE
+    # these rules are documented on and in the same order as
+    # the Dart Lint rules page to make maintenance easier
+    # https://github.com/dart-lang/linter/blob/master/example/all.yaml
+    # - always_declare_return_types
+    # - always_specify_types
+    # - annotate_overrides
+    # - avoid_as
+    - avoid_web_libraries_in_flutter
+    - await_only_futures
+    - cancel_subscriptions
+    - close_sinks
+    # - comment_references # we do not presume as to what people want to reference in their dartdocs
+    # - constant_identifier_names # https://github.com/dart-lang/linter/issues/204
+    - control_flow_in_finally
+    - empty_statements
+    - package_names
+    - package_prefixed_library_names
+    # - prefer_mixin # https://github.com/dart-lang/language/issues/32
+    # - public_member_api_docs
+    # - sort_constructors_first
+    # - sort_unnamed_constructors_first
+    # - super_goes_last # no longer needed w/ Dart 2
+    - test_types_in_equals
+    - throw_in_finally
+    # - type_annotate_public_apis # subset of always_specify_types
+    # - unawaited_futures
+    - unnecessary_statements

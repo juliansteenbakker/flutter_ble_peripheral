@@ -68,7 +68,7 @@ class _MyAppState extends State<MyApp> {
                 children: <Widget>[
               Text('Is advertising: ' + _isBroadcasting.toString()),
               Text('Current uuid is ' + _data.uuid),
-              FlatButton(
+              MaterialButton(
                   onPressed: () => _toggleAdvertise(),
                   child: Text(
                     'Toggle advertising',
