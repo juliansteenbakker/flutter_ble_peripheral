@@ -5,8 +5,7 @@
  */
 
 import 'package:flutter/material.dart';
-import 'package:flutter_ble_peripheral/data.dart';
-import 'package:flutter_ble_peripheral/main.dart';
+import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
 void main() => runApp(MyApp());
 
@@ -16,8 +15,8 @@ class MyApp extends StatefulWidget {
 }
 
 class _MyAppState extends State<MyApp> {
-  FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
-  AdvertiseData _data = AdvertiseData();
+  final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
+  final AdvertiseData _data = AdvertiseData();
   bool _isBroadcasting = false;
 
   @override
@@ -27,14 +26,13 @@ class _MyAppState extends State<MyApp> {
       _data.includeDeviceName = false;
       _data.uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
       _data.manufacturerId = 1234;
-      _data.manufacturerData = [
-        1, 2, 3, 4, 5, 6];
+      _data.manufacturerData = [1, 2, 3, 4, 5, 6];
     });
     initPlatformState();
   }
 
   Future<void> initPlatformState() async {
-    bool isAdvertising = await blePeripheral.isAdvertising();
+    var isAdvertising = await blePeripheral.isAdvertising();
     setState(() {
       _isBroadcasting = isAdvertising;
     });
@@ -42,12 +40,12 @@ class _MyAppState extends State<MyApp> {
 
   void _toggleAdvertise() async {
     if (await blePeripheral.isAdvertising()) {
-      blePeripheral.stop();
+      await blePeripheral.stop();
       setState(() {
         _isBroadcasting = false;
       });
     } else {
-      blePeripheral.start(_data);
+      await blePeripheral.start(_data);
       setState(() {
         _isBroadcasting = true;
       });
@@ -66,10 +64,10 @@ class _MyAppState extends State<MyApp> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-              Text('Is advertising: ' + _isBroadcasting.toString()),
-              Text('Current uuid is ' + _data.uuid),
+              Text('Is advertising: $_isBroadcasting'),
+              Text('Current uuid is ${_data.uuid}'),
               MaterialButton(
-                  onPressed: () => _toggleAdvertise(),
+                  onPressed: _toggleAdvertise,
                   child: Text(
                     'Toggle advertising',
                     style: Theme.of(context)

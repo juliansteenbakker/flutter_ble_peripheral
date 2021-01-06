@@ -1,11 +1,10 @@
 import 'package:flutter/services.dart';
-import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:flutter_ble_peripheral/src/flutter_ble_peripheral.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-
   const methodChannel =
-    MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+      MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
   TestWidgetsFlutterBinding.ensureInitialized();
   FlutterBlePeripheral blePeripheral;
