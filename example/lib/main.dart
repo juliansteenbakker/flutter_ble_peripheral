@@ -11,10 +11,12 @@ void main() => runApp(FlutterBlePeripheralExample());
 
 class FlutterBlePeripheralExample extends StatefulWidget {
   @override
-  _FlutterBlePeripheralExampleState createState() => _FlutterBlePeripheralExampleState();
+  _FlutterBlePeripheralExampleState createState() =>
+      _FlutterBlePeripheralExampleState();
 }
 
-class _FlutterBlePeripheralExampleState extends State<FlutterBlePeripheralExample> {
+class _FlutterBlePeripheralExampleState
+    extends State<FlutterBlePeripheralExample> {
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
   final AdvertiseData _data = AdvertiseData();
   bool _isBroadcasting = false;
