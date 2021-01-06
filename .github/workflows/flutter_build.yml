@@ -23,8 +23,6 @@ jobs:
       - run: flutter --version
       - run: flutter pub get
         working-directory: ./example
-      - run: flutter test
-        working-directory: ./example
       - run: flutter build apk --debug --split-per-abi
         working-directory: ./example
 
@@ -50,7 +48,5 @@ jobs:
           restore-keys: |
             ${{ runner.OS }}-pods-cache-
       - run: cd ./example/ios && pod install
-      - run: flutter test
-        working-directory: ./example
       - run: flutter build ios --release --no-codesign
         working-directory: ./example
