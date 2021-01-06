@@ -7,14 +7,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
-void main() => runApp(MyApp());
+void main() => runApp(FlutterBlePeripheralExample());
 
-class MyApp extends StatefulWidget {
+class FlutterBlePeripheralExample extends StatefulWidget {
   @override
-  _MyAppState createState() => _MyAppState();
+  _FlutterBlePeripheralExampleState createState() => _FlutterBlePeripheralExampleState();
 }
 
-class _MyAppState extends State<MyApp> {
+class _FlutterBlePeripheralExampleState extends State<FlutterBlePeripheralExample> {
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
   final AdvertiseData _data = AdvertiseData();
   bool _isBroadcasting = false;
