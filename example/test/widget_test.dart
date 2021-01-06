@@ -11,15 +11,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_ble_peripheral_example/main.dart';
 
 void main() {
-
-  testWidgets('Verify advertising button', (WidgetTester tester) async {
+  testWidgets('Verify advertising button', (tester) async {
     // Build our app and trigger a frame.
     await tester.pumpWidget(MyApp());
 
     // Verify that platform version is retrieved.
     expect(
       find.byWidgetPredicate(
-        (Widget widget) =>
+        (widget) =>
             widget is Text && widget.data.startsWith('Toggle advertising'),
       ),
       findsOneWidget,
