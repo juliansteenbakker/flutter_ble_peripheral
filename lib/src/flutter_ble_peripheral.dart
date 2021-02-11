@@ -9,10 +9,9 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
-import 'data.dart';
+import 'advertise_data.dart';
 
 class FlutterBlePeripheral {
-
   @visibleForTesting
   FlutterBlePeripheral.private(this._methodChannel, this._eventChannel);
 
@@ -22,37 +21,37 @@ class FlutterBlePeripheral {
 
   factory FlutterBlePeripheral() {
     if (_instance == null) {
-      final MethodChannel methodChannel = const MethodChannel(
+      final methodChannel = const MethodChannel(
           'dev.steenbakker.flutter_ble_peripheral/ble_state');
 
-      final EventChannel eventChannel = const EventChannel(
+      final eventChannel = const EventChannel(
           'dev.steenbakker.flutter_ble_peripheral/ble_event');
       _instance = FlutterBlePeripheral.private(methodChannel, eventChannel);
     }
     return _instance;
   }
 
-  /// Start advertising
+  /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> start(AdvertiseData data) async {
     if (data.uuid == null) {
-      throw new IllegalArgumentException(
-          "Illegal arguments! UUID must not be null or empty");
+      throw IllegalArgumentException(
+          'Illegal arguments! UUID must not be null or empty');
     }
 
     Map params = <String, dynamic>{
-      "uuid": data.uuid,
-      "transmissionPowerIncluded": data.transmissionPowerIncluded,
-      "manufacturerId": data.manufacturerId,
-      "manufacturerData": data.manufacturerData,
-      "serviceDataUuid": data.serviceDataUuid,
-      "serviceData": data.serviceData,
-      "includeDeviceName": data.includeDeviceName
+      'uuid': data.uuid,
+      'transmissionPowerIncluded': data.transmissionPowerIncluded,
+      'manufacturerId': data.manufacturerId,
+      'manufacturerData': data.manufacturerData,
+      'serviceDataUuid': data.serviceDataUuid,
+      'serviceData': data.serviceData,
+      'includeDeviceName': data.includeDeviceName
     };
 
     await _methodChannel.invokeMethod('start', params);
   }
 
-  /// Stop advertising
+  /// Stop advertising.
   Future<void> stop() async {
     await _methodChannel.invokeMethod('stop');
   }
@@ -66,18 +65,19 @@ class FlutterBlePeripheral {
   /// Returns Stream of booleans indicating if advertising.
   ///
   /// After listening to this Stream, you'll be notified about changes in advertising state.
-  /// Returns `true` if advertising. See also: [isAdvertising()]
+  /// Returns `true` if advertising. See also: [isAdvertising]
   Stream<bool> getAdvertisingStateChange() {
     return _eventChannel.receiveBroadcastStream().cast<bool>();
   }
 }
 
 class IllegalArgumentException implements Exception {
-  final message;
+  final String message;
 
   IllegalArgumentException(this.message);
 
+  @override
   String toString() {
-    return "IllegalArgumentException: $message";
+    return 'IllegalArgumentException: $message';
   }
 }

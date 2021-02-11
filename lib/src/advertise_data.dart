@@ -4,6 +4,7 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+/// Model of the data to be advertised.
 class AdvertiseData {
   String uuid;
   bool transmissionPowerIncluded;

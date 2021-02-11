@@ -1,23 +1,31 @@
 import 'package:flutter/services.dart';
+import 'package:flutter_ble_peripheral/src/flutter_ble_peripheral.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
 void main() {
-  const MethodChannel channel = MethodChannel('flutter_ble_peripheral');
+  const methodChannel =
+      MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
   TestWidgetsFlutterBinding.ensureInitialized();
+  FlutterBlePeripheral blePeripheral;
 
   setUp(() {
-    channel.setMockMethodCallHandler((MethodCall methodCall) async {
-      return '42';
+    blePeripheral = FlutterBlePeripheral();
+    methodChannel.setMockMethodCallHandler((methodCall) async {
+      if (methodCall.method == 'start' || methodCall.method == 'stop') {
+        return Future<void>.value();
+      } else if (methodCall.method == 'isAdvertising') {
+        return Future<bool>.value(true);
+      }
+      return null;
     });
   });
 
   tearDown(() {
-    channel.setMockMethodCallHandler(null);
+    methodChannel.setMockMethodCallHandler(null);
   });
 
-  test('getPlatformVersion', () async {
-    expect(await FlutterBlePeripheral.platformVersion, '42');
+  test('checking if is advertising returns true', () async {
+    expect(await blePeripheral.isAdvertising(), isTrue);
   });
 }

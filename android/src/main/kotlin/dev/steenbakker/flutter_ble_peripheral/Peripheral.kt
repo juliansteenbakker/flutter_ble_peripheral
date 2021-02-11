@@ -6,7 +6,7 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
-import android.bluetooth.BluetoothManager
+import android.bluetooth.*
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
@@ -20,7 +20,7 @@ class Peripheral {
     private var isAdvertising = false
     private var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
     private var advertiseCallback: AdvertiseCallback? = null
-    private val tag = "FlutterBlePeripheral"
+    private val tag: String = "FlutterBlePeripheral"
     
     private val mAdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
@@ -74,8 +74,7 @@ class Peripheral {
         }
     }
     
-    fun start(data: Data) {
-        val settings = buildAdvertiseSettings()
+    fun start(data: Data, settings: AdvertiseSettings) {
         val advertiseData = buildAdvertiseData(data)
         mBluetoothLeAdvertiser!!.startAdvertising(settings, advertiseData, mAdvertiseCallback)
     }
@@ -83,11 +82,6 @@ class Peripheral {
     fun isAdvertising(): Boolean {
         return isAdvertising
     }
-
-    // TODO: Fix transmission supported type
-//    fun isTransmissionSupported(): Int {
-//        return checkTransmissionSupported(context)
-//    }
 
     fun stop() {
         mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
@@ -113,14 +107,6 @@ class Peripheral {
         data.includeDeviceName?.let { dataBuilder.setIncludeDeviceName(it) }
         data.transmissionPowerIncluded?.let { dataBuilder.setIncludeTxPowerLevel(it) }
         return dataBuilder.build()
-    }
-
-    /** TODO: make settings configurable */
-    private fun buildAdvertiseSettings(): AdvertiseSettings? {
-        val settingsBuilder = AdvertiseSettings.Builder()
-        settingsBuilder.setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
-        settingsBuilder.setTimeout(0)
-        return settingsBuilder.build()
     }
 
     private fun intArrayToByteArray(ints: List<Int>): ByteArray {
