@@ -82,7 +82,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     val advertiseSettings: AdvertiseSettings = AdvertiseSettings.Builder()
             .setAdvertiseMode((arguments["advertiseMode"] as Int?) ?: AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
             .setConnectable(arguments["connectable"] as Boolean? ?: false)
-            .setTimeout(arguments["timeout"] as Int? ?: 0) 
+            .setTimeout(arguments["timeout"] as Int? ?: 400) 
             .setTxPowerLevel(arguments["txPowerLevel"] as Int? ?: AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
             .build()
 
