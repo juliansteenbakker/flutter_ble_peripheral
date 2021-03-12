@@ -40,6 +40,7 @@ class _FlutterBlePeripheralExampleState
     });
   }
 
+  /// Toggles between advertising on or off.
   void _toggleAdvertise() async {
     if (await blePeripheral.isAdvertising()) {
       await blePeripheral.stop();

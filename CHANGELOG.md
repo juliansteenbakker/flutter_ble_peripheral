@@ -1,3 +1,7 @@
+## 0.3.0
+
+Migrated to null-safety.
+
 ## 0.1.0
 
 Fixed several parts for Android:
