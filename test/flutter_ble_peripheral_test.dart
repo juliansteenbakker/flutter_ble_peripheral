@@ -13,7 +13,7 @@ void main() {
     blePeripheral = FlutterBlePeripheral();
     methodChannel.setMockMethodCallHandler((methodCall) async {
       if (methodCall.method == 'start' || methodCall.method == 'stop') {
-        return Future<void>.value();
+        return null;
       } else if (methodCall.method == 'isAdvertising') {
         return Future<bool>.value(true);
       }
