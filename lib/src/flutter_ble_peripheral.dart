@@ -12,24 +12,19 @@ import 'package:flutter/widgets.dart';
 import 'advertise_data.dart';
 
 class FlutterBlePeripheral {
-  @visibleForTesting
-  FlutterBlePeripheral.private(this._methodChannel, this._eventChannel);
+  static final FlutterBlePeripheral _instance =
+      FlutterBlePeripheral._internal();
 
-  static FlutterBlePeripheral? _instance;
-  final MethodChannel _methodChannel;
-  final EventChannel _eventChannel;
+  final MethodChannel _methodChannel =
+      const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+  final EventChannel _eventChannel =
+      const EventChannel('dev.steenbakker.flutter_ble_peripheral/ble_event');
 
   factory FlutterBlePeripheral() {
-    if (_instance == null) {
-      final methodChannel = const MethodChannel(
-          'dev.steenbakker.flutter_ble_peripheral/ble_state');
-
-      final eventChannel = const EventChannel(
-          'dev.steenbakker.flutter_ble_peripheral/ble_event');
-      _instance = FlutterBlePeripheral.private(methodChannel, eventChannel);
-    }
-    return _instance!;
+    return _instance;
   }
+
+  FlutterBlePeripheral._internal();
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> start(AdvertiseData data) async {
