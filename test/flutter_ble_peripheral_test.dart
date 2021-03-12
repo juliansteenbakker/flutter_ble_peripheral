@@ -7,7 +7,7 @@ void main() {
       MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterBlePeripheral blePeripheral;
+  late FlutterBlePeripheral blePeripheral;
 
   setUp(() {
     blePeripheral = FlutterBlePeripheral();

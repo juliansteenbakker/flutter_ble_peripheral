@@ -15,7 +15,7 @@ class FlutterBlePeripheral {
   @visibleForTesting
   FlutterBlePeripheral.private(this._methodChannel, this._eventChannel);
 
-  static FlutterBlePeripheral _instance;
+  static FlutterBlePeripheral? _instance;
   final MethodChannel _methodChannel;
   final EventChannel _eventChannel;
 
@@ -28,7 +28,7 @@ class FlutterBlePeripheral {
           'dev.steenbakker.flutter_ble_peripheral/ble_event');
       _instance = FlutterBlePeripheral.private(methodChannel, eventChannel);
     }
-    return _instance;
+    return _instance!;
   }
 
   /// Start advertising. Takes [AdvertiseData] as an input.

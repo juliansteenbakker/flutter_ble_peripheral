@@ -6,11 +6,11 @@
 
 /// Model of the data to be advertised.
 class AdvertiseData {
-  String uuid;
-  bool transmissionPowerIncluded;
-  int manufacturerId;
-  List<int> manufacturerData;
-  String serviceDataUuid;
-  List<int> serviceData;
-  bool includeDeviceName;
+  String? uuid;
+  bool? transmissionPowerIncluded;
+  int? manufacturerId;
+  List<int>? manufacturerData;
+  String? serviceDataUuid;
+  List<int>? serviceData;
+  bool? includeDeviceName;
 }

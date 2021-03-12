@@ -74,7 +74,7 @@ class _FlutterBlePeripheralExampleState
                     'Toggle advertising',
                     style: Theme.of(context)
                         .primaryTextTheme
-                        .button
+                        .button!
                         .copyWith(color: Colors.blue),
                   )),
             ])),

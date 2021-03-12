@@ -1,5 +1,5 @@
 analyzer:
-  strong-mode:
+#  strong-mode:
 #    implicit-casts: false
 
     # Disabled for now because future.then forces the use of dynamics
