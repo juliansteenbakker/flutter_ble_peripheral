@@ -7,13 +7,13 @@ void main() {
       MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
   TestWidgetsFlutterBinding.ensureInitialized();
-  FlutterBlePeripheral blePeripheral;
+  late FlutterBlePeripheral blePeripheral;
 
   setUp(() {
     blePeripheral = FlutterBlePeripheral();
     methodChannel.setMockMethodCallHandler((methodCall) async {
       if (methodCall.method == 'start' || methodCall.method == 'stop') {
-        return Future<void>.value();
+        return null;
       } else if (methodCall.method == 'isAdvertising') {
         return Future<bool>.value(true);
       }
