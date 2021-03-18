@@ -11,7 +11,6 @@ import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
-import android.content.Context
 import android.os.ParcelUuid
 import io.flutter.Log
 
@@ -68,25 +67,41 @@ class Peripheral {
         }
     }
     
-    fun init(context: Context) {
-        if (mBluetoothLeAdvertiser == null) {
-            mBluetoothLeAdvertiser = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeAdvertiser
+    fun init() {
+//        mBluetoothLeAdvertiser = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeAdvertiser
+        val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
+        if (bluetoothAdapter == null) {
+            Log.e(tag, "ERROR this device does not support bluetooth")
+        } else {
+            mBluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
         }
     }
-    
-    fun start(data: Data, settings: AdvertiseSettings) {
-        val advertiseData = buildAdvertiseData(data)
-        mBluetoothLeAdvertiser!!.startAdvertising(settings, advertiseData, mAdvertiseCallback)
+
+    fun start(data: Data, settings: AdvertiseSettings): Boolean {
+        return if (mBluetoothLeAdvertiser == null) {
+            Log.e(tag, "ERROR this device does not support bluetooth")
+            false
+        } else {
+            val advertiseData = buildAdvertiseData(data)
+            mBluetoothLeAdvertiser?.startAdvertising(settings, advertiseData, mAdvertiseCallback)
+            true
+        }
     }
 
     fun isAdvertising(): Boolean {
         return isAdvertising
     }
 
-    fun stop() {
-        mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
-        advertiseCallback = null
-        isAdvertising = false
+    fun stop(): Boolean {
+        return if (mBluetoothLeAdvertiser == null) {
+            Log.e(tag, "ERROR this device does not support bluetooth")
+            false
+        } else {
+            mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
+            advertiseCallback = null
+            isAdvertising = false
+            true
+        }
     }
     
     private fun buildAdvertiseData(data: Data): AdvertiseData? {
