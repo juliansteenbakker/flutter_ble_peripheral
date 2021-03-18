@@ -11,19 +11,25 @@ import 'package:flutter/services.dart';
 import 'advertise_data.dart';
 
 class FlutterBlePeripheral {
+  /// Singleton instance
   static final FlutterBlePeripheral _instance =
       FlutterBlePeripheral._internal();
 
-  final MethodChannel _methodChannel =
-      const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
-  final EventChannel _eventChannel =
-      const EventChannel('dev.steenbakker.flutter_ble_peripheral/ble_event');
-
+  /// Singleton factory
   factory FlutterBlePeripheral() {
     return _instance;
   }
 
+  /// Singleton constructor
   FlutterBlePeripheral._internal();
+
+  /// Method Channel used to communicate state with
+  final MethodChannel _methodChannel =
+      const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+
+  /// Event Channel used to communicate events with
+  final EventChannel _eventChannel =
+      const EventChannel('dev.steenbakker.flutter_ble_peripheral/ble_event');
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> start(AdvertiseData data) async {
@@ -65,7 +71,9 @@ class FlutterBlePeripheral {
   }
 }
 
+/// Special exception for illegal arguments
 class IllegalArgumentException implements Exception {
+  /// Description of exception
   final String message;
 
   IllegalArgumentException(this.message);

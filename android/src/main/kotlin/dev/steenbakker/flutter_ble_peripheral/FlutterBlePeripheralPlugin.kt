@@ -91,8 +91,6 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     } else {
       result.error("FlutterBlePeripheral", "Failed to start advertising", null)
     }
-
-
   }
 
   private fun stopPeripheral(result: MethodChannel.Result) {
