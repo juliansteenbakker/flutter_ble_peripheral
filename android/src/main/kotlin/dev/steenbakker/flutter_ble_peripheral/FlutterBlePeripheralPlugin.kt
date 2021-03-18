@@ -40,7 +40,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     eventChannel = EventChannel(messenger, "dev.steenbakker.flutter_ble_peripheral/ble_event")
     methodChannel!!.setMethodCallHandler(this)
     eventChannel!!.setStreamHandler(this)
-    peripheral.init(applicationContext)
+    peripheral.init()
   }
 
   override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
@@ -86,13 +86,21 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
             .setTxPowerLevel(arguments["txPowerLevel"] as Int? ?: AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
             .build()
 
-    peripheral.start(advertiseData, advertiseSettings)
-    result.success(null)
+    if (peripheral.start(advertiseData, advertiseSettings)) {
+      result.success(null)
+    } else {
+      result.error("FlutterBlePeripheral", "Failed to start advertising", null)
+    }
+
+
   }
 
   private fun stopPeripheral(result: MethodChannel.Result) {
-    peripheral.stop()
-    result.success(null)
+    if (peripheral.stop()) {
+      result.success(null)
+    } else {
+      result.error("FlutterBlePeripheral", "Failed to stop advertising", null)
+    }
   }
 
   // TODO: Fix listeners
