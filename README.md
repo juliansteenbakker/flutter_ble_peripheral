@@ -1,7 +1,7 @@
 
 [![pub package](https://img.shields.io/pub/v/flutter_ble_peripheral?include_prereleases)](https://pub.dartlang.org/packages/flutter_ble_peripheral)
-[![Join the chat](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/flutter_ble_peripheral/community)
-[![Workflow](https://github.com/juliansteenbakker/flutter_ble_peripheral/workflows/Build%20Flutter/badge.svg?branch=master)](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions)
+[![Join the chat](https://img.shields.io/discord/827432913896341534)](https://discord.gg/XeyJZhaczm)
+[![Workflow](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions/workflows/flutter_format.yml/badge.svg?branch=master)](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions)
 
 # FlutterBlePeripheral
 
