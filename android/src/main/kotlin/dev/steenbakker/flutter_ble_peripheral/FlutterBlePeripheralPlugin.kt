@@ -7,7 +7,6 @@
 package dev.steenbakker.flutter_ble_peripheral
 
 import android.bluetooth.le.AdvertiseSettings
-import android.content.Context
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.*
@@ -15,36 +14,21 @@ import io.flutter.plugin.common.*
 
 class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
-  private var applicationContext: Context? = null
   private var methodChannel: MethodChannel? = null
   private var eventChannel: EventChannel? = null
   private var peripheral: Peripheral = Peripheral()
   private var eventSink: EventChannel.EventSink? = null
 
-  /** Plugin registration embedding v1 */
-  companion object {
-    @JvmStatic
-    fun registerWith(registrar: PluginRegistry.Registrar) {
-      FlutterBlePeripheralPlugin().onAttachedToEngine(registrar.context(), registrar.messenger())
-    }
-  }
-
   /** Plugin registration embedding v2 */
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-    onAttachedToEngine(flutterPluginBinding.applicationContext, flutterPluginBinding.binaryMessenger)
-  }
-
-  private fun onAttachedToEngine(applicationContext: Context, messenger: BinaryMessenger) {
-    this.applicationContext = applicationContext
-    methodChannel = MethodChannel(messenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
-    eventChannel = EventChannel(messenger, "dev.steenbakker.flutter_ble_peripheral/ble_event")
+    methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
+    eventChannel = EventChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_event")
     methodChannel!!.setMethodCallHandler(this)
     eventChannel!!.setStreamHandler(this)
     peripheral.init()
   }
 
   override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
-    applicationContext = null
     methodChannel!!.setMethodCallHandler(null)
     methodChannel = null
     eventChannel!!.setStreamHandler(null)
@@ -63,6 +47,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     }
   }
 
+  @Suppress("UNCHECKED_CAST")
   private fun startPeripheral(call: MethodCall, result: MethodChannel.Result) {
     if (call.arguments !is Map<*, *>) {
       throw IllegalArgumentException("Arguments are not a map! " + call.arguments)
