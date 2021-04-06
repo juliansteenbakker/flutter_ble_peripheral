@@ -70,11 +70,12 @@ class _FlutterBlePeripheralExampleState
                 children: <Widget>[
               Text('Is advertising: $_isBroadcasting'),
               StreamBuilder(
-                stream: blePeripheral.getAdvertisingStateChange(),
-                initialData: 'Advertisement not started.',
-                builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
-                return Text('Is advertising stream: ${snapshot.data}');
-              }),
+                  stream: blePeripheral.getAdvertisingStateChange(),
+                  initialData: 'Advertisement not started.',
+                  builder:
+                      (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                    return Text('Is advertising stream: ${snapshot.data}');
+                  }),
               Text('Current uuid is ${_data.uuid}'),
               MaterialButton(
                   onPressed: _toggleAdvertise,
