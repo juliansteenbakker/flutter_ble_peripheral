@@ -29,6 +29,8 @@ class _FlutterBlePeripheralExampleState
       _data.uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
       _data.manufacturerId = 1234;
       _data.manufacturerData = [1, 2, 3, 4, 5, 6];
+      _data.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_ULTRA_LOW;
+      _data.advertiseMode = AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY;
     });
     initPlatformState();
   }
@@ -67,6 +69,12 @@ class _FlutterBlePeripheralExampleState
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
               Text('Is advertising: $_isBroadcasting'),
+              StreamBuilder(
+                stream: blePeripheral.getAdvertisingStateChange(),
+                initialData: 'Advertisement not started.',
+                builder: (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                return Text('Is advertising stream: ${snapshot.data}');
+              }),
               Text('Current uuid is ${_data.uuid}'),
               MaterialButton(
                   onPressed: _toggleAdvertise,

@@ -11,13 +11,17 @@ import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.*
 
-
 class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
   private var methodChannel: MethodChannel? = null
   private var eventChannel: EventChannel? = null
   private var peripheral: Peripheral = Peripheral()
+
   private var eventSink: EventChannel.EventSink? = null
+  private var advertiseCallback: (Boolean) -> Unit = { isAdvertising ->
+    eventSink?.success(isAdvertising)
+  }
+
 
   /** Plugin registration embedding v2 */
   override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -34,15 +38,13 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     eventChannel!!.setStreamHandler(null)
     eventChannel = null
   }
-
-  // TODO: Add different functions
+  
   // TODO: Add permission check
   override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: MethodChannel.Result) {
     when (call.method) {
       "start" -> startPeripheral(call, result)
       "stop" -> stopPeripheral(result)
       "isAdvertising" -> result.success(peripheral.isAdvertising())
-//      "isTransmissionSupported" -> isTransmissionSupported(result)
       else -> result.notImplemented()
     }
   }
@@ -54,39 +56,35 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     }
 
     val arguments = call.arguments as Map<String, Any>
-    val advertiseData = Data(
-            arguments["uuid"] as String,
-            arguments["transmissionPowerIncluded"] as Boolean?,
-            arguments["manufacturerId"] as Int?,
-            arguments["manufacturerData"] as List<Int>?,
-            arguments["serviceDataUuid"] as String?,
-            arguments["serviceData"] as List<Int>?,
-            arguments["includeDeviceName"] as Boolean?
-    )
+    val advertiseData = Data()
+    (arguments["uuid"] as String?)?.let { advertiseData.uuid = it }
+    (arguments["manufacturerId"] as Int?)?.let { advertiseData.manufacturerId = it }
+    (arguments["manufacturerData"] as List<Int>?)?.let { advertiseData.manufacturerData = it }
+    (arguments["serviceDataUuid"] as String?)?.let { advertiseData.serviceDataUuid = it }
+    (arguments["serviceData"] as List<Int>?)?.let { advertiseData.serviceData = it }
+    (arguments["includeDeviceName"] as Boolean?)?.let { advertiseData.includeDeviceName = it }
+    (arguments["transmissionPowerIncluded"] as Boolean?)?.let { advertiseData.includeTxPowerLevel = it }
+    (arguments["advertiseMode"] as Int?)?.let { advertiseData.advertiseMode = it }
+    (arguments["connectable"] as Boolean?)?.let { advertiseData.connectable = it }
+    (arguments["timeout"] as Int?)?.let { advertiseData.timeout = it }
+    (arguments["txPowerLevel"] as Int?)?.let { advertiseData.txPowerLevel = it }
     
     val advertiseSettings: AdvertiseSettings = AdvertiseSettings.Builder()
-            .setAdvertiseMode((arguments["advertiseMode"] as Int?) ?: AdvertiseSettings.ADVERTISE_MODE_LOW_LATENCY)
-            .setConnectable(arguments["connectable"] as Boolean? ?: false)
-            .setTimeout(arguments["timeout"] as Int? ?: 400) 
-            .setTxPowerLevel(arguments["txPowerLevel"] as Int? ?: AdvertiseSettings.ADVERTISE_TX_POWER_HIGH)
+            .setAdvertiseMode(advertiseData.advertiseMode)
+            .setConnectable(advertiseData.connectable)
+            .setTimeout(advertiseData.timeout)
+            .setTxPowerLevel(advertiseData.txPowerLevel)
             .build()
 
-    if (peripheral.start(advertiseData, advertiseSettings)) {
-      result.success(null)
-    } else {
-      result.error("FlutterBlePeripheral", "Failed to start advertising", null)
-    }
+    peripheral.start(advertiseData, advertiseSettings, advertiseCallback)
+    result.success(null)
   }
 
   private fun stopPeripheral(result: MethodChannel.Result) {
-    if (peripheral.stop()) {
-      result.success(null)
-    } else {
-      result.error("FlutterBlePeripheral", "Failed to stop advertising", null)
-    }
+    peripheral.stop()
+    result.success(null)
   }
-
-  // TODO: Fix listeners
+  
   override fun onListen(event: Any?, eventSink: EventChannel.EventSink) {
     this.eventSink = eventSink
   }

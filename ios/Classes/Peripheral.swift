@@ -11,7 +11,7 @@ import CoreLocation
 
 class Peripheral : NSObject, CBPeripheralManagerDelegate {
     
-    var peripheralManager: CBPeripheralManager!
+    let peripheralManager: CBPeripheralManager
     var peripheralData: NSDictionary!
     var onAdvertisingStateChanged: ((Bool) -> Void)?
     var dataToBeAdvertised: [String: [CBUUID]]!
@@ -31,19 +31,12 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
     }
     
     func stop() {
-        if (peripheralManager != nil) {
-            print("Stop advertising")
-            peripheralManager.stopAdvertising()
-            onAdvertisingStateChanged!(false)
-        } else {
-            print("Cannot stop because periperalManager is nil")
-        }
+        print("Stop advertising")
+        peripheralManager.stopAdvertising()
+        onAdvertisingStateChanged!(false)
     }
     
     func isAdvertising() -> Bool {
-        if (peripheralManager == nil) {
-            return false
-        }
         return peripheralManager.isAdvertising
     }
     
@@ -62,12 +55,11 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
 
 class AdvertiseData {
     var uuid: String
-    var transmissionPower: NSNumber?
-//    var identifier: String
+    //CBAdvertisementDataLocalNameKey
+    var localName: String
     
-    init(uuid: String, transmissionPower: NSNumber?) {
-        self.uuid = uuid
-        self.transmissionPower = transmissionPower
-//        self.identifier = identifier
+    init(uuid: String, localName: String) {
+        self.uuid = uuid;
+        self.localName = localName
     }
 }

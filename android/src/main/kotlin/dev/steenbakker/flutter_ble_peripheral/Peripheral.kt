@@ -16,24 +16,22 @@ import io.flutter.Log
 
 class Peripheral {
 
-    private var isAdvertising = false
-    private var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
-    private var advertiseCallback: AdvertiseCallback? = null
     private val tag: String = "FlutterBlePeripheral"
-    
+    private lateinit var mBluetoothLeAdvertiser: BluetoothLeAdvertiser
+    private var isAdvertising = false
+    private var advertiseCallback: ((Boolean) -> Unit)? = null
+
     private val mAdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             super.onStartSuccess(settingsInEffect)
             Log.i(tag, "LE Advertise Started.")
-            //advertisingCallback(true)
+            advertiseCallback?.invoke(true)
             isAdvertising = true
         }
         
         override fun onStartFailure(errorCode: Int) {
             super.onStartFailure(errorCode)
-            Log.e(tag, "ERROR while starting advertising: $errorCode")
             val statusText: String
-
             when (errorCode) {
                 ADVERTISE_FAILED_ALREADY_STARTED -> {
                     statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
@@ -62,49 +60,36 @@ class Peripheral {
             }
 
             Log.e(tag, "ERROR while starting advertising: $errorCode - $statusText")
-            //advertisingCallback(false)
+            advertiseCallback?.invoke(false)
             isAdvertising = false
         }
     }
     
     fun init() {
-//        mBluetoothLeAdvertiser = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).adapter.bluetoothLeAdvertiser
         val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
         if (bluetoothAdapter == null) {
-            Log.e(tag, "ERROR this device does not support bluetooth")
+            Log.e(tag, "This device does not support bluetooth LE")
         } else {
             mBluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
         }
     }
 
-    fun start(data: Data, settings: AdvertiseSettings): Boolean {
-        return if (mBluetoothLeAdvertiser == null) {
-            Log.e(tag, "ERROR this device does not support bluetooth")
-            false
-        } else {
-            val advertiseData = buildAdvertiseData(data)
-            mBluetoothLeAdvertiser?.startAdvertising(settings, advertiseData, mAdvertiseCallback)
-            true
-        }
+    fun start(data: Data, settings: AdvertiseSettings, advertiseCallback: ((Boolean) -> Unit) ) {
+        this.advertiseCallback = advertiseCallback
+        mBluetoothLeAdvertiser.startAdvertising(settings, buildAdvertiseData(data), mAdvertiseCallback)
     }
 
     fun isAdvertising(): Boolean {
         return isAdvertising
     }
 
-    fun stop(): Boolean {
-        return if (mBluetoothLeAdvertiser == null) {
-            Log.e(tag, "ERROR this device does not support bluetooth")
-            false
-        } else {
-            mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
-            advertiseCallback = null
-            isAdvertising = false
-            true
-        }
+    fun stop() {
+        mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseCallback)
+        advertiseCallback?.invoke(false)
+        isAdvertising = false
     }
     
-    private fun buildAdvertiseData(data: Data): AdvertiseData? {
+    private fun buildAdvertiseData(data: Data): AdvertiseData {
         /**
          * Note: There is a strict limit of 31 Bytes on packets sent over BLE Advertisements.
          * This includes everything put into AdvertiseData including UUIDs, device info, &
@@ -113,14 +98,12 @@ class Peripheral {
          * AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE. Catch this error in the
          * onStartFailure() method of an AdvertiseCallback implementation.
          */
-        val serviceData = data.serviceData?.let { intArrayToByteArray(it) }
-        val manufacturerData = data.manufacturerData?.let { intArrayToByteArray(it) }
         val dataBuilder = AdvertiseData.Builder()
         dataBuilder.addServiceUuid(ParcelUuid.fromString(data.uuid))
-        data.serviceDataUuid?.let { dataBuilder.addServiceData(ParcelUuid.fromString(it), serviceData) }
-        data.manufacturerId?.let { dataBuilder.addManufacturerData(it, manufacturerData) }
-        data.includeDeviceName?.let { dataBuilder.setIncludeDeviceName(it) }
-        data.transmissionPowerIncluded?.let { dataBuilder.setIncludeTxPowerLevel(it) }
+        data.manufacturerId?.let { dataBuilder.addManufacturerData(it, intArrayToByteArray(data.manufacturerData)) }
+        data.serviceDataUuid?.let { dataBuilder.addServiceData(ParcelUuid.fromString(it), intArrayToByteArray(data.serviceData)) }
+        dataBuilder.setIncludeDeviceName(data.includeDeviceName)
+        dataBuilder.setIncludeTxPowerLevel(data.includeTxPowerLevel)
         return dataBuilder.build()
     }
 

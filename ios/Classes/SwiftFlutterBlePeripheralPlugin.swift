@@ -10,7 +10,7 @@ import UIKit
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
     FlutterStreamHandler {
 
-    private var peripheral = Peripheral()
+    private let peripheral = Peripheral()
     private var eventSink: FlutterEventSink?
 
   public static func register(with registrar: FlutterPluginRegistrar) {
@@ -53,8 +53,6 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
           stopAdvertising(call, result)
       case "isAdvertising":
           isAdvertising(call, result)
-      case "isTransmissionSupported":
-          isTransmissionSupported(call, result)
       default:
           result(FlutterMethodNotImplemented)
       }
@@ -64,8 +62,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
         let map = call.arguments as? Dictionary<String, Any>
         let advertiseData = AdvertiseData(
             uuid: map?["uuid"] as! String,
-            transmissionPower: map?["transmissionPower"] as? NSNumber
-//            identifier: map?["identifier"] as! String
+            localName: map?["localName"] as! String
         )
         peripheral.start(advertiseData: advertiseData)
         result(nil)
@@ -79,10 +76,5 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
     private func isAdvertising(_ call: FlutterMethodCall,
                                _ result: @escaping FlutterResult) {
         result(peripheral.isAdvertising())
-    }
-
-    private func isTransmissionSupported(_ call: FlutterMethodCall,
-                               _ result: @escaping FlutterResult) {
-        result(0)
     }
 }
