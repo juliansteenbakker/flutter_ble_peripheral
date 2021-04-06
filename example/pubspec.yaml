@@ -1,6 +1,5 @@
 name: flutter_ble_peripheral_example
 description: Demonstrates how to use the flutter_ble_peripheral plugin.
-
 publish_to: 'none'
 
 environment:

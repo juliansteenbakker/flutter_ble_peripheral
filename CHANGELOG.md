@@ -1,3 +1,7 @@
+## 0.4.0
+Added new options to AdvertiseData
+Removed embedding V1 for Android
+
 ## 0.3.0
 Upgraded to null-safety
 Updated dependencies
