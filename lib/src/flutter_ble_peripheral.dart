@@ -40,24 +40,28 @@ class FlutterBlePeripheral {
 
     Map params = <String, dynamic>{
       'uuid': data.uuid,
-      'transmissionPowerIncluded': data.transmissionPowerIncluded,
       'manufacturerId': data.manufacturerId,
       'manufacturerData': data.manufacturerData,
       'serviceDataUuid': data.serviceDataUuid,
       'serviceData': data.serviceData,
-      'includeDeviceName': data.includeDeviceName
+      'includeDeviceName': data.includeDeviceName,
+      'deviceName': data.deviceName,
+      'transmissionPowerIncluded': data.transmissionPowerIncluded,
+      'advertiseMode': data.advertiseMode.index,
+      'connectable': data.connectable,
+      'timeout': data.timeout,
+      'txPowerLevel': data.txPowerLevel.index
     };
 
     await _methodChannel.invokeMethod('start', params);
   }
 
-  /// Stop advertising.
+  /// Stop advertising
   Future<void> stop() async {
     await _methodChannel.invokeMethod('stop');
   }
 
-  // TODO: Fix isAdvertising
-  /// Returns `true` if advertising
+  /// Returns `true` if advertising or false if not advertising
   Future<bool> isAdvertising() async {
     return await _methodChannel.invokeMethod('isAdvertising');
   }
