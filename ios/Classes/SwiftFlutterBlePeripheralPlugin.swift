@@ -62,7 +62,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
         let map = call.arguments as? Dictionary<String, Any>
         let advertiseData = AdvertiseData(
             uuid: map?["uuid"] as? String ,
-            localName: map?["localName"] as? String
+            localName: map?["deviceName"] as? String
         )
         peripheral.start(advertiseData: advertiseData)
         result(nil)

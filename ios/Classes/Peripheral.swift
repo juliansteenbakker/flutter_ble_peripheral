@@ -26,7 +26,6 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
         
         if (advertiseData.localName != nil) {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [CBUUID(string: advertiseData.localName!)]
-
         }
         
         shouldStartAdvertise = true
@@ -58,8 +57,7 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
 
 class AdvertiseData {
     var uuid: String?
-    //CBAdvertisementDataLocalNameKey
-    var localName: String?
+    var localName: String?     //CBAdvertisementDataLocalNameKey
     
     init(uuid: String?, localName: String?) {
         self.uuid = uuid;
