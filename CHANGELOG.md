@@ -1,3 +1,6 @@
+## 0.4.2
+Fixed typo causing deviceName not to broadcast on iOS
+
 ## 0.4.1
 Fixed bug on iOS which led to crash
 Added local name to advertising in iOS
