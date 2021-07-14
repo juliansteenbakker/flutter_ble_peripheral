@@ -1,3 +1,8 @@
+## 0.4.1
+Fixed bug on iOS which led to crash
+Added local name to advertising in iOS
+Updated Android dependencies
+
 ## 0.4.0
 Added new options to AdvertiseData
 Removed embedding V1 for Android
