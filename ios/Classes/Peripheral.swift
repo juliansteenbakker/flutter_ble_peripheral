@@ -11,21 +11,24 @@ import CoreLocation
 
 class Peripheral : NSObject, CBPeripheralManagerDelegate {
     
-    let peripheralManager: CBPeripheralManager
+    lazy var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
     var peripheralData: NSDictionary!
     var onAdvertisingStateChanged: ((Bool) -> Void)?
     var dataToBeAdvertised: [String: [CBUUID]]!
     var shouldStartAdvertise: Bool = false
     
-    override init() {
-        super.init()
-        peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
-    }
-    
     func start(advertiseData: AdvertiseData) {
-        dataToBeAdvertised = [
-            CBAdvertisementDataServiceUUIDsKey : [CBUUID(string: advertiseData.uuid)],
-        ]
+        
+        dataToBeAdvertised = [:]
+        if (advertiseData.uuid != nil) {
+            dataToBeAdvertised[CBAdvertisementDataServiceUUIDsKey] = [CBUUID(string: advertiseData.uuid!)]
+        }
+        
+        if (advertiseData.localName != nil) {
+            dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [CBUUID(string: advertiseData.localName!)]
+
+        }
+        
         shouldStartAdvertise = true
         peripheralManagerDidUpdateState(peripheralManager)
     }
@@ -54,11 +57,11 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
 }
 
 class AdvertiseData {
-    var uuid: String
+    var uuid: String?
     //CBAdvertisementDataLocalNameKey
-    var localName: String
+    var localName: String?
     
-    init(uuid: String, localName: String) {
+    init(uuid: String?, localName: String?) {
         self.uuid = uuid;
         self.localName = localName
     }
