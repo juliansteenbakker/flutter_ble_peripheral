@@ -22,6 +22,7 @@ class _FlutterBlePeripheralExampleState
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
   final AdvertiseData _data = AdvertiseData();
   bool _isBroadcasting = false;
+  bool? _isSupported;
 
   @override
   void initState() {
@@ -39,9 +40,9 @@ class _FlutterBlePeripheralExampleState
   }
 
   Future<void> initPlatformState() async {
-    var isAdvertising = await blePeripheral.isAdvertising();
+    final isSupported = await blePeripheral.isSupported();
     setState(() {
-      _isBroadcasting = isAdvertising;
+      _isSupported = isSupported;
     });
   }
 
@@ -80,6 +81,7 @@ class _FlutterBlePeripheralExampleState
                     return Text('Is advertising stream: ${snapshot.data}');
                   }),
               Text('Current uuid is ${_data.uuid}'),
+              Text('Is advertising supported:  $_isSupported'),
               MaterialButton(
                   onPressed: _toggleAdvertise,
                   child: Text(
