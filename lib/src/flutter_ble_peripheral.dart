@@ -45,7 +45,7 @@ class FlutterBlePeripheral {
       'serviceDataUuid': data.serviceDataUuid,
       'serviceData': data.serviceData,
       'includeDeviceName': data.includeDeviceName,
-      'deviceName': data.deviceName,
+      'localName': data.localName,
       'transmissionPowerIncluded': data.transmissionPowerIncluded,
       'advertiseMode': data.advertiseMode.index,
       'connectable': data.connectable,

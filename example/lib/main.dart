@@ -7,9 +7,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
-void main() => runApp(FlutterBlePeripheralExample());
+void main() => runApp(const FlutterBlePeripheralExample());
 
 class FlutterBlePeripheralExample extends StatefulWidget {
+  const FlutterBlePeripheralExample({Key? key}) : super(key: key);
+
   @override
   _FlutterBlePeripheralExampleState createState() =>
       _FlutterBlePeripheralExampleState();
@@ -28,6 +30,7 @@ class _FlutterBlePeripheralExampleState
       _data.includeDeviceName = false;
       _data.uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
       _data.manufacturerId = 1234;
+      _data.timeout = 1000;
       _data.manufacturerData = [1, 2, 3, 4, 5, 6];
       _data.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_ULTRA_LOW;
       _data.advertiseMode = AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY;
