@@ -40,7 +40,7 @@ class _FlutterBlePeripheralExampleState
   }
 
   Future<void> initPlatformState() async {
-    final isSupported= await blePeripheral.isSupported();
+    final isSupported = await blePeripheral.isSupported();
     setState(() {
       _isSupported = isSupported;
     });
