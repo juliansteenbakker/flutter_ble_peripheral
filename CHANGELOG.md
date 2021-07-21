@@ -1,3 +1,6 @@
+## 0.5.0+1
+Changes of 0.5.0 weren't visible on pub.dev
+
 ## 0.5.0
 Added isSupported function to check if BLE advertising is supported by the device.
 
