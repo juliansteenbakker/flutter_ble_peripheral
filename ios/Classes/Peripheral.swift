@@ -14,7 +14,7 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
     lazy var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
     var peripheralData: NSDictionary!
     var onAdvertisingStateChanged: ((Bool) -> Void)?
-    var dataToBeAdvertised: [String: [CBUUID]]!
+    var dataToBeAdvertised: [String: Any]!
     var shouldStartAdvertise: Bool = false
     
     func start(advertiseData: AdvertiseData) {
@@ -25,7 +25,7 @@ class Peripheral : NSObject, CBPeripheralManagerDelegate {
         }
         
         if (advertiseData.localName != nil) {
-            dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [CBUUID(string: advertiseData.localName!)]
+            dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [advertiseData.localName]
         }
         
         shouldStartAdvertise = true

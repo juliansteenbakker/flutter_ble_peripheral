@@ -45,7 +45,7 @@ class FlutterBlePeripheral {
       'serviceDataUuid': data.serviceDataUuid,
       'serviceData': data.serviceData,
       'includeDeviceName': data.includeDeviceName,
-      'deviceName': data.deviceName,
+      'localName': data.localName,
       'transmissionPowerIncluded': data.transmissionPowerIncluded,
       'advertiseMode': data.advertiseMode.index,
       'connectable': data.connectable,
@@ -64,6 +64,11 @@ class FlutterBlePeripheral {
   /// Returns `true` if advertising or false if not advertising
   Future<bool> isAdvertising() async {
     return await _methodChannel.invokeMethod('isAdvertising');
+  }
+
+  /// Returns `true` if advertising over BLE is supported
+  Future<bool> isSupported() async {
+    return await _methodChannel.invokeMethod('isSupported');
   }
 
   /// Returns Stream of booleans indicating if advertising.

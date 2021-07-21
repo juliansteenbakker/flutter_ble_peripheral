@@ -7,15 +7,19 @@
 package dev.steenbakker.flutter_ble_peripheral
 
 import android.bluetooth.le.AdvertiseSettings
+import android.content.Context
+import android.content.pm.PackageManager
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.*
+
 
 class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler, EventChannel.StreamHandler {
 
   private var methodChannel: MethodChannel? = null
   private var eventChannel: EventChannel? = null
   private var peripheral: Peripheral = Peripheral()
+  private var context: Context? = null
 
   private var eventSink: EventChannel.EventSink? = null
   private var advertiseCallback: (Boolean) -> Unit = { isAdvertising ->
@@ -30,6 +34,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     methodChannel!!.setMethodCallHandler(this)
     eventChannel!!.setStreamHandler(this)
     peripheral.init()
+    context = flutterPluginBinding.applicationContext
   }
 
   override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
@@ -45,6 +50,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
       "start" -> startPeripheral(call, result)
       "stop" -> stopPeripheral(result)
       "isAdvertising" -> result.success(peripheral.isAdvertising())
+      "isSupported" -> isSupported(result)
       else -> result.notImplemented()
     }
   }
@@ -91,6 +97,15 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
 
   override fun onCancel(event: Any?) {
     this.eventSink = null
+  }
+
+  private fun isSupported(result: MethodChannel.Result) {
+    if (context != null) {
+      val pm: PackageManager = context!!.packageManager
+      result.success(pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE))
+    } else {
+      result.error("isSupported", "No context available", null)
+    }
   }
 }
 

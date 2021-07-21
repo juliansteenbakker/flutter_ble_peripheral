@@ -39,7 +39,7 @@ class AdvertiseData {
   /// iOS only
   ///
   /// Set the deviceName to be broadcasted. Can be 10 bytes.
-  List<int>? deviceName;
+  String? localName;
 
   /// Android only
   ///

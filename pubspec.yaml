@@ -9,7 +9,7 @@ environment:
   flutter: ">=1.10.0"
 
 dependencies:
-  pedantic: ^1.11.0
+  flutter_lints: ^1.0.4
   flutter:
     sdk: flutter
 
