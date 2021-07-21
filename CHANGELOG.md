@@ -1,3 +1,6 @@
+## 0.5.0
+Added isSupported function to check if BLE advertising is supported by the device.
+
 ## 0.4.2
 Fixed typo causing deviceName not to broadcast on iOS
 
