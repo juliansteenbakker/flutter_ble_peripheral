@@ -6,6 +6,7 @@
 
 import Flutter
 import UIKit
+import CoreLocation
 
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
     FlutterStreamHandler {
@@ -53,6 +54,8 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
           stopAdvertising(call, result)
       case "isAdvertising":
           isAdvertising(call, result)
+      case "isSupported":
+          isSupported(result)
       default:
           result(FlutterMethodNotImplemented)
       }
@@ -76,5 +79,14 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin,
     private func isAdvertising(_ call: FlutterMethodCall,
                                _ result: @escaping FlutterResult) {
         result(peripheral.isAdvertising())
+    }
+    
+    // We can check if advertising is supported by checking if the ios device supports iBeacons since that uses BLE.
+    private func isSupported(_ result: @escaping FlutterResult) {
+        if (CLLocationManager.isMonitoringAvailable(for: CLBeaconRegion.self)){
+            result(true)
+        } else {
+            result(false)
+        }
     }
 }

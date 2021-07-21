@@ -66,6 +66,11 @@ class FlutterBlePeripheral {
     return await _methodChannel.invokeMethod('isAdvertising');
   }
 
+  /// Returns `true` if advertising over BLE is supported
+  Future<bool> isSupported() async {
+    return await _methodChannel.invokeMethod('isSupported');
+  }
+
   /// Returns Stream of booleans indicating if advertising.
   ///
   /// After listening to this Stream, you'll be notified about changes in advertising state.
