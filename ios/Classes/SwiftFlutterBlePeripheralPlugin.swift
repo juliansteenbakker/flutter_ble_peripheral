@@ -8,6 +8,14 @@ import Flutter
 import UIKit
 import CoreLocation
 
+struct Constants {
+    static let peripheralStateIdle = 0xF0
+    static let peripheralStateAdvertising = 0xFA
+    static let peripheralStateConnected = 0xFB
+    static let peripheralStateUnsupported = 0xFC
+    static let peripheralStateUnauthorized = 0xFD
+}
+
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
     private let peripheral = Peripheral()
@@ -103,21 +111,21 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
         eventChannel.setStreamHandler(self)
         
         peripheral.onStateChanged = { peripheralState in
-            if (self.eventSink != nil) {
-              print("[StateChangedHandler] state: \(peripheralState)")
-              switch peripheralState {
-              case .idle:
-                eventSink?(Constants.peripheralStateIdle)
-              case .unauthorized:
-                eventSink?(Constants.peripheralStateUnauthorized)
-              case .unsupported:
-                eventSink?(Constants.peripheralStateUnsupported)
-              case .advertising:
-                eventSink?(Constants.peripheralStateAdvertising)
-              case .connected:
-                eventSink?(Constants.peripheralStateConnected)
-              }
+          if let eventSink = self.eventSink {
+            print("[StateChangedHandler] state: \(peripheralState)")
+            switch peripheralState {
+            case .idle:
+              eventSink(Constants.peripheralStateIdle)
+            case .unauthorized:
+              eventSink(Constants.peripheralStateUnauthorized)
+            case .unsupported:
+              eventSink(Constants.peripheralStateUnsupported)
+            case .advertising:
+              eventSink(Constants.peripheralStateAdvertising)
+            case .connected:
+              eventSink(Constants.peripheralStateConnected)
             }
+          }
         }
     }
     

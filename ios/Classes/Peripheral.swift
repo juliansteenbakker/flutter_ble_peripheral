@@ -20,7 +20,7 @@ class Peripheral : NSObject {
     
     var state: PeripheralState = .idle {
       didSet {
-        onStateChanged(state)
+        onStateChanged?(state)
       }
     }
 
@@ -28,6 +28,7 @@ class Peripheral : NSObject {
     var onDataReceived: ((Data) -> Void)?
     
     var dataToBeAdvertised: [String: Any]!
+    var shouldAdvertise = false
 
     var txCharacteristic: CBMutableCharacteristic?
     var txSubscribed = false
@@ -36,6 +37,8 @@ class Peripheral : NSObject {
     func start(advertiseData: AdvertiseData) {
         
         print("[BLE Peripheral] Start advertising")
+
+        shouldAdvertise = true
 
         dataToBeAdvertised = [:]
         if (advertiseData.uuid != nil) {
@@ -46,12 +49,14 @@ class Peripheral : NSObject {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [advertiseData.localName]
         }
 
-        peripheralManager.startAdvertising(dataToBeAdvertised)
+        addService()
     }
     
     func stop() {
 
         print("[BLE Peripheral] Stop advertising")
+
+        shouldAdvertise = false
 
         peripheralManager.stopAdvertising()
         state = .idle
@@ -67,6 +72,10 @@ class Peripheral : NSObject {
     
     private func addService() {
 
+      guard shouldAdvertise else {
+        return
+      }
+
       let mutableTxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.txCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
       let mutableRxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.rxCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
       
@@ -77,6 +86,8 @@ class Peripheral : NSObject {
       service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic];
         
       peripheralManager.add(service)
+
+      peripheralManager.startAdvertising(dataToBeAdvertised)
     }
 
     func send(data: Data) {
