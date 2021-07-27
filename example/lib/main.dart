@@ -4,6 +4,8 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
@@ -21,6 +23,7 @@ class _FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
   final AdvertiseData _data = AdvertiseData();
+
   bool _isBroadcasting = false;
   bool? _isSupported;
 
@@ -79,6 +82,13 @@ class _FlutterBlePeripheralExampleState
                   builder:
                       (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
                     return Text('Is advertising stream: ${snapshot.data}');
+                  }),
+              StreamBuilder(
+                  stream: blePeripheral.getReceivedData(),
+                  initialData: 'Data not received.',
+                  builder:
+                      (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                    return Text('Data received: ${snapshot.data}');
                   }),
               Text('Current uuid is ${_data.uuid}'),
               Text('Is advertising supported:  $_isSupported'),

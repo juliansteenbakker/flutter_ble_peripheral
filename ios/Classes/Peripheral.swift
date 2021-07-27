@@ -11,16 +11,23 @@ import CoreLocation
 
 class Peripheral : NSObject {
     
-    lazy var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
+    var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
     var peripheralData: NSDictionary!
+    
     var onAdvertisingStateChanged: ((Bool) -> Void)?
+    var onDataReceived: ((Data) -> Void)?
+    
     var dataToBeAdvertised: [String: Any]!
 
     var txCharacteristic: CBMutableCharacteristic?
+    var txSubscribed = false
     var rxCharacteristic: CBMutableCharacteristic?
+    var rxSubscribed = false
     
     func start(advertiseData: AdvertiseData) {
         
+        print("[BLE Peripheral] Start advertising")
+
         dataToBeAdvertised = [:]
         if (advertiseData.uuid != nil) {
             dataToBeAdvertised[CBAdvertisementDataServiceUUIDsKey] = [CBUUID(string: advertiseData.uuid!)]
@@ -34,13 +41,19 @@ class Peripheral : NSObject {
     }
     
     func stop() {
-        print("Stop advertising")
+
+        print("[BLE Peripheral] Stop advertising")
+
         peripheralManager.stopAdvertising()
-        onAdvertisingStateChanged!(false)
+        onAdvertisingStateChanged?(false)
     }
     
     func isAdvertising() -> Bool {
         return peripheralManager.isAdvertising
+    }
+
+    func isConnected() -> Bool {
+        return rxSubscribed && txSubscribed
     }
     
     private func addService() {
@@ -57,32 +70,16 @@ class Peripheral : NSObject {
       peripheralManager.add(service)
     }
 
-    func updateValue(data: Data) {
+    func send(data: Data) {
         
+        print("[BLE Peripheral] Send data: \(data)")
+
         guard let characteristic = txCharacteristic else { 
           return 
         }
         
         peripheralManager.updateValue(data, for: characteristic, onSubscribedCentrals: nil)
     }
-
-//     - (void)sendData:(NSData *)data
-// {
-//     NSLog(@"sendData: %@", data);
-    
-//     if (self.peripheral && self.rxCharacteristic)
-//     {
-//         // Act as central
-//         // IMPORTANT use the RX characteristic of peripheral
-//         [self.peripheral writeValue:data forCharacteristic:self.rxCharacteristic type:CBCharacteristicWriteWithResponse];
-        
-//     }
-//     else if (self.mutableTxCharacteristic)
-//     {
-//         // Act as peripheral
-//         [self.peripheralManager updateValue:data forCharacteristic:self.mutableTxCharacteristic onSubscribedCentrals:nil];
-//     }
-// }
 }
 
 extension Peripheral: CBPeripheralManagerDelegate {
@@ -90,39 +87,39 @@ extension Peripheral: CBPeripheralManagerDelegate {
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
-            print("poweredOn")
+            print("[BLE Peripheral] poweredOn")
             addService()
         case .poweredOff:
-            print("poweredOff")
+            print("[BLE Peripheral] poweredOff")
         case .resetting:
-            print("resetting")
+            print("[BLE Peripheral] resetting")
         case .unsupported:
-            print("unsupported")
+            print("[BLE Peripheral] unsupported")
         case .unauthorized:
-            print("unauthorized")
+            print("[BLE Peripheral] unauthorized")
         case .unknown:
-            print("unknown")
+            print("[BLE Peripheral] unknown")
         }
     }
     
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
-        print("didStartAdvertising:", error ?? "success")
-        onAdvertisingStateChanged!(peripheral.isAdvertising)
+        print("[BLE Peripheral] didStartAdvertising:", error ?? "success")
+        onAdvertisingStateChanged?(peripheral.isAdvertising)
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
-        print("didAdd:", service, error ?? "success")
+        print("[BLE Peripheral] didAdd:", service, error ?? "success")
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
-        print("didReceiveRead:", request)
+        print("[BLE Peripheral] didReceiveRead:", request)
         
         // Not supported 
         peripheralManager.respond(to: request, withResult: .requestNotSupported)
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
-        print("didReceiveWrite:", requests)
+        print("[BLE Peripheral] didReceiveWrite:", requests)
         
         for request in requests {
 
@@ -133,29 +130,44 @@ extension Peripheral: CBPeripheralManagerDelegate {
 
             if data.count > 0 {
 
-              // TODO check characteristic == rxCharacteristic
-              //if (characteristic == self.mutableRxCharacteristic)
-              //{
-              //  [self didReceiveData:data];
-              //}
-  
-              peripheralManager.respond(to: request, withResult: .success)
+              if characteristic == self.rxCharacteristic {
+
+                print("[BLE Peripheral] Receive data: \(data)")
+
+                onDataReceived?(data)
+                peripheralManager.respond(to: request, withResult: .success)
+              }
             }
+
+            // Write only supported in rxCharacteristic
+            peripheralManager.respond(to: request, withResult: .requestNotSupported)
         }
         
         
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        print("didSubscribeTo:", central, characteristic)
+        print("[BLE Peripheral] didSubscribeTo:", central, characteristic)
 
-        // TEST
-        let testString = "hello world"
-        updateValue(data: testString.data(using: .utf8)!)
+        if characteristic == rxCharacteristic {
+          rxSubscribed = true
+        }
+
+        if characteristic == txCharacteristic {
+          txSubscribed = true
+        }
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        print("didUnsubscribeFrom:", central, characteristic)
+        print("[BLE Peripheral] didUnsubscribeFrom:", central, characteristic)
+
+        if characteristic == rxCharacteristic {
+          rxSubscribed = false
+        }
+
+        if characteristic == txCharacteristic {
+          txSubscribed = false
+        }
     }
 }
 

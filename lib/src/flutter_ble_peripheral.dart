@@ -5,6 +5,7 @@
  */
 
 import 'dart:async';
+import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 
@@ -27,9 +28,13 @@ class FlutterBlePeripheral {
   final MethodChannel _methodChannel =
       const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
-  /// Event Channel used to communicate events with
-  final EventChannel _eventChannel =
-      const EventChannel('dev.steenbakker.flutter_ble_peripheral/ble_event');
+  /// Event Channel used to changed state
+  final EventChannel _stateChangedEventChannel = const EventChannel(
+      'dev.steenbakker.flutter_ble_peripheral/ble_state_changed');
+
+  // Event Channel used to received data
+  final EventChannel _dataReceivedEventChannel = const EventChannel(
+      'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> start(AdvertiseData data) async {
@@ -71,12 +76,26 @@ class FlutterBlePeripheral {
     return await _methodChannel.invokeMethod('isSupported');
   }
 
+  /// Returns `true` if advertising over BLE is supported
+  Future<bool> isConnected() async {
+    return await _methodChannel.invokeMethod('isConnected');
+  }
+
+  /// Start advertising. Takes [AdvertiseData] as an input.
+  Future<void> sendData(Uint8List data) async {
+    await _methodChannel.invokeMethod('sendData', data);
+  }
+
   /// Returns Stream of booleans indicating if advertising.
   ///
   /// After listening to this Stream, you'll be notified about changes in advertising state.
   /// Returns `true` if advertising. See also: [isAdvertising]
   Stream<bool> getAdvertisingStateChange() {
-    return _eventChannel.receiveBroadcastStream().cast<bool>();
+    return _stateChangedEventChannel.receiveBroadcastStream().cast<bool>();
+  }
+
+  Stream<Uint8List> getReceivedData() {
+    return _dataReceivedEventChannel.receiveBroadcastStream().cast<Uint8List>();
   }
 }
 
