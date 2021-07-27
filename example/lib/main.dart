@@ -75,23 +75,21 @@ class _FlutterBlePeripheralExampleState
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-              Text('Is advertising: $_isBroadcasting'),
               StreamBuilder(
-                  stream: blePeripheral.getAdvertisingStateChange(),
-                  initialData: 'Advertisement not started.',
+                  stream: blePeripheral.getStateChanged(),
+                  initialData: 'State: ?',
                   builder:
                       (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
-                    return Text('Is advertising stream: ${snapshot.data}');
+                    return Text('State: ${snapshot.data}');
                   }),
               StreamBuilder(
-                  stream: blePeripheral.getReceivedData(),
+                  stream: blePeripheral.getDataReceived(),
                   initialData: 'Data not received.',
                   builder:
                       (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
                     return Text('Data received: ${snapshot.data}');
                   }),
               Text('Current uuid is ${_data.uuid}'),
-              Text('Is advertising supported:  $_isSupported'),
               MaterialButton(
                   onPressed: _toggleAdvertise,
                   child: Text(

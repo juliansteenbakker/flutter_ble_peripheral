@@ -9,12 +9,22 @@ import Foundation
 import CoreBluetooth
 import CoreLocation
 
+enum PeripheralState {
+  case idle, unauthorized, unsupported, advertising, connected
+}
+
 class Peripheral : NSObject {
     
-    var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
+    lazy var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
     var peripheralData: NSDictionary!
     
-    var onAdvertisingStateChanged: ((Bool) -> Void)?
+    var state: PeripheralState = .idle {
+      didSet {
+        onStateChanged(state)
+      }
+    }
+
+    var onStateChanged: ((PeripheralState) -> Void)?
     var onDataReceived: ((Data) -> Void)?
     
     var dataToBeAdvertised: [String: Any]!
@@ -22,7 +32,6 @@ class Peripheral : NSObject {
     var txCharacteristic: CBMutableCharacteristic?
     var txSubscribed = false
     var rxCharacteristic: CBMutableCharacteristic?
-    var rxSubscribed = false
     
     func start(advertiseData: AdvertiseData) {
         
@@ -45,7 +54,7 @@ class Peripheral : NSObject {
         print("[BLE Peripheral] Stop advertising")
 
         peripheralManager.stopAdvertising()
-        onAdvertisingStateChanged?(false)
+        state = .idle
     }
     
     func isAdvertising() -> Bool {
@@ -53,7 +62,7 @@ class Peripheral : NSObject {
     }
 
     func isConnected() -> Bool {
-        return rxSubscribed && txSubscribed
+        return state == .connected
     }
     
     private func addService() {
@@ -91,20 +100,29 @@ extension Peripheral: CBPeripheralManagerDelegate {
             addService()
         case .poweredOff:
             print("[BLE Peripheral] poweredOff")
+            state = .idle
         case .resetting:
             print("[BLE Peripheral] resetting")
         case .unsupported:
             print("[BLE Peripheral] unsupported")
+            state = .unsupported
         case .unauthorized:
             print("[BLE Peripheral] unauthorized")
+            state = .unauthorized
         case .unknown:
             print("[BLE Peripheral] unknown")
+            state = .idle
         }
     }
     
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
         print("[BLE Peripheral] didStartAdvertising:", error ?? "success")
-        onAdvertisingStateChanged?(peripheral.isAdvertising)
+
+        guard error == nil else {
+          return
+        }
+
+        state = .advertising
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
@@ -149,24 +167,18 @@ extension Peripheral: CBPeripheralManagerDelegate {
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         print("[BLE Peripheral] didSubscribeTo:", central, characteristic)
 
-        if characteristic == rxCharacteristic {
-          rxSubscribed = true
-        }
-
         if characteristic == txCharacteristic {
           txSubscribed = true
+          state = .connected
         }
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         print("[BLE Peripheral] didUnsubscribeFrom:", central, characteristic)
 
-        if characteristic == rxCharacteristic {
-          rxSubscribed = false
-        }
-
         if characteristic == txCharacteristic {
           txSubscribed = false
+          state = .advertising
         }
     }
 }

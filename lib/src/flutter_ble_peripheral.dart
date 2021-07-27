@@ -10,6 +10,8 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 import 'advertise_data.dart';
+import 'constants.dart';
+import 'utils.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -86,15 +88,20 @@ class FlutterBlePeripheral {
     await _methodChannel.invokeMethod('sendData', data);
   }
 
-  /// Returns Stream of booleans indicating if advertising.
+  /// Returns Stream of state.
   ///
-  /// After listening to this Stream, you'll be notified about changes in advertising state.
-  /// Returns `true` if advertising. See also: [isAdvertising]
-  Stream<bool> getAdvertisingStateChange() {
-    return _stateChangedEventChannel.receiveBroadcastStream().cast<bool>();
+  /// After listening to this Stream, you'll be notified about changes in peripheral state.
+  Stream<PeripheralState> getStateChanged() {
+    return _stateChangedEventChannel
+        .receiveBroadcastStream()
+        .distinct()
+        .map((dynamic event) => intToPeripheralState(event as int));
   }
 
-  Stream<Uint8List> getReceivedData() {
+  /// Returns Stream of data.
+  ///
+  ///
+  Stream<Uint8List> getDataReceived() {
     return _dataReceivedEventChannel.receiveBroadcastStream().cast<Uint8List>();
   }
 }

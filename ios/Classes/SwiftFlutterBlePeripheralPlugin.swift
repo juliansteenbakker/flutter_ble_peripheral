@@ -102,10 +102,21 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
                                                binaryMessenger: registrar.messenger())
         eventChannel.setStreamHandler(self)
         
-        peripheral.onAdvertisingStateChanged = { isAdvertising in
+        peripheral.onStateChanged = { peripheralState in
             if (self.eventSink != nil) {
-              print("[StateChangedHandler] state: \(isAdvertising)")
-              self.eventSink!(isAdvertising)
+              print("[StateChangedHandler] state: \(peripheralState)")
+              switch peripheralState {
+              case .idle:
+                eventSink?(Constants.peripheralStateIdle)
+              case .unauthorized:
+                eventSink?(Constants.peripheralStateUnauthorized)
+              case .unsupported:
+                eventSink?(Constants.peripheralStateUnsupported)
+              case .advertising:
+                eventSink?(Constants.peripheralStateAdvertising)
+              case .connected:
+                eventSink?(Constants.peripheralStateConnected)
+              }
             }
         }
     }
