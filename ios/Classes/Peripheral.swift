@@ -48,8 +48,6 @@ class Peripheral : NSObject {
         if (advertiseData.localName != nil) {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [advertiseData.localName]
         }
-
-        addService()
     }
     
     func stop() {
@@ -86,8 +84,9 @@ class Peripheral : NSObject {
       service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic];
         
       peripheralManager.add(service)
-
       peripheralManager.startAdvertising(dataToBeAdvertised)
+
+      shouldAdvertise = false;
     }
 
     func send(data: Data) {
