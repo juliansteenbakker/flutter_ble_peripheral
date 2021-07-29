@@ -4,6 +4,8 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
@@ -21,6 +23,7 @@ class _FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
   final AdvertiseData _data = AdvertiseData();
+
   bool _isBroadcasting = false;
   bool? _isSupported;
 
@@ -29,7 +32,7 @@ class _FlutterBlePeripheralExampleState
     super.initState();
     setState(() {
       _data.includeDeviceName = false;
-      _data.uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
+      _data.uuid = '8ebdb2f3-7817-45c9-95c5-c5e9031aaa47';
       _data.manufacturerId = 1234;
       _data.timeout = 1000;
       _data.manufacturerData = [1, 2, 3, 4, 5, 6];
@@ -72,16 +75,21 @@ class _FlutterBlePeripheralExampleState
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-              Text('Is advertising: $_isBroadcasting'),
               StreamBuilder(
-                  stream: blePeripheral.getAdvertisingStateChange(),
-                  initialData: 'Advertisement not started.',
+                  stream: blePeripheral.getStateChanged(),
+                  initialData: 'State: ?',
                   builder:
                       (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
-                    return Text('Is advertising stream: ${snapshot.data}');
+                    return Text('State: ${snapshot.data}');
+                  }),
+              StreamBuilder(
+                  stream: blePeripheral.getDataReceived(),
+                  initialData: 'Data not received.',
+                  builder:
+                      (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                    return Text('Data received: ${snapshot.data}');
                   }),
               Text('Current uuid is ${_data.uuid}'),
-              Text('Is advertising supported:  $_isSupported'),
               MaterialButton(
                   onPressed: _toggleAdvertise,
                   child: Text(
