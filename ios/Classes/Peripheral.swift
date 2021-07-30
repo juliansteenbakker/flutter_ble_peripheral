@@ -38,8 +38,6 @@ class Peripheral : NSObject {
         
         print("[BLE Peripheral] Start advertising")
 
-        shouldAdvertise = true
-
         dataToBeAdvertised = [:]
         if (advertiseData.uuid != nil) {
             dataToBeAdvertised[CBAdvertisementDataServiceUUIDsKey] = [CBUUID(string: advertiseData.uuid!)]
@@ -47,6 +45,12 @@ class Peripheral : NSObject {
         
         if (advertiseData.localName != nil) {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [advertiseData.localName]
+        }
+
+        shouldAdvertise = true
+
+        if peripheralManager.state == .poweredOn {
+          addService()
         }
     }
     
