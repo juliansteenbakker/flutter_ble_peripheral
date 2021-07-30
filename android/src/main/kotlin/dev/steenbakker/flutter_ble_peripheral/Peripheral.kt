@@ -6,11 +6,9 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
+import android.annotation.SuppressLint
 import android.bluetooth.*
-import android.bluetooth.le.AdvertiseCallback
-import android.bluetooth.le.AdvertiseData
-import android.bluetooth.le.AdvertiseSettings
-import android.bluetooth.le.BluetoothLeAdvertiser
+import android.bluetooth.le.*
 import android.content.Context
 import android.os.ParcelUuid
 import io.flutter.Log
@@ -121,13 +119,26 @@ class Peripheral {
     fun start(data: Data, settings: AdvertiseSettings, advertiseCallback: ((Boolean) -> Unit)) {
         this.advertiseCallback = advertiseCallback
 
-        shouldAdvertise = true
-
         addService(data)
 
+        shouldAdvertise = true
+
+        val advertiseSettings = AdvertiseSettings.Builder()
+            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
+            .setConnectable(true)
+            .setTimeout(0)
+            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+            .build()
+
+        val advertiseData = AdvertiseData.Builder()
+            .setIncludeDeviceName(false)
+            .setIncludeTxPowerLevel(false)
+            .addServiceUuid(ParcelUuid(UUID.fromString(data.serviceDataUuid)))
+            .build()
+
         mBluetoothLeAdvertiser.startAdvertising(
-            settings,
-            buildAdvertiseData(data),
+            advertiseSettings,
+            advertiseData,
             mAdvertiseCallback
         )
     }
@@ -159,20 +170,10 @@ class Peripheral {
          * AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE. Catch this error in the
          * onStartFailure() method of an AdvertiseCallback implementation.
          */
+        val serviceUuid = UUID.fromString(data.serviceDataUuid)
+
         val dataBuilder = AdvertiseData.Builder()
-        dataBuilder.addServiceUuid(ParcelUuid.fromString(data.uuid))
-        data.manufacturerId?.let {
-            dataBuilder.addManufacturerData(
-                it,
-                intArrayToByteArray(data.manufacturerData)
-            )
-        }
-        data.serviceDataUuid?.let {
-            dataBuilder.addServiceData(
-                ParcelUuid.fromString(it),
-                intArrayToByteArray(data.serviceData)
-            )
-        }
+        dataBuilder.addServiceUuid(ParcelUuid.fromString(serviceUuid.toString()))
         dataBuilder.setIncludeDeviceName(data.includeDeviceName)
         dataBuilder.setIncludeTxPowerLevel(data.includeTxPowerLevel)
         return dataBuilder.build()

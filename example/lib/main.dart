@@ -36,8 +36,10 @@ class _FlutterBlePeripheralExampleState
       _data.manufacturerId = 1234;
       _data.timeout = 1000;
       _data.manufacturerData = [1, 2, 3, 4, 5, 6];
-      _data.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_ULTRA_LOW;
-      _data.advertiseMode = AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY;
+      _data.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_MEDIUM;
+      _data.advertiseMode = AdvertiseMode.ADVERTISE_MODE_BALANCED;
+      _data.connectable = true;
+      _data.includeDeviceName = false;
     });
     initPlatformState();
   }
