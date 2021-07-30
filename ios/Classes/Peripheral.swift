@@ -38,8 +38,6 @@ class Peripheral : NSObject {
         
         print("[BLE Peripheral] Start advertising")
 
-        shouldAdvertise = true
-
         dataToBeAdvertised = [:]
         if (advertiseData.uuid != nil) {
             dataToBeAdvertised[CBAdvertisementDataServiceUUIDsKey] = [CBUUID(string: advertiseData.uuid!)]
@@ -49,7 +47,11 @@ class Peripheral : NSObject {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [advertiseData.localName]
         }
 
-        addService()
+        shouldAdvertise = true
+
+        if peripheralManager.state == .poweredOn {
+          addService()
+        }
     }
     
     func stop() {
@@ -86,8 +88,9 @@ class Peripheral : NSObject {
       service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic];
         
       peripheralManager.add(service)
-
       peripheralManager.startAdvertising(dataToBeAdvertised)
+
+      shouldAdvertise = false;
     }
 
     func send(data: Data) {

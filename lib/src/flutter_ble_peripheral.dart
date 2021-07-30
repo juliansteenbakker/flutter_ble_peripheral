@@ -10,7 +10,6 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart';
 
 import 'advertise_data.dart';
-import 'constants.dart';
 import 'utils.dart';
 
 class FlutterBlePeripheral {
