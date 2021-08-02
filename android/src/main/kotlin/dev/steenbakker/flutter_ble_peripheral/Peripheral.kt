@@ -272,12 +272,10 @@ class Peripheral {
     fun send(data: ByteArray) {
         Log.i(tag, "Send data: $data")
 
-        if (mBluetoothDevice == null || txCharacteristic == null || mBluetoothGatt == null) {
-            return
+        txCharacteristic?.let { char ->
+            char.value = data
+            mBluetoothGatt?.writeCharacteristic(char)
         }
-
-        txCharacteristic!!.value = data
-        mBluetoothGatt!!.writeCharacteristic(txCharacteristic!!)
 
         Log.i(tag, "Sent data: $data")
     }
