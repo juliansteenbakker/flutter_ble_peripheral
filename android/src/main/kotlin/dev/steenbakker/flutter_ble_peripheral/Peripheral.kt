@@ -278,5 +278,7 @@ class Peripheral {
 
         txCharacteristic!!.value = data
         mBluetoothGatt!!.writeCharacteristic(txCharacteristic!!)
+
+        Log.i(tag, "Sent data: $data")
     }
 }

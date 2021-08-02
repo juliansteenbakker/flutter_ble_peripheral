@@ -12,6 +12,7 @@ import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.NonNull
+import io.flutter.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
@@ -136,10 +137,12 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     }
 
     private fun sendData(call: MethodCall, result: MethodChannel.Result) {
+        Log.i("SEND_DATA_TRY", call.arguments?.toString() ?: "No data")
         (call.arguments as? ByteArray)?.let { data ->
             peripheral.send(data)
+            Log.i("SEND_DATA", data.toString())
         } ?: Handler(Looper.getMainLooper()).post {
-            result.success(null)
+            result.error("122", "send data", null)
         }
     }
 }
