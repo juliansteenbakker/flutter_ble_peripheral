@@ -25,6 +25,7 @@ class Peripheral {
     private lateinit var mBluetoothManager: BluetoothManager
     private lateinit var mBluetoothLeAdvertiser: BluetoothLeAdvertiser
     private lateinit var mBluetoothGattServer: BluetoothGattServer
+    private var mBluetoothGatt: BluetoothGatt? = null
     private var mBluetoothDevice: BluetoothDevice? = null
 
     private lateinit var context: Context
@@ -187,6 +188,8 @@ class Peripheral {
             BluetoothGattService.SERVICE_TYPE_PRIMARY,
         )
 
+        val gattCallback = object : BluetoothGattCallback() {}
+
         val serverCallback = object : BluetoothGattServerCallback() {
             override fun onConnectionStateChange(
                 device: BluetoothDevice?,
@@ -196,12 +199,14 @@ class Peripheral {
                 when (status) {
                     BluetoothProfile.STATE_CONNECTED -> {
                         mBluetoothDevice = device
+                        mBluetoothGatt = mBluetoothDevice?.connectGatt(context, true, gattCallback)
                         updateState(PeripheralState.connected)
                         Log.i(tag, "Device connected $device")
                     }
 
                     BluetoothProfile.STATE_DISCONNECTED -> {
                         mBluetoothDevice = null
+                        mBluetoothGatt = null
                         updateState(PeripheralState.idle)
                         Log.i(tag, "Device disconnect $device")
                     }
@@ -267,11 +272,11 @@ class Peripheral {
     fun send(data: ByteArray) {
         Log.i(tag, "Send data: $data")
 
-        if (mBluetoothDevice == null || txCharacteristic == null) {
+        if (mBluetoothDevice == null || txCharacteristic == null || mBluetoothGatt == null) {
             return
         }
 
         txCharacteristic!!.value = data
-        mBluetoothGattServer.notifyCharacteristicChanged(mBluetoothDevice, txCharacteristic, false)
+        mBluetoothGatt!!.writeCharacteristic(txCharacteristic!!)
     }
 }
