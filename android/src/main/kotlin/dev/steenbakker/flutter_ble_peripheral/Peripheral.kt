@@ -119,8 +119,6 @@ class Peripheral {
     fun start(data: Data, settings: AdvertiseSettings, advertiseCallback: ((Boolean) -> Unit)) {
         this.advertiseCallback = advertiseCallback
 
-        addService(data)
-
         shouldAdvertise = true
 
         val advertiseSettings = AdvertiseSettings.Builder()
@@ -141,6 +139,8 @@ class Peripheral {
             advertiseData,
             mAdvertiseCallback
         )
+
+        addService(data)
     }
 
     fun isAdvertising(): Boolean {
@@ -161,29 +161,9 @@ class Peripheral {
         Log.i(tag, "LE Advertise Stopped.")
     }
 
-    private fun buildAdvertiseData(data: Data): AdvertiseData {
-        /**
-         * Note: There is a strict limit of 31 Bytes on packets sent over BLE Advertisements.
-         * This includes everything put into AdvertiseData including UUIDs, device info, &
-         * arbitrary service or manufacturer data.
-         * Attempting to send packets over this limit will result in a failure with error code
-         * AdvertiseCallback.ADVERTISE_FAILED_DATA_TOO_LARGE. Catch this error in the
-         * onStartFailure() method of an AdvertiseCallback implementation.
-         */
-        val serviceUuid = UUID.fromString(data.serviceDataUuid)
-
-        val dataBuilder = AdvertiseData.Builder()
-        dataBuilder.addServiceUuid(ParcelUuid.fromString(serviceUuid.toString()))
-        dataBuilder.setIncludeDeviceName(data.includeDeviceName)
-        dataBuilder.setIncludeTxPowerLevel(data.includeTxPowerLevel)
-        return dataBuilder.build()
-    }
-
-    private fun intArrayToByteArray(ints: List<Int>): ByteArray {
-        return ints.foldIndexed(ByteArray(ints.size)) { i, a, v -> a.apply { set(i, v.toByte()) } }
-    }
-
     private fun addService(data: Data) {
+        Log.i(tag, "Add service")
+
         if (!shouldAdvertise) {
             return
         }
@@ -278,6 +258,8 @@ class Peripheral {
         mBluetoothGattServer = mBluetoothManager
             .openGattServer(context, serverCallback)
             .also { it.addService(service) }
+
+        Log.i(tag, "Added service")
     }
 
     fun send(data: ByteArray) {

@@ -9,6 +9,8 @@ package dev.steenbakker.flutter_ble_peripheral
 import android.bluetooth.le.AdvertiseSettings
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.NonNull
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
@@ -31,7 +33,10 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
     /** Plugin registration embedding v2 */
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
+        methodChannel = MethodChannel(
+            flutterPluginBinding.binaryMessenger,
+            "dev.steenbakker.flutter_ble_peripheral/ble_state"
+        )
         methodChannel!!.setMethodCallHandler(this)
 
         context = flutterPluginBinding.applicationContext
@@ -52,11 +57,15 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         when (call.method) {
             "start" -> startPeripheral(call, result)
             "stop" -> stopPeripheral(result)
-            "isAdvertising" -> result.success(peripheral.isAdvertising())
+            "isAdvertising" -> Handler(Looper.getMainLooper()).post {
+                result.success(peripheral.isAdvertising())
+            }
             "isSupported" -> isSupported(result)
             "isConnected" -> isConnected(result)
             "sendData" -> sendData(call, result)
-            else -> result.notImplemented()
+            else -> Handler(Looper.getMainLooper()).post {
+                result.notImplemented()
+            }
         }
     }
 
@@ -74,45 +83,64 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         (arguments["serviceDataUuid"] as String?)?.let { advertiseData.serviceDataUuid = it }
         (arguments["serviceData"] as List<Int>?)?.let { advertiseData.serviceData = it }
         (arguments["includeDeviceName"] as Boolean?)?.let { advertiseData.includeDeviceName = it }
-        (arguments["transmissionPowerIncluded"] as Boolean?)?.let { advertiseData.includeTxPowerLevel = it }
+        (arguments["transmissionPowerIncluded"] as Boolean?)?.let {
+            advertiseData.includeTxPowerLevel = it
+        }
         (arguments["advertiseMode"] as Int?)?.let { advertiseData.advertiseMode = it }
         (arguments["connectable"] as Boolean?)?.let { advertiseData.connectable = it }
         (arguments["timeout"] as Int?)?.let { advertiseData.timeout = it }
         (arguments["txPowerLevel"] as Int?)?.let { advertiseData.txPowerLevel = it }
 
         val advertiseSettings: AdvertiseSettings = AdvertiseSettings.Builder()
-                .setAdvertiseMode(advertiseData.advertiseMode)
-                .setConnectable(advertiseData.connectable)
-                .setTimeout(advertiseData.timeout)
-                .setTxPowerLevel(advertiseData.txPowerLevel)
-                .build()
+            .setAdvertiseMode(advertiseData.advertiseMode)
+            .setConnectable(advertiseData.connectable)
+            .setTimeout(advertiseData.timeout)
+            .setTxPowerLevel(advertiseData.txPowerLevel)
+            .build()
 
         peripheral.start(advertiseData, advertiseSettings, advertiseCallback)
-        result.success(null)
+
+        Handler(Looper.getMainLooper()).post {
+            result.success(null)
+
+        }
     }
 
     private fun stopPeripheral(result: MethodChannel.Result) {
         peripheral.stop()
-        result.success(null)
+        Handler(Looper.getMainLooper()).post {
+            result.success(null)
+
+        }
     }
 
     private fun isSupported(result: MethodChannel.Result) {
         if (context != null) {
             val pm: PackageManager = context!!.packageManager
-            result.success(pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE))
+            Handler(Looper.getMainLooper()).post {
+                result.success(pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE))
+
+            }
         } else {
-            result.error("isSupported", "No context available", null)
+            Handler(Looper.getMainLooper()).post {
+                result.error("isSupported", "No context available", null)
+            }
         }
     }
 
     private fun isConnected(result: MethodChannel.Result) {
-        result.success(peripheral.isConnected())
+        Handler(Looper.getMainLooper()).post {
+            result.success(peripheral.isConnected())
+
+        }
     }
 
     private fun sendData(call: MethodCall, result: MethodChannel.Result) {
         (call.arguments as? ByteArray)?.let { data ->
             peripheral.send(data)
-        } ?: result.success(null)
+        } ?: Handler(Looper.getMainLooper()).post {
+            result.success(null)
+        }
     }
 }
 
@@ -121,8 +149,8 @@ class StateChangedHandler : EventChannel.StreamHandler {
 
     fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, peripheral: Peripheral) {
         val eventChannel = EventChannel(
-                flutterPluginBinding.binaryMessenger,
-                "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
+            flutterPluginBinding.binaryMessenger,
+            "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
         )
 
         eventChannel.setStreamHandler(this)
@@ -136,12 +164,14 @@ class StateChangedHandler : EventChannel.StreamHandler {
                 PeripheralState.connected -> Constants.peripheralStateConnected
             }
 
-            eventSink?.success(event)
+            Handler(Looper.getMainLooper()).post {
+                eventSink?.success(event)
+            }
         }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
-        this.eventSink = eventSink;
+        this.eventSink = eventSink
     }
 
     override fun onCancel(event: Any?) {
@@ -154,17 +184,21 @@ class DataReceivedHandler : EventChannel.StreamHandler {
 
     fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, peripheral: Peripheral) {
         val eventChannel = EventChannel(
-                flutterPluginBinding.binaryMessenger,
-                "dev.steenbakker.flutter_ble_peripheral/ble_data_received"
+            flutterPluginBinding.binaryMessenger,
+            "dev.steenbakker.flutter_ble_peripheral/ble_data_received"
         )
 
         eventChannel.setStreamHandler(this)
 
-        peripheral.onDataReceived = { eventSink?.success(it) }
+        peripheral.onDataReceived = {
+            Handler(Looper.getMainLooper()).post {
+                eventSink?.success(it)
+            }
+        }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
-        this.eventSink = eventSink;
+        this.eventSink = eventSink
     }
 
     override fun onCancel(event: Any?) {
