@@ -275,8 +275,8 @@ class Peripheral {
         txCharacteristic?.let { char ->
             char.value = data
             mBluetoothGatt?.writeCharacteristic(char)
+            mBluetoothGattServer.notifyCharacteristicChanged(mBluetoothDevice, char, false)
+            Log.i(tag, "Sent data: $data")
         }
-
-        Log.i(tag, "Sent data: $data")
     }
 }
