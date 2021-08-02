@@ -205,8 +205,6 @@ class Peripheral {
                     }
 
                     BluetoothProfile.STATE_DISCONNECTED -> {
-                        mBluetoothDevice = null
-                        mBluetoothGatt = null
                         updateState(PeripheralState.idle)
                         Log.i(tag, "Device disconnect $device")
                     }
@@ -243,6 +241,10 @@ class Peripheral {
                 val isValid = value?.isNotEmpty() == true && characteristic == rxCharacteristic
 
                 if (isValid) {
+                    mBluetoothDevice = device
+                    mBluetoothGatt = mBluetoothDevice?.connectGatt(context, true, gattCallback)
+                    updateState(PeripheralState.connected)
+
                     onDataReceived?.invoke(value!!)
                     Log.i(tag, "LE Received Data $data")
                 }
