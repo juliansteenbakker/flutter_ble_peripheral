@@ -6,9 +6,11 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
-import android.annotation.SuppressLint
 import android.bluetooth.*
-import android.bluetooth.le.*
+import android.bluetooth.le.AdvertiseCallback
+import android.bluetooth.le.AdvertiseData
+import android.bluetooth.le.AdvertiseSettings
+import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.ParcelUuid
 import io.flutter.Log
@@ -244,7 +246,7 @@ class Peripheral {
                     mBluetoothGattServer.sendResponse(
                         device,
                         requestId,
-                        if (isValid) BluetoothGatt.GATT_SUCCESS else BluetoothGatt.GATT_REQUEST_NOT_SUPPORTED,
+                        BluetoothGatt.GATT_SUCCESS,
                         0,
                         null
                     )
