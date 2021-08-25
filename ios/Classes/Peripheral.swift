@@ -34,8 +34,11 @@ class Peripheral : NSObject {
     var txCharacteristic: CBMutableCharacteristic?
     var txSubscribed = false {
         didSet {
-            if state != .idle {
+            print("[BLE Peripheral] txSubscribed = ", txSubscribed)
+            if txSubscribed {
                 state = .connected
+            } else if isAdvertising() {
+                state = .advertising
             }
         }
     }
