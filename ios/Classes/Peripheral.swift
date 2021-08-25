@@ -90,16 +90,21 @@ class Peripheral : NSObject {
             return
         }
         
-        let mutableTxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.txCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
-        let mutableRxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.rxCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
+        // Add service and characteristics if needed
+        if txCharacteristic == nil || rxCharacteristic == nil {
+            
+            let mutableTxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.txCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
+            let mutableRxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.rxCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
+            
+            let service = CBMutableService(type: CBUUID(string: AdvertiseData.serviceUUID), primary: true)
+            service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic];
+            
+            peripheralManager.add(service)
+            
+            self.txCharacteristic = mutableTxCharacteristic
+            self.rxCharacteristic = mutableRxCharacteristic 
+        }
         
-        self.txCharacteristic = mutableTxCharacteristic
-        self.rxCharacteristic = mutableRxCharacteristic
-        
-        let service = CBMutableService(type: CBUUID(string: AdvertiseData.serviceUUID), primary: true)
-        service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic];
-        
-        peripheralManager.add(service)
         peripheralManager.startAdvertising(dataToBeAdvertised)
         
         shouldStartAdvertising = false;
@@ -208,31 +213,33 @@ extension Peripheral: CBPeripheralManagerDelegate {
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-        print("[BLE Peripheral] didSubscribeTo:", central, characteristic)
         
         if characteristic == txCharacteristic {
+            
+            print("[BLE Peripheral] didSubscribeTo:", central, characteristic)
             
             // Add to subscriptions
             txSubscriptions.insert(central.identifier)
            
             txSubscribed = !txSubscriptions.isEmpty
+            
+            print("[BLE Peripheral] txSubscriptions:", txSubscriptions)
         }
-        
-        print("[BLE Peripheral] txSubscriptions:", txSubscriptions)
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-        print("[BLE Peripheral] didUnsubscribeFrom:", central, characteristic)
         
         if characteristic == txCharacteristic {
+        
+            print("[BLE Peripheral] didUnsubscribeFrom:", central, characteristic)
             
             // Remove from txSubscriptions
             txSubscriptions.remove(central.identifier)
             
             txSubscribed = !txSubscriptions.isEmpty
+            
+            print("[BLE Peripheral] txSubscriptions:", txSubscriptions)
         }
-        
-        print("[BLE Peripheral] txSubscriptions:", txSubscriptions)
     }
 }
 
