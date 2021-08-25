@@ -41,7 +41,7 @@ class Peripheral : NSObject {
     }
     var rxCharacteristic: CBMutableCharacteristic?
     
-    var subscriptions = Set<UUID>()
+    var txSubscriptions = Set<UUID>()
     
     func start(advertiseData: AdvertiseData) {
         
@@ -162,6 +162,7 @@ extension Peripheral: CBPeripheralManagerDelegate {
         
         // Only answer to requests if not idle
         guard state != .idle else {
+            print("[BLE Peripheral] state = .idle -> not answering read request")
             return
         }
         
@@ -174,6 +175,7 @@ extension Peripheral: CBPeripheralManagerDelegate {
         
         // Only answer to requests if not idle
         guard state != .idle else {
+            print("[BLE Peripheral] state = .idle -> not answering write request")
             return
         }
         
@@ -208,10 +210,12 @@ extension Peripheral: CBPeripheralManagerDelegate {
         if characteristic == txCharacteristic {
             
             // Add to subscriptions
-            subscriptions.insert(central.identifier)
+            txSubscriptions.insert(central.identifier)
            
-            txSubscribed = !subscriptions.isEmpty
+            txSubscribed = !txSubscriptions.isEmpty
         }
+        
+        print("[BLE Peripheral] txSubscriptions:", txSubscriptions)
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
@@ -219,11 +223,13 @@ extension Peripheral: CBPeripheralManagerDelegate {
         
         if characteristic == txCharacteristic {
             
-            // Remove from subscriptions
-            subscriptions.remove(central.identifier)
+            // Remove from txSubscriptions
+            txSubscriptions.remove(central.identifier)
             
-            txSubscribed = !subscriptions.isEmpty
+            txSubscribed = !txSubscriptions.isEmpty
         }
+        
+        print("[BLE Peripheral] txSubscriptions:", txSubscriptions)
     }
 }
 
