@@ -19,42 +19,37 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
-
+    private val tag: String = "PERIPHERAL PLUGIN"
     private var methodChannel: MethodChannel? = null
     private var peripheral: Peripheral = Peripheral()
     private var context: Context? = null
 
-    private var eventSink: EventChannel.EventSink? = null
-    private var advertiseCallback: (Boolean) -> Unit = { isAdvertising ->
-        eventSink?.success(isAdvertising)
-    }
-
     private val stateChangedHandler = StateChangedHandler()
     private val dataReceivedHandler = DataReceivedHandler()
 
-    /** Plugin registration embedding v2 */
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel = MethodChannel(
             flutterPluginBinding.binaryMessenger,
             "dev.steenbakker.flutter_ble_peripheral/ble_state"
         )
-        methodChannel!!.setMethodCallHandler(this)
+        methodChannel?.setMethodCallHandler(this)
 
         context = flutterPluginBinding.applicationContext
 
-        peripheral.init(context!!)
+        peripheral.init(flutterPluginBinding.applicationContext)
 
         stateChangedHandler.register(flutterPluginBinding, peripheral)
         dataReceivedHandler.register(flutterPluginBinding, peripheral)
     }
 
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
-        methodChannel!!.setMethodCallHandler(null)
+        methodChannel?.setMethodCallHandler(null)
         methodChannel = null
     }
 
-    // TODO: Add permission check
     override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: MethodChannel.Result) {
+        Log.i(tag, "Method call: ${call.method}")
+
         when (call.method) {
             "start" -> startPeripheral(call, result)
             "stop" -> stopPeripheral(result)
@@ -92,62 +87,68 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         (arguments["timeout"] as Int?)?.let { advertiseData.timeout = it }
         (arguments["txPowerLevel"] as Int?)?.let { advertiseData.txPowerLevel = it }
 
-        val advertiseSettings: AdvertiseSettings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(advertiseData.advertiseMode)
-            .setConnectable(advertiseData.connectable)
-            .setTimeout(advertiseData.timeout)
-            .setTxPowerLevel(advertiseData.txPowerLevel)
-            .build()
-
-        peripheral.start(advertiseData, advertiseSettings, advertiseCallback)
+        peripheral.start(advertiseData)
 
         Handler(Looper.getMainLooper()).post {
+            Log.i(tag, "Start advertise: $advertiseData")
             result.success(null)
-
         }
     }
 
     private fun stopPeripheral(result: MethodChannel.Result) {
         peripheral.stop()
-        Handler(Looper.getMainLooper()).post {
-            result.success(null)
 
+        Handler(Looper.getMainLooper()).post {
+            Log.i(tag, "Stop advertise")
+            result.success(null)
         }
     }
 
     private fun isSupported(result: MethodChannel.Result) {
         if (context != null) {
             val pm: PackageManager = context!!.packageManager
-            Handler(Looper.getMainLooper()).post {
-                result.success(pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE))
+            val isSupported = pm.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
 
+            Handler(Looper.getMainLooper()).post {
+                Log.i(tag, "Is BLE supported: $isSupported")
+
+                result.success(isSupported)
             }
+
         } else {
             Handler(Looper.getMainLooper()).post {
+                Log.i(tag, "Is BLE supported: Error no context")
+
                 result.error("isSupported", "No context available", null)
             }
         }
     }
 
     private fun isConnected(result: MethodChannel.Result) {
-        Handler(Looper.getMainLooper()).post {
-            result.success(peripheral.isConnected())
+        val isConnected = peripheral.isConnected()
 
+        Handler(Looper.getMainLooper()).post {
+            Log.i(tag, "Is BLE connected: $isConnected")
+
+            result.success(isConnected)
         }
     }
 
     private fun sendData(call: MethodCall, result: MethodChannel.Result) {
-        Log.i("SEND_DATA_TRY", call.arguments?.toString() ?: "No data")
+        Log.i(tag, "Try send data: ${call.arguments}")
+
         (call.arguments as? ByteArray)?.let { data ->
             peripheral.send(data)
-            Log.i("SEND_DATA", data.toString())
+            Log.i(tag, "Send data: $data")
         } ?: Handler(Looper.getMainLooper()).post {
+            Log.i(tag, "Send data error")
             result.error("122", "send data", null)
         }
     }
 }
 
 class StateChangedHandler : EventChannel.StreamHandler {
+    private val tag : String = "STATE HANDLER"
     private var eventSink: EventChannel.EventSink? = null
 
     fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, peripheral: Peripheral) {
@@ -159,6 +160,8 @@ class StateChangedHandler : EventChannel.StreamHandler {
         eventChannel.setStreamHandler(this)
 
         peripheral.onStateChanged = { state ->
+            Log.i(tag, "State update $state")
+
             val event = when (state) {
                 PeripheralState.idle -> Constants.peripheralStateIdle
                 PeripheralState.unauthorized -> Constants.peripheralStateUnauthorized
@@ -168,21 +171,25 @@ class StateChangedHandler : EventChannel.StreamHandler {
             }
 
             Handler(Looper.getMainLooper()).post {
+                Log.i(tag, "State update success")
                 eventSink?.success(event)
             }
         }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
+        Log.i(tag, "State update: on listen")
         this.eventSink = eventSink
     }
 
     override fun onCancel(event: Any?) {
+        Log.i(tag, "State update: on cancel")
         this.eventSink = null
     }
 }
 
 class DataReceivedHandler : EventChannel.StreamHandler {
+    private val tag : String = "DATA HANDLER"
     private var eventSink: EventChannel.EventSink? = null
 
     fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, peripheral: Peripheral) {
@@ -194,17 +201,22 @@ class DataReceivedHandler : EventChannel.StreamHandler {
         eventChannel.setStreamHandler(this)
 
         peripheral.onDataReceived = {
+            Log.i(tag, "Data received $it")
+
             Handler(Looper.getMainLooper()).post {
+                Log.i(tag, "Data received success")
                 eventSink?.success(it)
             }
         }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
+        Log.i(tag, "Data received: on listen")
         this.eventSink = eventSink
     }
 
     override fun onCancel(event: Any?) {
+        Log.i(tag, "Data received: on cancel")
         this.eventSink = null
     }
 }
