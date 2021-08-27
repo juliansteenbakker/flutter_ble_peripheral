@@ -21,7 +21,7 @@ enum class PeripheralState {
 }
 
 class Peripheral {
-    private val tag: String = "FlutterBlePeripheral"
+    private val tag: String = "PERIPHERAL"
     private lateinit var mBluetoothManager: BluetoothManager
     private lateinit var mBluetoothLeAdvertiser: BluetoothLeAdvertiser
     private lateinit var mBluetoothGattServer: BluetoothGattServer
@@ -30,30 +30,26 @@ class Peripheral {
 
     private lateinit var context: Context
 
-
     private var isAdvertising = false
-    private var advertiseCallback: ((Boolean) -> Unit)? = null
-
     private var shouldAdvertise = false
 
     private var state = PeripheralState.idle
     var onStateChanged: ((PeripheralState) -> Unit)? = null
     private fun updateState(newState: PeripheralState) {
         state = newState
+        Log.i(tag, "New state: $state")
         onStateChanged?.invoke(newState)
     }
 
     var onDataReceived: ((ByteArray) -> Unit)? = null
 
     private var txCharacteristic: BluetoothGattCharacteristic? = null
-    private var txSubscribed = false
     private var rxCharacteristic: BluetoothGattCharacteristic? = null
 
     private val mAdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             super.onStartSuccess(settingsInEffect)
-            Log.i(tag, "LE Advertise Started.")
-            advertiseCallback?.invoke(true)
+            Log.i(tag, "BLE Advertise Started.")
             isAdvertising = true
             updateState(PeripheralState.advertising)
         }
@@ -66,47 +62,47 @@ class Peripheral {
                     statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
                     isAdvertising = true
                     updateState(PeripheralState.advertising)
-                    Log.i(tag, "LE Advertise $statusText")
+                    Log.i(tag, "BLE Advertise $statusText")
                 }
                 ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
                     statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
                     isAdvertising = false
                     updateState(PeripheralState.unsupported)
-                    Log.i(tag, "LE Advertise $statusText")
+                    Log.i(tag, "BLE Advertise $statusText")
                 }
                 ADVERTISE_FAILED_INTERNAL_ERROR -> {
                     statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
                     isAdvertising = false
                     updateState(PeripheralState.idle)
-                    Log.i(tag, "LE Advertise $statusText")
+                    Log.i(tag, "BLE Advertise $statusText")
                 }
                 ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
                     statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
                     isAdvertising = false
                     updateState(PeripheralState.unauthorized)
-                    Log.i(tag, "LE Advertise $statusText")
+                    Log.i(tag, "BLE Advertise $statusText")
                 }
                 ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                     statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
                     isAdvertising = false
                     updateState(PeripheralState.unauthorized)
-                    Log.i(tag, "LE Advertise $statusText")
+                    Log.i(tag, "BLE Advertise $statusText")
                 }
                 else -> {
                     statusText = "UNDOCUMENTED"
                     updateState(PeripheralState.idle)
-                    Log.i(tag, "LE Advertise $statusText")
+                    Log.i(tag, "BLE Advertise $statusText")
                 }
             }
 
             Log.e(tag, "ERROR while starting advertising: $errorCode - $statusText")
-            advertiseCallback?.invoke(false)
             isAdvertising = false
         }
     }
 
     fun init(context: Context) {
         this.context = context
+
         val bluetoothManager: BluetoothManager? =
             context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
         val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
@@ -116,12 +112,12 @@ class Peripheral {
         } else {
             mBluetoothManager = bluetoothManager
             mBluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
+
+            Log.i(tag, "Init peripheral")
         }
     }
 
-    fun start(data: Data, settings: AdvertiseSettings, advertiseCallback: ((Boolean) -> Unit)) {
-        this.advertiseCallback = advertiseCallback
-
+    fun start(data: Data) {
         shouldAdvertise = true
 
         val advertiseSettings = AdvertiseSettings.Builder()
@@ -144,6 +140,8 @@ class Peripheral {
         )
 
         addService(data)
+
+        Log.i(tag, "Start peripheral")
     }
 
     fun isAdvertising(): Boolean {
@@ -156,12 +154,11 @@ class Peripheral {
 
     fun stop() {
         mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseCallback)
-        advertiseCallback?.invoke(false)
         isAdvertising = false
         shouldAdvertise = false
 
         updateState(PeripheralState.idle)
-        Log.i(tag, "LE Advertise Stopped.")
+        Log.i(tag, "Stop peripheral")
     }
 
     private fun addService(data: Data) {
@@ -217,7 +214,7 @@ class Peripheral {
                 offset: Int,
                 characteristic: BluetoothGattCharacteristic
             ) {
-                Log.i(tag, "LE Read Request")
+                Log.i(tag, "BLE Read Request")
 
                 val status = when (characteristic.uuid) {
                     rxCharacteristic?.uuid -> BluetoothGatt.GATT_SUCCESS
@@ -236,9 +233,11 @@ class Peripheral {
                 offset: Int,
                 value: ByteArray?
             ) {
-                Log.i(tag, "LE Write Request")
+                Log.i(tag, "BLE Write Request")
 
                 val isValid = value?.isNotEmpty() == true && characteristic == rxCharacteristic
+
+                Log.i(tag, "BLE Write Request - Is valid? $isValid")
 
                 if (isValid) {
                     mBluetoothDevice = device
@@ -246,10 +245,11 @@ class Peripheral {
                     updateState(PeripheralState.connected)
 
                     onDataReceived?.invoke(value!!)
-                    Log.i(tag, "LE Received Data $data")
+                    Log.i(tag, "BLE Received Data $data")
                 }
 
                 if (responseNeeded) {
+                    Log.i(tag, "BLE Write Request - Response")
                     mBluetoothGattServer.sendResponse(
                         device,
                         requestId,
