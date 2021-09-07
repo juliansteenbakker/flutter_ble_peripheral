@@ -6,7 +6,6 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
-import android.bluetooth.le.AdvertiseSettings
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Handler
@@ -24,6 +23,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     private var peripheral: Peripheral = Peripheral()
     private var context: Context? = null
 
+    private val mtuChangedHandler = MtuChangedHandler()
     private val stateChangedHandler = StateChangedHandler()
     private val dataReceivedHandler = DataReceivedHandler()
 
@@ -38,6 +38,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
         peripheral.init(flutterPluginBinding.applicationContext)
 
+        mtuChangedHandler.register(flutterPluginBinding, peripheral)
         stateChangedHandler.register(flutterPluginBinding, peripheral)
         dataReceivedHandler.register(flutterPluginBinding, peripheral)
     }
@@ -140,6 +141,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         (call.arguments as? ByteArray)?.let { data ->
             peripheral.send(data)
             Log.i(tag, "Send data: $data")
+            Handler(Looper.getMainLooper()).post { result.success(null) }
         } ?: Handler(Looper.getMainLooper()).post {
             Log.i(tag, "Send data error")
             result.error("122", "send data", null)
@@ -147,8 +149,41 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     }
 }
 
+class MtuChangedHandler : EventChannel.StreamHandler {
+    private val tag: String = "MTU HANDLER"
+    private var eventSink: EventChannel.EventSink? = null
+
+    fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, peripheral: Peripheral) {
+        val eventChannel = EventChannel(
+            flutterPluginBinding.binaryMessenger,
+            "dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed"
+        )
+
+        eventChannel.setStreamHandler(this)
+
+        peripheral.onMtuChanged = { mtu ->
+            Log.i(tag, "MTU update $mtu")
+
+            Handler(Looper.getMainLooper()).post {
+                Log.i(tag, "MTU update success")
+                eventSink?.success(mtu)
+            }
+        }
+    }
+
+    override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
+        Log.i(tag, "MTU update: on listen")
+        this.eventSink = eventSink
+    }
+
+    override fun onCancel(event: Any?) {
+        Log.i(tag, "MTU update: on cancel")
+        this.eventSink = null
+    }
+}
+
 class StateChangedHandler : EventChannel.StreamHandler {
-    private val tag : String = "STATE HANDLER"
+    private val tag: String = "STATE HANDLER"
     private var eventSink: EventChannel.EventSink? = null
 
     fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, peripheral: Peripheral) {
@@ -189,7 +224,7 @@ class StateChangedHandler : EventChannel.StreamHandler {
 }
 
 class DataReceivedHandler : EventChannel.StreamHandler {
-    private val tag : String = "DATA HANDLER"
+    private val tag: String = "DATA HANDLER"
     private var eventSink: EventChannel.EventSink? = null
 
     fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, peripheral: Peripheral) {
