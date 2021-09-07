@@ -29,6 +29,10 @@ class FlutterBlePeripheral {
   final MethodChannel _methodChannel =
       const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
+  /// Event Channel for MTU state
+  final EventChannel _mtuChangedEventChannel = const EventChannel(
+      'dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed');
+
   /// Event Channel used to changed state
   final EventChannel _stateChangedEventChannel = const EventChannel(
       'dev.steenbakker.flutter_ble_peripheral/ble_state_changed');
@@ -85,6 +89,14 @@ class FlutterBlePeripheral {
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> sendData(Uint8List data) async {
     await _methodChannel.invokeMethod('sendData', data);
+  }
+
+  /// Returns Stream of MTU updates.
+  Stream<int> getMtuChanged() {
+    return _mtuChangedEventChannel
+        .receiveBroadcastStream()
+        .cast<int>()
+        .distinct();
   }
 
   /// Returns Stream of state.
