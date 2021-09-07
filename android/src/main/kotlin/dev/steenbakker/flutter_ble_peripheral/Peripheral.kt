@@ -33,6 +33,8 @@ class Peripheral {
     private var isAdvertising = false
     private var shouldAdvertise = false
 
+    var onMtuChanged: ((Int) -> Unit)? = null
+
     private var state = PeripheralState.idle
     var onStateChanged: ((PeripheralState) -> Unit)? = null
     private fun updateState(newState: PeripheralState) {
@@ -185,9 +187,19 @@ class Peripheral {
             BluetoothGattService.SERVICE_TYPE_PRIMARY,
         )
 
-        val gattCallback = object : BluetoothGattCallback() {}
+        val gattCallback = object : BluetoothGattCallback() {
+            override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+                Log.i(tag, "MTU negotiated $mtu")
+                onMtuChanged?.invoke(mtu)
+            }
+        }
 
         val serverCallback = object : BluetoothGattServerCallback() {
+            override fun onMtuChanged(device: BluetoothDevice?, mtu: Int) {
+                Log.i(tag, "MTU negotiated $mtu")
+                onMtuChanged?.invoke(mtu)
+            }
+
             override fun onConnectionStateChange(
                 device: BluetoothDevice?,
                 status: Int,
