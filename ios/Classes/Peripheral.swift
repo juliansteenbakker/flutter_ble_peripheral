@@ -189,27 +189,32 @@ extension Peripheral: CBPeripheralManagerDelegate {
         
         for request in requests {
             
+            print("[BLE Peripheral] write request:", request);
+
             let characteristic = request.characteristic
             guard let data = request.value else {
-                return
+              print("[BLE Peripheral] request.value is nil");
+              return
             }
+
+            // Write only supported in rxCharacteristic
+            guard characteristic == self.rxCharacteristic else {
+                peripheralManager.respond(to: request, withResult: .requestNotSupported)
+                print("[BLE Peripheral] respond requestNotSupported (only supported in rxCharacteristic)")
+                return 
+            }
+
+            print("[BLE Peripheral] request.value:", request.value)
+            print("[BLE Peripheral] characteristic.value:", characteristic.value)
             
             if data.count > 0 {
-                
-                if characteristic == self.rxCharacteristic {
-                    
-                    print("[BLE Peripheral] Receive data: \(data)")
-                    
-                    onDataReceived?(data)
-                    peripheralManager.respond(to: request, withResult: .success)
-                }
+                print("[BLE Peripheral] Receive data: \(data)")
+                onDataReceived?(data)
             }
             
-            // Write only supported in rxCharacteristic
-            peripheralManager.respond(to: request, withResult: .requestNotSupported)
+            // Respond with success
+            peripheralManager.respond(to: request, withResult: .success)
         }
-        
-        
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
