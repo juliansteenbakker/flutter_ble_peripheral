@@ -21,6 +21,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     private let peripheral = Peripheral()
     
     private let stateChangedHandler = StateChangedHandler()
+    private let mtuChangedHandler = MtuChangedHandler()
     private let dataReceivedHandler = DataReceivedHandler()
     
     public static func register(with registrar: FlutterPluginRegistrar) {
@@ -33,6 +34,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         
         // Event channels
         instance.stateChangedHandler.register(with: registrar, peripheral: instance.peripheral)
+        instance.mtuChangedHandler.register(with: registrar, peripheral: instance.peripheral)
         instance.dataReceivedHandler.register(with: registrar, peripheral: instance.peripheral)
     }
     
@@ -126,6 +128,35 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
               eventSink(Constants.peripheralStateConnected)
             }
           }
+        }
+    }
+    
+    public func onListen(withArguments arguments: Any?,
+                         eventSink: @escaping FlutterEventSink) -> FlutterError? {
+        self.eventSink = eventSink
+        return nil
+    }
+    
+    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
+        eventSink = nil
+        return nil
+    }
+}
+
+public class MtuChangedHandler: NSObject, FlutterStreamHandler {
+    
+    private var eventSink: FlutterEventSink?
+    
+    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: Peripheral) {
+        
+        let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed",
+                                               binaryMessenger: registrar.messenger())
+        eventChannel.setStreamHandler(self)
+        
+        peripheral.onMtuChanged = { mtuSize in
+            if let eventSink = self.eventSink {
+                eventSink(mtuSize)
+            }
         }
     }
     
