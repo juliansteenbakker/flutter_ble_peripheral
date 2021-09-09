@@ -23,8 +23,17 @@ class Peripheral : NSObject {
             onStateChanged?(state)
         }
     }
+
+    // min MTU before iOS 10
+    var mtu: Int = 158 {
+        didSet {
+          print("[BLE] mtu:", mtu);
+          onMtuChanged?(mtu)
+        }
+    }
     
     var onStateChanged: ((PeripheralState) -> Void)?
+    var onMtuChanged: ((Int) -> Void)?
     var onDataReceived: ((Data) -> Void)?
     
     var dataToBeAdvertised: [String: Any]!
@@ -223,6 +232,9 @@ extension Peripheral: CBPeripheralManagerDelegate {
             
             print("[BLE Peripheral] didSubscribeTo:", central, characteristic)
             
+            // Update MTU
+            self.mtu = central.maximumUpdateValueLength;
+
             // Add to subscriptions
             txSubscriptions.insert(central.identifier)
            
