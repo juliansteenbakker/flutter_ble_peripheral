@@ -5,6 +5,7 @@
 */
 
 import FlutterMacOS
+import CoreLocation
 
 struct Constants {
     static let peripheralStateIdle = 0xF0
