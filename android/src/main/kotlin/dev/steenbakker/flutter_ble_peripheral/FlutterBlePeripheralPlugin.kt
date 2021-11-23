@@ -92,9 +92,6 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
           permissionGranted = grantResults.isNotEmpty() &&
                   grantResults[0] == PackageManager.PERMISSION_GRANTED
         }
-        // do something here to handle the permission state
-//        updatePluginState()
-        // only return true if handling the request code
         return true
       }
     }
