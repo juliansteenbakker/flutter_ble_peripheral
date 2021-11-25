@@ -6,16 +6,21 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
+import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import androidx.annotation.NonNull
+import androidx.annotation.RequiresApi
+import androidx.core.content.ContextCompat
 import io.flutter.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+
 
 class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
     private val tag: String = "PERIPHERAL PLUGIN"
@@ -36,7 +41,16 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
         context = flutterPluginBinding.applicationContext
 
-        peripheral.init(flutterPluginBinding.applicationContext)
+        try {
+            peripheral.init(flutterPluginBinding.applicationContext)
+        } catch (e: PeripheralException) {
+            if (e.message == "Not Supported") {
+                Log.e(tag, "This device does not support bluetooth LE")
+            } else {
+                Log.e(tag, "Bluetooth may be turned off or is not supported")
+            }
+            return
+        }
 
         mtuChangedHandler.register(flutterPluginBinding, peripheral)
         stateChangedHandler.register(flutterPluginBinding, peripheral)
@@ -68,6 +82,16 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
     @Suppress("UNCHECKED_CAST")
     private fun startPeripheral(call: MethodCall, result: MethodChannel.Result) {
+        try {
+            hasPermissions()
+        } catch (e: Exception) {
+            result.error(
+                    "No Permission",
+                    "No permission for ${e.message} Please ask runtime permission.",
+                    "Manifest.permission.${e.message}")
+            return
+        }
+
         if (call.arguments !is Map<*, *>) {
             throw IllegalArgumentException("Arguments are not a map! " + call.arguments)
         }
@@ -88,7 +112,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         (arguments["timeout"] as Int?)?.let { advertiseData.timeout = it }
         (arguments["txPowerLevel"] as Int?)?.let { advertiseData.txPowerLevel = it }
 
-        peripheral.start(advertiseData)
+        peripheral.start(advertiseData, result)
 
         Handler(Looper.getMainLooper()).post {
             Log.i(tag, "Start advertise: $advertiseData")
@@ -97,7 +121,17 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     }
 
     private fun stopPeripheral(result: MethodChannel.Result) {
-        peripheral.stop()
+        try {
+            hasPermissions()
+        } catch (e: Exception) {
+            result.error(
+                    "No Permission",
+                    "No permission for ${e.message} Please ask runtime permission.",
+                    "Manifest.permission.${e.message}")
+            return
+        }
+
+        peripheral.stop(result)
 
         Handler(Looper.getMainLooper()).post {
             Log.i(tag, "Stop advertise")
@@ -146,6 +180,65 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             Log.i(tag, "Send data error")
             result.error("122", "send data", null)
         }
+    }
+
+    private fun hasPermissions(): Boolean{
+        // Required for API > 31
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!hasBluetoothAdvertisePermission()) {
+                throw PermissionNotFoundException("BLUETOOTH_ADVERTISE")
+            }
+            if (!hasBluetoothConnectPermission()) {
+                throw PermissionNotFoundException("BLUETOOTH_CONNECT")
+            }
+            if (!hasBluetoothScanPermission()) {
+                throw PermissionNotFoundException("BLUETOOTH_SCAN")
+            }
+
+            // Required for API > 28
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (!hasLocationFinePermission()) {
+                throw PermissionNotFoundException("ACCESS_FINE_LOCATION")
+            }
+
+            // Required for API < 28
+        } else {
+            if (!hasLocationCoarsePermission()) {
+                throw PermissionNotFoundException("ACCESS_COARSE_LOCATION")
+            }
+        }
+        return true
+
+    }
+
+    // Permissions for Bluetooth API > 31
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun hasBluetoothAdvertisePermission(): Boolean {
+        return (ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_ADVERTISE)
+                == PackageManager.PERMISSION_GRANTED)
+    }
+
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun hasBluetoothConnectPermission(): Boolean {
+        return (ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_CONNECT)
+                == PackageManager.PERMISSION_GRANTED)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun hasBluetoothScanPermission(): Boolean {
+        return (ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_SCAN)
+                == PackageManager.PERMISSION_GRANTED)
+    }
+
+    private fun hasLocationFinePermission(): Boolean {
+        return (ContextCompat.checkSelfPermission(context!!, Manifest.permission.ACCESS_FINE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED)
+    }
+
+    private fun hasLocationCoarsePermission(): Boolean {
+        return (ContextCompat.checkSelfPermission(context!!, Manifest.permission.ACCESS_COARSE_LOCATION)
+                == PackageManager.PERMISSION_GRANTED)
     }
 }
 

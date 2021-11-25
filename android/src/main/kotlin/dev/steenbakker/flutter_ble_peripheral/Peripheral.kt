@@ -14,17 +14,23 @@ import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.ParcelUuid
 import io.flutter.Log
+import io.flutter.plugin.common.MethodChannel
+import java.lang.Exception
 import java.util.*
 
 enum class PeripheralState {
     idle, unauthorized, unsupported, advertising, connected
 }
 
+class PermissionNotFoundException(message: String) : Exception(message)
+
+class PeripheralException(message: String) : Exception(message)
+
 class Peripheral {
     private val tag: String = "PERIPHERAL"
     private lateinit var mBluetoothManager: BluetoothManager
-    private lateinit var mBluetoothLeAdvertiser: BluetoothLeAdvertiser
     private lateinit var mBluetoothGattServer: BluetoothGattServer
+    private var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
     private var mBluetoothGatt: BluetoothGatt? = null
     private var mBluetoothDevice: BluetoothDevice? = null
 
@@ -107,19 +113,37 @@ class Peripheral {
 
         val bluetoothManager: BluetoothManager? =
             context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-        val bluetoothAdapter: BluetoothAdapter? = BluetoothAdapter.getDefaultAdapter()
 
-        if (bluetoothManager == null || bluetoothAdapter == null) {
-            Log.e(tag, "This device does not support bluetooth LE")
+        if (bluetoothManager == null) {
+            throw PeripheralException("Not Supported")
         } else {
+            val bluetoothAdapter: BluetoothAdapter = bluetoothManager.adapter
             mBluetoothManager = bluetoothManager
-            mBluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
-
-            Log.i(tag, "Init peripheral")
+            if (bluetoothAdapter.bluetoothLeAdvertiser == null) {
+                throw PeripheralException("Not powered")
+            } else {
+                mBluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
+                Log.i(tag, "Init peripheral")
+            }
         }
     }
 
-    fun start(data: Data) {
+    fun start(data: Data, result: MethodChannel.Result) {
+        try {
+            init(context)
+        } catch (e: PeripheralException) {
+            if (e.message == "Not Supported") {
+                updateState(PeripheralState.unsupported)
+                Log.e(tag, "This device does not support bluetooth LE")
+                result.error("Not Supported", "This device does not support bluetooth LE", null)
+            } else {
+                updateState(PeripheralState.unsupported)
+                Log.e(tag, "Bluetooth may be turned off or is not supported")
+                result.error("Not powered", "Bluetooth may be turned off or is not supported", null)
+            }
+            return
+        }
+
         shouldAdvertise = true
 
         val advertiseSettings = AdvertiseSettings.Builder()
@@ -135,7 +159,7 @@ class Peripheral {
             .addServiceUuid(ParcelUuid(UUID.fromString(data.serviceDataUuid)))
             .build()
 
-        mBluetoothLeAdvertiser.startAdvertising(
+        mBluetoothLeAdvertiser!!.startAdvertising(
             advertiseSettings,
             advertiseData,
             mAdvertiseCallback
@@ -154,8 +178,23 @@ class Peripheral {
         return state == PeripheralState.connected
     }
 
-    fun stop() {
-        mBluetoothLeAdvertiser.stopAdvertising(mAdvertiseCallback)
+    fun stop(result: MethodChannel.Result) {
+        try {
+            init(context)
+        } catch (e: PeripheralException) {
+            if (e.message == "Not Supported") {
+                updateState(PeripheralState.unsupported)
+                Log.e(tag, "This device does not support bluetooth LE")
+                result.error("Not Supported", "This device does not support bluetooth LE", null)
+            } else {
+                updateState(PeripheralState.unsupported)
+                Log.e(tag, "Bluetooth may be turned off or is not supported")
+                result.error("Not powered", "Bluetooth may be turned off or is not supported", null)
+            }
+            return
+        }
+
+        mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
         isAdvertising = false
         shouldAdvertise = false
 

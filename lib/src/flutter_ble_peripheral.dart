@@ -81,7 +81,7 @@ class FlutterBlePeripheral {
     return await _methodChannel.invokeMethod('isSupported');
   }
 
-  /// Returns `true` if advertising over BLE is supported
+  /// Returns `true` if device is connected
   Future<bool> isConnected() async {
     return await _methodChannel.invokeMethod('isConnected');
   }
@@ -105,7 +105,6 @@ class FlutterBlePeripheral {
   Stream<PeripheralState> getStateChanged() {
     return _stateChangedEventChannel
         .receiveBroadcastStream()
-        .distinct()
         .map((dynamic event) => intToPeripheralState(event as int));
   }
 

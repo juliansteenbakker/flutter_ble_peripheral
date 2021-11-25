@@ -4,6 +4,7 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -24,8 +25,7 @@ class _FlutterBlePeripheralExampleState
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
   final AdvertiseData _data = AdvertiseData();
 
-  bool _isBroadcasting = false;
-  bool? _isSupported;
+  bool _isSupported = false;
 
   @override
   void initState() {
@@ -54,15 +54,18 @@ class _FlutterBlePeripheralExampleState
   void _toggleAdvertise() async {
     if (await blePeripheral.isAdvertising()) {
       await blePeripheral.stop();
-      setState(() {
-        _isBroadcasting = false;
-      });
     } else {
       await blePeripheral.start(_data);
-      setState(() {
-        _isBroadcasting = true;
-      });
     }
+  }
+
+  void _requestPermissions() async {
+    var platform  =Platform.version;
+    if (Platform.isAndroid) {
+      // final sdkInt = androidInfo.version.sdkInt;
+      // var status = await Permission.camera.status;
+    }
+
   }
 
   @override
@@ -77,9 +80,10 @@ class _FlutterBlePeripheralExampleState
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
+                  Text('Is supported: $_isSupported'),
               StreamBuilder(
                   stream: blePeripheral.getStateChanged(),
-                  initialData: 'State: ?',
+                  initialData: 'State: Loading...',
                   builder:
                       (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
                     return Text('State: ${snapshot.data}');
@@ -101,6 +105,15 @@ class _FlutterBlePeripheralExampleState
                         .button!
                         .copyWith(color: Colors.blue),
                   )),
+                  MaterialButton(
+                      onPressed: _requestPermissions,
+                      child: Text(
+                        'Request Permissions',
+                        style: Theme.of(context)
+                            .primaryTextTheme
+                            .button!
+                            .copyWith(color: Colors.blue),
+                      )),
             ])),
       ),
     );

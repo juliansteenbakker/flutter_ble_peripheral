@@ -7,6 +7,7 @@ environment:
   flutter: ">=1.10.0"
 
 dependencies:
+  permission_handler: ^8.3.0
   flutter:
     sdk: flutter
 
