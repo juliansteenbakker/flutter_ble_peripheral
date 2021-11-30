@@ -13,21 +13,16 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.content.Context
 import android.os.ParcelUuid
+import dev.steenbakker.flutter_ble_peripheral.exceptions.PeripheralException
+import dev.steenbakker.flutter_ble_peripheral.models.PeripheralData
+import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
-import java.lang.Exception
 import java.util.*
 
-enum class PeripheralState {
-    idle, unauthorized, unsupported, advertising, connected
-}
 
-class PermissionNotFoundException(message: String) : Exception(message)
-
-class PeripheralException(message: String) : Exception(message)
-
-class Peripheral {
-    private val tag: String = "PERIPHERAL"
+class FlutterBlePeripheralManager {
+    private val tag: String = "BLE Peripheral"
     private lateinit var mBluetoothManager: BluetoothManager
     private lateinit var mBluetoothGattServer: BluetoothGattServer
     private var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
@@ -45,7 +40,6 @@ class Peripheral {
     var onStateChanged: ((PeripheralState) -> Unit)? = null
     private fun updateState(newState: PeripheralState) {
         state = newState
-        Log.i(tag, "New state: $state")
         onStateChanged?.invoke(newState)
     }
 
@@ -54,10 +48,21 @@ class Peripheral {
     private var txCharacteristic: BluetoothGattCharacteristic? = null
     private var rxCharacteristic: BluetoothGattCharacteristic? = null
 
+    fun handlePeripheralException(e: PeripheralException, result: MethodChannel.Result?) {
+        if (e.message == "Not Supported") {
+            updateState(PeripheralState.unsupported)
+            Log.e(tag, "This device does not support bluetooth LE")
+            result?.error("Not Supported", "This device does not support bluetooth LE", null)
+        } else {
+            updateState(PeripheralState.unsupported)
+            Log.e(tag, "Bluetooth may be turned off or is not supported")
+            result?.error("Not powered", "Bluetooth may be turned off or is not supported", null)
+        }
+    }
+
     private val mAdvertiseCallback = object : AdvertiseCallback() {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             super.onStartSuccess(settingsInEffect)
-            Log.i(tag, "BLE Advertise Started.")
             isAdvertising = true
             updateState(PeripheralState.advertising)
         }
@@ -93,7 +98,7 @@ class Peripheral {
                 ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                     statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
                     isAdvertising = false
-                    updateState(PeripheralState.unauthorized)
+                    updateState(PeripheralState.unsupported)
                     Log.i(tag, "BLE Advertise $statusText")
                 }
                 else -> {
@@ -123,24 +128,15 @@ class Peripheral {
                 throw PeripheralException("Not powered")
             } else {
                 mBluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
-                Log.i(tag, "Init peripheral")
             }
         }
     }
 
-    fun start(data: Data, result: MethodChannel.Result) {
+    fun start(peripheralData: PeripheralData, result: MethodChannel.Result) {
         try {
             init(context)
         } catch (e: PeripheralException) {
-            if (e.message == "Not Supported") {
-                updateState(PeripheralState.unsupported)
-                Log.e(tag, "This device does not support bluetooth LE")
-                result.error("Not Supported", "This device does not support bluetooth LE", null)
-            } else {
-                updateState(PeripheralState.unsupported)
-                Log.e(tag, "Bluetooth may be turned off or is not supported")
-                result.error("Not powered", "Bluetooth may be turned off or is not supported", null)
-            }
+            handlePeripheralException(e, result)
             return
         }
 
@@ -156,7 +152,7 @@ class Peripheral {
         val advertiseData = AdvertiseData.Builder()
             .setIncludeDeviceName(false)
             .setIncludeTxPowerLevel(false)
-            .addServiceUuid(ParcelUuid(UUID.fromString(data.serviceDataUuid)))
+            .addServiceUuid(ParcelUuid(UUID.fromString(peripheralData.serviceDataUuid)))
             .build()
 
         mBluetoothLeAdvertiser!!.startAdvertising(
@@ -165,9 +161,7 @@ class Peripheral {
             mAdvertiseCallback
         )
 
-        addService(data)
-
-        Log.i(tag, "Start peripheral")
+        addService(peripheralData)
     }
 
     fun isAdvertising(): Boolean {
@@ -182,15 +176,7 @@ class Peripheral {
         try {
             init(context)
         } catch (e: PeripheralException) {
-            if (e.message == "Not Supported") {
-                updateState(PeripheralState.unsupported)
-                Log.e(tag, "This device does not support bluetooth LE")
-                result.error("Not Supported", "This device does not support bluetooth LE", null)
-            } else {
-                updateState(PeripheralState.unsupported)
-                Log.e(tag, "Bluetooth may be turned off or is not supported")
-                result.error("Not powered", "Bluetooth may be turned off or is not supported", null)
-            }
+            handlePeripheralException(e, result)
             return
         }
 
@@ -199,43 +185,38 @@ class Peripheral {
         shouldAdvertise = false
 
         updateState(PeripheralState.idle)
-        Log.i(tag, "Stop peripheral")
     }
 
-    private fun addService(data: Data) {
-        Log.i(tag, "Add service")
-
+    private fun addService(peripheralData: PeripheralData) {
         if (!shouldAdvertise) {
             return
         }
 
         txCharacteristic = BluetoothGattCharacteristic(
-            UUID.fromString(data.txCharacteristicUUID),
+            UUID.fromString(peripheralData.txCharacteristicUUID),
             BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
             BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE,
         )
 
         rxCharacteristic = BluetoothGattCharacteristic(
-            UUID.fromString(data.rxCharacteristicUUID),
+            UUID.fromString(peripheralData.rxCharacteristicUUID),
             BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
             BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE,
         )
 
         val service = BluetoothGattService(
-            UUID.fromString(data.serviceDataUuid),
+            UUID.fromString(peripheralData.serviceDataUuid),
             BluetoothGattService.SERVICE_TYPE_PRIMARY,
         )
 
         val gattCallback = object : BluetoothGattCallback() {
             override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
-                Log.i(tag, "MTU negotiated $mtu")
                 onMtuChanged?.invoke(mtu)
             }
         }
 
         val serverCallback = object : BluetoothGattServerCallback() {
             override fun onMtuChanged(device: BluetoothDevice?, mtu: Int) {
-                Log.i(tag, "MTU negotiated $mtu")
                 onMtuChanged?.invoke(mtu)
             }
 
@@ -296,7 +277,7 @@ class Peripheral {
                     updateState(PeripheralState.connected)
 
                     onDataReceived?.invoke(value!!)
-                    Log.i(tag, "BLE Received Data $data")
+                    Log.i(tag, "BLE Received Data $peripheralData")
                 }
 
                 if (responseNeeded) {
@@ -318,18 +299,13 @@ class Peripheral {
         mBluetoothGattServer = mBluetoothManager
             .openGattServer(context, serverCallback)
             .also { it.addService(service) }
-
-        Log.i(tag, "Added service")
     }
 
     fun send(data: ByteArray) {
-        Log.i(tag, "Send data: $data")
-
         txCharacteristic?.let { char ->
             char.value = data
             mBluetoothGatt?.writeCharacteristic(char)
             mBluetoothGattServer.notifyCharacteristicChanged(mBluetoothDevice, char, false)
-            Log.i(tag, "Sent data: $data")
         }
     }
 }

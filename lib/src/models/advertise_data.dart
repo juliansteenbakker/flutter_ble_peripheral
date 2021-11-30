@@ -9,63 +9,84 @@ class AdvertiseData {
   /// Android & iOS
   ///
   /// Specifies the UUID to be advertised
-  String? uuid;
+  final String uuid;
 
   /// Android only
   ///
   /// Specifies a manufacturer id
-  int? manufacturerId;
+  final int? manufacturerId;
 
   /// Android only
   ///
   /// Specifies manufacturer data.
-  List<int>? manufacturerData;
+ final List<int>? manufacturerData;
 
   /// Android only
   ///
   /// Specifies service data UUID
-  String? serviceDataUuid;
+  final String? serviceDataUuid;
 
   /// Android only
   ///
   /// Specifies service data
-  List<int>? serviceData;
+  final List<int>? serviceData;
 
   /// Android only
   ///
   /// Set to true if device name needs to be included with advertisement
-  bool? includeDeviceName;
+  /// Default: false
+  final bool includeDeviceName;
 
   /// iOS only
   ///
   /// Set the deviceName to be broadcasted. Can be 10 bytes.
-  String? localName;
+  final String? localName;
 
   /// Android only
   ///
   /// set to true if you want to include the power level in the advertisement
-  bool? transmissionPowerIncluded;
+  /// Default: false
+  final bool? includePowerLevel;
 
   /// Android only
   ///
   /// Set advertise mode to control the advertising power and latency.
-  AdvertiseMode advertiseMode = AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY;
+  /// Default: AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY
+  final AdvertiseMode advertiseMode;
 
   /// Android only
   ///
   /// Set whether the advertisement type should be connectable or non-connectable.
-  bool? connectable;
+  /// Default: false
+  final bool connectable;
 
   /// Android only
   ///
   /// Limit advertising to a given amount of time.
   /// May not exceed 180000 milliseconds.
-  int? timeout;
+  /// Default: 400 milliseconds
+  final int timeout;
 
   /// Android only
   ///
   /// Set advertise TX power level to control the transmission power level for the advertising.
-  AdvertisePower txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_HIGH;
+  /// Default: AdvertisePower.ADVERTISE_TX_POWER_HIGH
+  final AdvertisePower txPowerLevel;
+
+  AdvertiseData(
+      {this.uuid = '',
+      this.manufacturerId,
+      this.manufacturerData,
+      this.serviceDataUuid,
+      this.serviceData,
+      this.includeDeviceName = false,
+      this.localName,
+      this.includePowerLevel = false,
+      this.connectable = false,
+      this.timeout = 400,
+      this.advertiseMode = AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY,
+      this.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_HIGH
+});
 }
 
 enum AdvertiseMode {

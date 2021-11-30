@@ -7,10 +7,12 @@
 import 'dart:async';
 import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 
-import 'advertise_data.dart';
-import 'utils.dart';
+import '../flutter_ble_peripheral.dart';
+import 'models/advertise_data.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -43,11 +45,7 @@ class FlutterBlePeripheral {
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> start(AdvertiseData data) async {
-    if (data.uuid == null) {
-      throw IllegalArgumentException(
-          'Illegal arguments! UUID must not be null or empty');
-    }
-
+    debugPrint('Start advertising');
     Map params = <String, dynamic>{
       'uuid': data.uuid,
       'manufacturerId': data.manufacturerId,
@@ -56,7 +54,7 @@ class FlutterBlePeripheral {
       'serviceData': data.serviceData,
       'includeDeviceName': data.includeDeviceName,
       'localName': data.localName,
-      'transmissionPowerIncluded': data.transmissionPowerIncluded,
+      'transmissionPowerIncluded': data.includePowerLevel,
       'advertiseMode': data.advertiseMode.index,
       'connectable': data.connectable,
       'timeout': data.timeout,
@@ -68,6 +66,7 @@ class FlutterBlePeripheral {
 
   /// Stop advertising
   Future<void> stop() async {
+    debugPrint('Stop advertising');
     await _methodChannel.invokeMethod('stop');
   }
 
@@ -88,6 +87,7 @@ class FlutterBlePeripheral {
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> sendData(Uint8List data) async {
+    debugPrint('Send data: $data');
     await _methodChannel.invokeMethod('sendData', data);
   }
 
@@ -96,7 +96,10 @@ class FlutterBlePeripheral {
     return _mtuChangedEventChannel
         .receiveBroadcastStream()
         .cast<int>()
-        .distinct();
+        .distinct().map((event) {
+          debugPrint('mtu: $event');
+      return event;
+    } );
   }
 
   /// Returns Stream of state.
@@ -105,7 +108,10 @@ class FlutterBlePeripheral {
   Stream<PeripheralState> getStateChanged() {
     return _stateChangedEventChannel
         .receiveBroadcastStream()
-        .map((dynamic event) => intToPeripheralState(event as int));
+        .map((dynamic event) {
+          debugPrint('state: ');
+          return PeripheralState.values[event as int];
+        });
   }
 
   /// Returns Stream of data.
@@ -113,18 +119,5 @@ class FlutterBlePeripheral {
   ///
   Stream<Uint8List> getDataReceived() {
     return _dataReceivedEventChannel.receiveBroadcastStream().cast<Uint8List>();
-  }
-}
-
-/// Special exception for illegal arguments
-class IllegalArgumentException implements Exception {
-  /// Description of exception
-  final String message;
-
-  IllegalArgumentException(this.message);
-
-  @override
-  String toString() {
-    return 'IllegalArgumentException: $message';
   }
 }

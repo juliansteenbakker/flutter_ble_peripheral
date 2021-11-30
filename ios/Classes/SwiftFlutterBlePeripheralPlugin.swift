@@ -8,17 +8,17 @@ import Flutter
 import UIKit
 import CoreLocation
 
-struct Constants {
-    static let peripheralStateIdle = 0xF0
-    static let peripheralStateAdvertising = 0xFA
-    static let peripheralStateConnected = 0xFB
-    static let peripheralStateUnsupported = 0xFC
-    static let peripheralStateUnauthorized = 0xFD
-}
+//struct Constants {
+//    static let peripheralStateIdle = 0xF0
+//    static let peripheralStateAdvertising = 0xFA
+//    static let peripheralStateConnected = 0xFB
+//    static let peripheralStateUnsupported = 0xFC
+//    static let peripheralStateUnauthorized = 0xFD
+//}
 
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
-    private let peripheral = Peripheral()
+    private let peripheral = FlutterBlePeripheralManager()
     
     private let stateChangedHandler = StateChangedHandler()
     private let mtuChangedHandler = MtuChangedHandler()
@@ -106,7 +106,7 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
     
     private var eventSink: FlutterEventSink?
     
-    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: Peripheral) {
+    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: FlutterBlePeripheralManager) {
         
         let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state_changed",
                                                binaryMessenger: registrar.messenger())
@@ -114,19 +114,7 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
         
         peripheral.onStateChanged = { peripheralState in
           if let eventSink = self.eventSink {
-            print("[StateChangedHandler] state: \(peripheralState)")
-            switch peripheralState {
-            case .idle:
-              eventSink(Constants.peripheralStateIdle)
-            case .unauthorized:
-              eventSink(Constants.peripheralStateUnauthorized)
-            case .unsupported:
-              eventSink(Constants.peripheralStateUnsupported)
-            case .advertising:
-              eventSink(Constants.peripheralStateAdvertising)
-            case .connected:
-              eventSink(Constants.peripheralStateConnected)
-            }
+              eventSink(peripheralState.rawValue)
           }
         }
     }
@@ -147,7 +135,7 @@ public class MtuChangedHandler: NSObject, FlutterStreamHandler {
     
     private var eventSink: FlutterEventSink?
     
-    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: Peripheral) {
+    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: FlutterBlePeripheralManager) {
         
         let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed",
                                                binaryMessenger: registrar.messenger())
@@ -176,7 +164,7 @@ public class DataReceivedHandler: NSObject, FlutterStreamHandler {
     
     private var eventSink: FlutterEventSink?
     
-    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: Peripheral) {
+    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: FlutterBlePeripheralManager) {
         
         let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_data_received",
                                                binaryMessenger: registrar.messenger())
@@ -184,7 +172,6 @@ public class DataReceivedHandler: NSObject, FlutterStreamHandler {
         
         peripheral.onDataReceived = { data in
             if let eventSink = self.eventSink {
-                print("[DataReceivedHandler] data: \(data)")
                 eventSink(FlutterStandardTypedData(bytes: data))
             }
         }

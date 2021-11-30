@@ -9,6 +9,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const FlutterBlePeripheralExample());
 
@@ -23,24 +24,17 @@ class FlutterBlePeripheralExample extends StatefulWidget {
 class _FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
-  final AdvertiseData _data = AdvertiseData();
+  final AdvertiseData _data = AdvertiseData(
+    uuid: '8ebdb2f3-7817-45c9-95c5-c5e9031aaa47',
+    manufacturerId: 1234,
+    manufacturerData: [1, 2, 3, 4, 5, 6],
+  );
 
   bool _isSupported = false;
 
   @override
   void initState() {
     super.initState();
-    setState(() {
-      _data.includeDeviceName = false;
-      _data.uuid = '8ebdb2f3-7817-45c9-95c5-c5e9031aaa47';
-      _data.manufacturerId = 1234;
-      _data.timeout = 1000;
-      _data.manufacturerData = [1, 2, 3, 4, 5, 6];
-      _data.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_MEDIUM;
-      _data.advertiseMode = AdvertiseMode.ADVERTISE_MODE_BALANCED;
-      _data.connectable = true;
-      _data.includeDeviceName = false;
-    });
     initPlatformState();
   }
 
@@ -60,11 +54,30 @@ class _FlutterBlePeripheralExampleState
   }
 
   void _requestPermissions() async {
-    var platform  =Platform.version;
-    if (Platform.isAndroid) {
+    // var platform  =Platform.version;
+    // if (Platform.isAndroid) {
+
+      await Permission.bluetooth.shouldShowRequestRationale;
+      // You can request multiple permissions at once.
+      Map<Permission, PermissionStatus> statuses = await [
+        Permission.bluetooth,
+        Permission.bluetoothAdvertise,
+        Permission.bluetoothConnect,
+        Permission.bluetoothScan,
+        Permission.location,
+      ].request();
+      for (final status in statuses.keys) {
+        if (statuses[status] == PermissionStatus.granted) {
+          print('$status permission granted');
+        } else if (statuses[status] == PermissionStatus.denied) {
+          print('$status denied. Show a dialog with a reason and again ask for the permission.');
+        } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
+          print('$status permanently denied. Take the user to the settings page.');
+        }
+      }
       // final sdkInt = androidInfo.version.sdkInt;
       // var status = await Permission.camera.status;
-    }
+    // }
 
   }
 
@@ -83,19 +96,19 @@ class _FlutterBlePeripheralExampleState
                   Text('Is supported: $_isSupported'),
               StreamBuilder(
                   stream: blePeripheral.getStateChanged(),
-                  initialData: 'State: Loading...',
+                  initialData: PeripheralState.unknown,
                   builder:
                       (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
                     return Text('State: ${snapshot.data}');
                   }),
               StreamBuilder(
                   stream: blePeripheral.getDataReceived(),
-                  initialData: 'Data not received.',
+                  initialData: 'None',
                   builder:
                       (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
                     return Text('Data received: ${snapshot.data}');
                   }),
-              Text('Current uuid is ${_data.uuid}'),
+              Text('Current UUID: ${_data.uuid}'),
               MaterialButton(
                   onPressed: _toggleAdvertise,
                   child: Text(

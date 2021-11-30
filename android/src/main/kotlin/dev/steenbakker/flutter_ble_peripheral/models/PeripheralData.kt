@@ -4,11 +4,11 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
-package dev.steenbakker.flutter_ble_peripheral
+package dev.steenbakker.flutter_ble_peripheral.models
 
 import android.bluetooth.le.AdvertiseSettings
 
-class Data(
+class PeripheralData(
         var uuid: String = "",
         var manufacturerId: Int? = null,
         var manufacturerData: List<Int> = mutableListOf(),
