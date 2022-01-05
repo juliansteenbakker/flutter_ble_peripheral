@@ -18,7 +18,7 @@ import CoreLocation
 
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
-    private let peripheral = FlutterBlePeripheralManager()
+    private let flutterBlePeripheralManager = FlutterBlePeripheralManager()
     
     private let stateChangedHandler = StateChangedHandler()
     private let mtuChangedHandler = MtuChangedHandler()
@@ -33,20 +33,19 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
         
         // Event channels
-        instance.stateChangedHandler.register(with: registrar, peripheral: instance.peripheral)
-        instance.mtuChangedHandler.register(with: registrar, peripheral: instance.peripheral)
-        instance.dataReceivedHandler.register(with: registrar, peripheral: instance.peripheral)
+        instance.stateChangedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
+        instance.mtuChangedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
+        instance.dataReceivedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
     }
     
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
-        
         switch (call.method) {
         case "start":
-            startAdvertising(call, result)
+            startPeripheral(call, result)
         case "stop":
-            stopAdvertising(call, result)
+            stopPeripheral(call, result)
         case "isAdvertising":
-            isAdvertising(call, result)
+            result(flutterBlePeripheralManager.isAdvertising())
         case "isSupported":
             isSupported(result)
         case "isConnected":
@@ -58,24 +57,19 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         }
     }
     
-    private func startAdvertising(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+    private func startPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let map = call.arguments as? Dictionary<String, Any>
-        let advertiseData = AdvertiseData(
+        let advertiseData = PeripheralData(
             uuid: map?["uuid"] as? String ,
             localName: map?["localName"] as? String
         )
-        peripheral.start(advertiseData: advertiseData)
+        flutterBlePeripheralManager.start(advertiseData: advertiseData)
         result(nil)
     }
     
-    private func stopAdvertising(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
-        peripheral.stop()
+    private func stopPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+        flutterBlePeripheralManager.stop()
         result(nil)
-    }
-    
-    private func isAdvertising(_ call: FlutterMethodCall,
-                               _ result: @escaping FlutterResult) {
-        result(peripheral.isAdvertising())
     }
     
     // We can check if advertising is supported by checking if the ios device supports iBeacons since that uses BLE.
@@ -89,14 +83,14 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
     private func isConnected(_ call: FlutterMethodCall,
                              _ result: @escaping FlutterResult) {
-        result(peripheral.isConnected())
+        result(flutterBlePeripheralManager.isConnected())
     }
     
     private func sendData(_ call: FlutterMethodCall,
                           _ result: @escaping FlutterResult) {
         
         if let flutterData = call.arguments as? FlutterStandardTypedData {
-          peripheral.send(data: flutterData.data)
+          flutterBlePeripheralManager.send(data: flutterData.data)
         }
         result(nil)
     }

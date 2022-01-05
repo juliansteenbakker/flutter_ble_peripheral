@@ -33,7 +33,7 @@ class FlutterBlePeripheralManager : NSObject {
     
     var dataToBeAdvertised: [String: Any]!
     
-    var shouldStartAdvertising = false
+//    var shouldStartAdvertising = false
     
     var txCharacteristic: CBMutableCharacteristic?
     var txSubscribed = false {
@@ -49,7 +49,7 @@ class FlutterBlePeripheralManager : NSObject {
     
     var txSubscriptions = Set<UUID>()
     
-    func start(advertiseData: AdvertiseData) {
+    func start(advertiseData: PeripheralData) {
         
         dataToBeAdvertised = [:]
         if (advertiseData.uuid != nil) {
@@ -60,16 +60,19 @@ class FlutterBlePeripheralManager : NSObject {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [advertiseData.localName]
         }
         
-        shouldStartAdvertising = true
+        peripheralManager.startAdvertising(dataToBeAdvertised)
         
-        if peripheralManager.state == .poweredOn {
-            addService()
-        }
+//        shouldStartAdvertising = true
+        
+        // TODO: add service when bool is set
+//        if peripheralManager.state == .poweredOn {
+//            addService()
+//        }
     }
     
     func stop() {
     
-        shouldStartAdvertising = false
+//        shouldStartAdvertising = false
         
         peripheralManager.stopAdvertising()
         state = .idle
@@ -85,17 +88,17 @@ class FlutterBlePeripheralManager : NSObject {
     
     private func addService() {
         
-        guard shouldStartAdvertising else {
-            return
-        }
+//        guard shouldStartAdvertising else {
+//            return
+//        }
         
         // Add service and characteristics if needed
         if txCharacteristic == nil || rxCharacteristic == nil {
             
-            let mutableTxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.txCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
-            let mutableRxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.rxCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
+            let mutableTxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: PeripheralData.txCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
+            let mutableRxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: PeripheralData.rxCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
             
-            let service = CBMutableService(type: CBUUID(string: AdvertiseData.serviceUUID), primary: true)
+            let service = CBMutableService(type: CBUUID(string: PeripheralData.serviceUUID), primary: true)
             service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic];
             
             peripheralManager.add(service)
@@ -106,7 +109,7 @@ class FlutterBlePeripheralManager : NSObject {
         
         peripheralManager.startAdvertising(dataToBeAdvertised)
         
-        shouldStartAdvertising = false;
+//        shouldStartAdvertising = false;
     }
     
     func send(data: Data) {
@@ -126,7 +129,7 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
-            addService()
+//            addService() TODO: add service
             state = .idle
         case .poweredOff:
             state = .poweredOff
@@ -248,16 +251,4 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
     }
 }
 
-class AdvertiseData {
-    var uuid: String?
-    var localName: String?     //CBAdvertisementDataLocalNameKey
-    
-    static let serviceUUID: String = "8ebdb2f3-7817-45c9-95c5-c5e9031aaa47"
-    static let txCharacteristicUUID: String = "08590F7E-DB05-467E-8757-72F6FAEB13D4"
-    static let rxCharacteristicUUID: String = "08590F7E-DB05-467E-8757-72F6FAEB13D5"
-    
-    init(uuid: String?, localName: String?) {
-        self.uuid = Self.serviceUUID //uuid;
-        self.localName = localName
-    }
-}
+

@@ -26,37 +26,18 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
+class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
 
-class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler,
-  EventChannel.StreamHandler, PluginRegistry.RequestPermissionsResultListener,
-  ActivityAware {
+    private var methodChannel: MethodChannel? = null
+    private var context: Context? = null
+    private val tag: String = "flutter_ble_peripheral"
+    private var flutterBlePeripheralManager: FlutterBlePeripheralManager =
+        FlutterBlePeripheralManager()
 
-  private var methodChannel: MethodChannel? = null
-  private var eventChannel: EventChannel? = null
-  private var peripheral: Peripheral = Peripheral()
-  private var context: Context? = null
-  private val tag: String = "flutter_ble_peripheral"
-  private var flutterBlePeripheralManager: FlutterBlePeripheralManager = FlutterBlePeripheralManager()
+    private val mtuChangedHandler = MtuChangedHandler()
+    private val stateChangedHandler = StateChangedHandler()
+    private val dataReceivedHandler = DataReceivedHandler()
 
-  private var eventSink: EventChannel.EventSink? = null
-  private var advertiseCallback: (Boolean) -> Unit = { isAdvertising ->
-    eventSink?.success(isAdvertising)
-  }
-
-  private val mtuChangedHandler = MtuChangedHandler()
-  private val stateChangedHandler = StateChangedHandler()
-  private val dataReceivedHandler = DataReceivedHandler()
-
-
-  /** Plugin registration embedding v2 */
-  override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-    methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
-    eventChannel = EventChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_event")
-    methodChannel!!.setMethodCallHandler(this)
-    eventChannel!!.setStreamHandler(this)
-    peripheral.init()
-    context = flutterPluginBinding.applicationContext
-  }
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel = MethodChannel(
             flutterPluginBinding.binaryMessenger,
@@ -105,9 +86,10 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
             hasPermissions()
         } catch (e: Exception) {
             result.error(
-                    "No Permission",
-                    "No permission for ${e.message} Please ask runtime permission.",
-                    "Manifest.permission.${e.message}")
+                "No Permission",
+                "No permission for ${e.message} Please ask runtime permission.",
+                "Manifest.permission.${e.message}"
+            )
             return
         }
 
@@ -144,9 +126,10 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
             hasPermissions()
         } catch (e: Exception) {
             result.error(
-                    "No Permission",
-                    "No permission for ${e.message} Please ask runtime permission.",
-                    "Manifest.permission.${e.message}")
+                "No Permission",
+                "No permission for ${e.message} Please ask runtime permission.",
+                "Manifest.permission.${e.message}"
+            )
             return
         }
 
@@ -196,7 +179,7 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
         }
     }
 
-    private fun hasPermissions(): Boolean{
+    private fun hasPermissions(): Boolean {
         // Required for API > 31
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!hasBluetoothAdvertisePermission()) {
@@ -228,7 +211,10 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     // Permissions for Bluetooth API > 31
     @RequiresApi(Build.VERSION_CODES.S)
     private fun hasBluetoothAdvertisePermission(): Boolean {
-        return (ContextCompat.checkSelfPermission(context!!, Manifest.permission.BLUETOOTH_ADVERTISE)
+        return (ContextCompat.checkSelfPermission(
+            context!!,
+            Manifest.permission.BLUETOOTH_ADVERTISE
+        )
                 == PackageManager.PERMISSION_GRANTED)
     }
 
@@ -246,12 +232,18 @@ class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler
     }
 
     private fun hasLocationFinePermission(): Boolean {
-        return (ContextCompat.checkSelfPermission(context!!, Manifest.permission.ACCESS_FINE_LOCATION)
+        return (ContextCompat.checkSelfPermission(
+            context!!,
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
                 == PackageManager.PERMISSION_GRANTED)
     }
 
     private fun hasLocationCoarsePermission(): Boolean {
-        return (ContextCompat.checkSelfPermission(context!!, Manifest.permission.ACCESS_COARSE_LOCATION)
+        return (ContextCompat.checkSelfPermission(
+            context!!,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
                 == PackageManager.PERMISSION_GRANTED)
     }
 }

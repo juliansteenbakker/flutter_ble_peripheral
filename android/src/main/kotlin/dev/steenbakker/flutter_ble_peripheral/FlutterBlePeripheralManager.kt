@@ -32,7 +32,7 @@ class FlutterBlePeripheralManager {
     private lateinit var context: Context
 
     private var isAdvertising = false
-    private var shouldAdvertise = false
+//    private var shouldAdvertise = false
 
     var onMtuChanged: ((Int) -> Unit)? = null
 
@@ -140,19 +140,19 @@ class FlutterBlePeripheralManager {
             return
         }
 
-        shouldAdvertise = true
+//        shouldAdvertise = true
 
         val advertiseSettings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(AdvertiseSettings.ADVERTISE_MODE_BALANCED)
-            .setConnectable(true)
-            .setTimeout(0)
-            .setTxPowerLevel(AdvertiseSettings.ADVERTISE_TX_POWER_MEDIUM)
+            .setAdvertiseMode(peripheralData.advertiseMode)
+            .setConnectable(peripheralData.connectable)
+            .setTimeout(peripheralData.timeout)
+            .setTxPowerLevel(peripheralData.txPowerLevel)
             .build()
 
         val advertiseData = AdvertiseData.Builder()
-            .setIncludeDeviceName(false)
-            .setIncludeTxPowerLevel(false)
-            .addServiceUuid(ParcelUuid(UUID.fromString(peripheralData.serviceDataUuid)))
+            .setIncludeDeviceName(peripheralData.includeDeviceName)
+            .setIncludeTxPowerLevel(peripheralData.includeTxPowerLevel)
+            .addServiceUuid(ParcelUuid(UUID.fromString(peripheralData.uuid)))
             .build()
 
         mBluetoothLeAdvertiser!!.startAdvertising(
@@ -161,7 +161,8 @@ class FlutterBlePeripheralManager {
             mAdvertiseCallback
         )
 
-        addService(peripheralData)
+        // TODO: Add service to advertise
+//        addService(peripheralData)
     }
 
     fun isAdvertising(): Boolean {
@@ -182,15 +183,16 @@ class FlutterBlePeripheralManager {
 
         mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
         isAdvertising = false
-        shouldAdvertise = false
+//        shouldAdvertise = false
 
         updateState(PeripheralState.idle)
     }
 
+    // TODO: Add service to advertise
     private fun addService(peripheralData: PeripheralData) {
-        if (!shouldAdvertise) {
-            return
-        }
+//        if (!shouldAdvertise) {
+//            return
+//        }
 
         txCharacteristic = BluetoothGattCharacteristic(
             UUID.fromString(peripheralData.txCharacteristicUUID),
