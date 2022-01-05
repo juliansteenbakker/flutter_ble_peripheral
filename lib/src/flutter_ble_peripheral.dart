@@ -96,10 +96,11 @@ class FlutterBlePeripheral {
     return _mtuChangedEventChannel
         .receiveBroadcastStream()
         .cast<int>()
-        .distinct().map((event) {
-          debugPrint('mtu: $event');
+        .distinct()
+        .map((event) {
+      debugPrint('mtu: $event');
       return event;
-    } );
+    });
   }
 
   /// Returns Stream of state.
@@ -109,9 +110,9 @@ class FlutterBlePeripheral {
     return _stateChangedEventChannel
         .receiveBroadcastStream()
         .map((dynamic event) {
-          debugPrint('state: ');
-          return PeripheralState.values[event as int];
-        });
+      debugPrint('state: ');
+      return PeripheralState.values[event as int];
+    });
   }
 
   /// Returns Stream of data.

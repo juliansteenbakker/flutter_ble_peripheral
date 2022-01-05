@@ -57,28 +57,29 @@ class _FlutterBlePeripheralExampleState
     // var platform  =Platform.version;
     // if (Platform.isAndroid) {
 
-      await Permission.bluetooth.shouldShowRequestRationale;
-      // You can request multiple permissions at once.
-      Map<Permission, PermissionStatus> statuses = await [
-        Permission.bluetooth,
-        Permission.bluetoothAdvertise,
-        Permission.bluetoothConnect,
-        Permission.bluetoothScan,
-        Permission.location,
-      ].request();
-      for (final status in statuses.keys) {
-        if (statuses[status] == PermissionStatus.granted) {
-          print('$status permission granted');
-        } else if (statuses[status] == PermissionStatus.denied) {
-          print('$status denied. Show a dialog with a reason and again ask for the permission.');
-        } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
-          print('$status permanently denied. Take the user to the settings page.');
-        }
+    await Permission.bluetooth.shouldShowRequestRationale;
+    // You can request multiple permissions at once.
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetooth,
+      Permission.bluetoothAdvertise,
+      Permission.bluetoothConnect,
+      Permission.bluetoothScan,
+      Permission.location,
+    ].request();
+    for (final status in statuses.keys) {
+      if (statuses[status] == PermissionStatus.granted) {
+        print('$status permission granted');
+      } else if (statuses[status] == PermissionStatus.denied) {
+        print(
+            '$status denied. Show a dialog with a reason and again ask for the permission.');
+      } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
+        print(
+            '$status permanently denied. Take the user to the settings page.');
       }
-      // final sdkInt = androidInfo.version.sdkInt;
-      // var status = await Permission.camera.status;
+    }
+    // final sdkInt = androidInfo.version.sdkInt;
+    // var status = await Permission.camera.status;
     // }
-
   }
 
   @override
@@ -93,7 +94,7 @@ class _FlutterBlePeripheralExampleState
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-                  Text('Is supported: $_isSupported'),
+              Text('Is supported: $_isSupported'),
               StreamBuilder(
                   stream: blePeripheral.getStateChanged(),
                   initialData: PeripheralState.unknown,
@@ -118,15 +119,15 @@ class _FlutterBlePeripheralExampleState
                         .button!
                         .copyWith(color: Colors.blue),
                   )),
-                  MaterialButton(
-                      onPressed: _requestPermissions,
-                      child: Text(
-                        'Request Permissions',
-                        style: Theme.of(context)
-                            .primaryTextTheme
-                            .button!
-                            .copyWith(color: Colors.blue),
-                      )),
+              MaterialButton(
+                  onPressed: _requestPermissions,
+                  child: Text(
+                    'Request Permissions',
+                    style: Theme.of(context)
+                        .primaryTextTheme
+                        .button!
+                        .copyWith(color: Colors.blue),
+                  )),
             ])),
       ),
     );

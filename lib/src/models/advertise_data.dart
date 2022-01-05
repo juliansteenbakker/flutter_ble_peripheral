@@ -19,7 +19,7 @@ class AdvertiseData {
   /// Android only
   ///
   /// Specifies manufacturer data.
- final List<int>? manufacturerData;
+  final List<int>? manufacturerData;
 
   /// Android only
   ///
@@ -85,8 +85,7 @@ class AdvertiseData {
       this.connectable = false,
       this.timeout = 400,
       this.advertiseMode = AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY,
-      this.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_HIGH
-});
+      this.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_HIGH});
 }
 
 enum AdvertiseMode {
