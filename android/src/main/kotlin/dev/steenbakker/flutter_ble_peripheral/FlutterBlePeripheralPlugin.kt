@@ -27,16 +27,36 @@ import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 
-class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandler {
-    private val tag: String = "flutter_ble_peripheral"
-    private var methodChannel: MethodChannel? = null
-    private var flutterBlePeripheralManager: FlutterBlePeripheralManager = FlutterBlePeripheralManager()
-    private var context: Context? = null
+class FlutterBlePeripheralPlugin: FlutterPlugin, MethodChannel.MethodCallHandler,
+  EventChannel.StreamHandler, PluginRegistry.RequestPermissionsResultListener,
+  ActivityAware {
 
-    private val mtuChangedHandler = MtuChangedHandler()
-    private val stateChangedHandler = StateChangedHandler()
-    private val dataReceivedHandler = DataReceivedHandler()
+  private var methodChannel: MethodChannel? = null
+  private var eventChannel: EventChannel? = null
+  private var peripheral: Peripheral = Peripheral()
+  private var context: Context? = null
+  private val tag: String = "flutter_ble_peripheral"
+  private var flutterBlePeripheralManager: FlutterBlePeripheralManager = FlutterBlePeripheralManager()
 
+  private var eventSink: EventChannel.EventSink? = null
+  private var advertiseCallback: (Boolean) -> Unit = { isAdvertising ->
+    eventSink?.success(isAdvertising)
+  }
+
+  private val mtuChangedHandler = MtuChangedHandler()
+  private val stateChangedHandler = StateChangedHandler()
+  private val dataReceivedHandler = DataReceivedHandler()
+
+
+  /** Plugin registration embedding v2 */
+  override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
+    methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
+    eventChannel = EventChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_event")
+    methodChannel!!.setMethodCallHandler(this)
+    eventChannel!!.setStreamHandler(this)
+    peripheral.init()
+    context = flutterPluginBinding.applicationContext
+  }
     override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel = MethodChannel(
             flutterPluginBinding.binaryMessenger,
