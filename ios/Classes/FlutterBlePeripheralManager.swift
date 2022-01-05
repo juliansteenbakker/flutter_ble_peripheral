@@ -33,8 +33,6 @@ class FlutterBlePeripheralManager : NSObject {
     
     var dataToBeAdvertised: [String: Any]!
     
-//    var shouldStartAdvertising = false
-    
     var txCharacteristic: CBMutableCharacteristic?
     var txSubscribed = false {
         didSet {
@@ -62,18 +60,13 @@ class FlutterBlePeripheralManager : NSObject {
         
         peripheralManager.startAdvertising(dataToBeAdvertised)
         
-//        shouldStartAdvertising = true
-        
-        // TODO: add service when bool is set
+//         TODO: Add service to advertise
 //        if peripheralManager.state == .poweredOn {
 //            addService()
 //        }
     }
     
     func stop() {
-    
-//        shouldStartAdvertising = false
-        
         peripheralManager.stopAdvertising()
         state = .idle
     }
@@ -86,12 +79,8 @@ class FlutterBlePeripheralManager : NSObject {
         return state == .connected
     }
     
+// TODO: Add service to advertise
     private func addService() {
-        
-//        guard shouldStartAdvertising else {
-//            return
-//        }
-        
         // Add service and characteristics if needed
         if txCharacteristic == nil || rxCharacteristic == nil {
             
@@ -108,8 +97,6 @@ class FlutterBlePeripheralManager : NSObject {
         }
         
         peripheralManager.startAdvertising(dataToBeAdvertised)
-        
-//        shouldStartAdvertising = false;
     }
     
     func send(data: Data) {
@@ -161,10 +148,6 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
         }
     }
     
-//    func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
-//        print("[flutter_ble_peripheral] didAdd:", service, error ?? "success")
-//    }
-    
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
         print("[flutter_ble_peripheral] didReceiveRead:", request)
         
@@ -204,8 +187,8 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
                 return 
             }
 
-            print("[flutter_ble_peripheral] request.value:", request.value)
-            print("[flutter_ble_peripheral] characteristic.value:", characteristic.value)
+            print("[flutter_ble_peripheral] request.value:", request.value!)
+            print("[flutter_ble_peripheral] characteristic.value:", characteristic.value!)
             
             if data.count > 0 {
                 print("[flutter_ble_peripheral] Receive data: \(data)")

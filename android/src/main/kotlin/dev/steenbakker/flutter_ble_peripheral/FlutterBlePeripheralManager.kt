@@ -32,7 +32,6 @@ class FlutterBlePeripheralManager {
     private lateinit var context: Context
 
     private var isAdvertising = false
-//    private var shouldAdvertise = false
 
     var onMtuChanged: ((Int) -> Unit)? = null
 
@@ -140,8 +139,6 @@ class FlutterBlePeripheralManager {
             return
         }
 
-//        shouldAdvertise = true
-
         val advertiseSettings = AdvertiseSettings.Builder()
             .setAdvertiseMode(peripheralData.advertiseMode)
             .setConnectable(peripheralData.connectable)
@@ -183,17 +180,12 @@ class FlutterBlePeripheralManager {
 
         mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
         isAdvertising = false
-//        shouldAdvertise = false
 
         updateState(PeripheralState.idle)
     }
 
     // TODO: Add service to advertise
     private fun addService(peripheralData: PeripheralData) {
-//        if (!shouldAdvertise) {
-//            return
-//        }
-
         txCharacteristic = BluetoothGattCharacteristic(
             UUID.fromString(peripheralData.txCharacteristicUUID),
             BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
