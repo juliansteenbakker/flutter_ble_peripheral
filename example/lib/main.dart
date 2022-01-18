@@ -4,9 +4,6 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
-import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -25,7 +22,7 @@ class _FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
   final AdvertiseData _data = AdvertiseData(
-    uuid: '8ebdb2f3-7817-45c9-95c5-c5e9031aaa47',
+    uuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
     manufacturerId: 1234,
     manufacturerData: [1, 2, 3, 4, 5, 6],
   );
@@ -54,11 +51,8 @@ class _FlutterBlePeripheralExampleState
   }
 
   void _requestPermissions() async {
-    // var platform  =Platform.version;
-    // if (Platform.isAndroid) {
-
     await Permission.bluetooth.shouldShowRequestRationale;
-    // You can request multiple permissions at once.
+
     Map<Permission, PermissionStatus> statuses = await [
       Permission.bluetooth,
       Permission.bluetoothAdvertise,
@@ -68,18 +62,15 @@ class _FlutterBlePeripheralExampleState
     ].request();
     for (final status in statuses.keys) {
       if (statuses[status] == PermissionStatus.granted) {
-        print('$status permission granted');
+        debugPrint('$status permission granted');
       } else if (statuses[status] == PermissionStatus.denied) {
-        print(
+        debugPrint(
             '$status denied. Show a dialog with a reason and again ask for the permission.');
       } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
-        print(
+        debugPrint(
             '$status permanently denied. Take the user to the settings page.');
       }
     }
-    // final sdkInt = androidInfo.version.sdkInt;
-    // var status = await Permission.camera.status;
-    // }
   }
 
   @override

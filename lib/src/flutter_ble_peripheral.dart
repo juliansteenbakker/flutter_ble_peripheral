@@ -9,10 +9,8 @@ import 'dart:typed_data';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 
 import '../flutter_ble_peripheral.dart';
-import 'models/advertise_data.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
