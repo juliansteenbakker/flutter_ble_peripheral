@@ -7,7 +7,6 @@
 import 'dart:async';
 import 'dart:typed_data';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../flutter_ble_peripheral.dart';
@@ -43,7 +42,6 @@ class FlutterBlePeripheral {
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> start(AdvertiseData data) async {
-    debugPrint('Start advertising');
     Map params = <String, dynamic>{
       'uuid': data.uuid,
       'manufacturerId': data.manufacturerId,
@@ -64,7 +62,6 @@ class FlutterBlePeripheral {
 
   /// Stop advertising
   Future<void> stop() async {
-    debugPrint('Stop advertising');
     await _methodChannel.invokeMethod('stop');
   }
 
@@ -85,7 +82,6 @@ class FlutterBlePeripheral {
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> sendData(Uint8List data) async {
-    debugPrint('Send data: $data');
     await _methodChannel.invokeMethod('sendData', data);
   }
 
@@ -96,7 +92,6 @@ class FlutterBlePeripheral {
         .cast<int>()
         .distinct()
         .map((event) {
-      debugPrint('mtu: $event');
       return event;
     });
   }
@@ -108,7 +103,6 @@ class FlutterBlePeripheral {
     return _stateChangedEventChannel
         .receiveBroadcastStream()
         .map((dynamic event) {
-      debugPrint('state: ');
       return PeripheralState.values[event as int];
     });
   }
