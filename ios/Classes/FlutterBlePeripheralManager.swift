@@ -7,12 +7,9 @@
 
 import Foundation
 import CoreBluetooth
+import CoreLocation
 
-enum PeripheralState {
-    case idle, unauthorized, unsupported, advertising, connected
-}
-
-class Peripheral : NSObject {
+class FlutterBlePeripheralManager : NSObject {
     
     lazy var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
     var peripheralData: NSDictionary!
@@ -26,7 +23,6 @@ class Peripheral : NSObject {
     // min MTU before iOS 10
     var mtu: Int = 158 {
         didSet {
-          print("[BLE] mtu:", mtu);
           onMtuChanged?(mtu)
         }
     }
@@ -37,12 +33,9 @@ class Peripheral : NSObject {
     
     var dataToBeAdvertised: [String: Any]!
     
-    var shouldStartAdvertising = false
-    
     var txCharacteristic: CBMutableCharacteristic?
     var txSubscribed = false {
         didSet {
-            print("[BLE Peripheral] txSubscribed = ", txSubscribed)
             if txSubscribed {
                 state = .connected
             } else if isAdvertising() {
@@ -54,9 +47,7 @@ class Peripheral : NSObject {
     
     var txSubscriptions = Set<UUID>()
     
-    func start(advertiseData: AdvertiseData) {
-        
-        print("[BLE Peripheral] Start advertising")
+    func start(advertiseData: PeripheralData) {
         
         dataToBeAdvertised = [:]
         if (advertiseData.uuid != nil) {
@@ -67,19 +58,15 @@ class Peripheral : NSObject {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = [advertiseData.localName]
         }
         
-        shouldStartAdvertising = true
+        peripheralManager.startAdvertising(dataToBeAdvertised)
         
-        if peripheralManager.state == .poweredOn {
-            addService()
-        }
+//         TODO: Add service to advertise
+//        if peripheralManager.state == .poweredOn {
+//            addService()
+//        }
     }
     
     func stop() {
-        
-        print("[BLE Peripheral] Stop advertising")
-        
-        shouldStartAdvertising = false
-        
         peripheralManager.stopAdvertising()
         state = .idle
     }
@@ -92,19 +79,15 @@ class Peripheral : NSObject {
         return state == .connected
     }
     
+// TODO: Add service to advertise
     private func addService() {
-        
-        guard shouldStartAdvertising else {
-            return
-        }
-        
         // Add service and characteristics if needed
         if txCharacteristic == nil || rxCharacteristic == nil {
             
-            let mutableTxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.txCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
-            let mutableRxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: AdvertiseData.rxCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
+            let mutableTxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: PeripheralData.txCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
+            let mutableRxCharacteristic = CBMutableCharacteristic(type: CBUUID(string: PeripheralData.rxCharacteristicUUID), properties: [.read, .write, .notify], value: nil, permissions: [.readable, .writeable])
             
-            let service = CBMutableService(type: CBUUID(string: AdvertiseData.serviceUUID), primary: true)
+            let service = CBMutableService(type: CBUUID(string: PeripheralData.serviceUUID), primary: true)
             service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic];
             
             peripheralManager.add(service)
@@ -114,13 +97,11 @@ class Peripheral : NSObject {
         }
         
         peripheralManager.startAdvertising(dataToBeAdvertised)
-        
-        shouldStartAdvertising = false;
     }
     
     func send(data: Data) {
         
-        print("[BLE Peripheral] Send data: \(data)")
+        print("[flutter_ble_peripheral] Send data: \(data)")
         
         guard let characteristic = txCharacteristic else { 
             return
@@ -130,32 +111,30 @@ class Peripheral : NSObject {
     }
 }
 
-extension Peripheral: CBPeripheralManagerDelegate {
+extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
     
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         switch peripheral.state {
         case .poweredOn:
-            print("[BLE Peripheral] poweredOn")
-            addService()
-        case .poweredOff:
-            print("[BLE Peripheral] poweredOff")
+//            addService() TODO: add service
             state = .idle
+        case .poweredOff:
+            state = .poweredOff
         case .resetting:
-            print("[BLE Peripheral] resetting")
+            state = .idle
         case .unsupported:
-            print("[BLE Peripheral] unsupported")
             state = .unsupported
         case .unauthorized:
-            print("[BLE Peripheral] unauthorized")
             state = .unauthorized
         case .unknown:
-            print("[BLE Peripheral] unknown")
-            state = .idle
+            state = .unknown
+        @unknown default:
+            state = .unknown
         }
     }
     
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
-        print("[BLE Peripheral] didStartAdvertising:", error ?? "success")
+        print("[flutter_ble_peripheral] didStartAdvertising:", error ?? "success")
         
         guard error == nil else {
             return
@@ -169,16 +148,12 @@ extension Peripheral: CBPeripheralManagerDelegate {
         }
     }
     
-    func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
-        print("[BLE Peripheral] didAdd:", service, error ?? "success")
-    }
-    
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
-        print("[BLE Peripheral] didReceiveRead:", request)
+        print("[flutter_ble_peripheral] didReceiveRead:", request)
         
         // Only answer to requests if not idle
         guard state != .idle else {
-            print("[BLE Peripheral] state = .idle -> not answering read request")
+            print("[flutter_ble_peripheral] state = .idle -> not answering read request")
             return
         }
         
@@ -187,36 +162,36 @@ extension Peripheral: CBPeripheralManagerDelegate {
     }
     
     func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
-        print("[BLE Peripheral] didReceiveWrite:", requests)
+        print("[flutter_ble_peripheral] didReceiveWrite:", requests)
         
         // Only answer to requests if not idle
         guard state != .idle else {
-            print("[BLE Peripheral] state = .idle -> not answering write request")
+            print("[flutter_ble_peripheral] state = .idle -> not answering write request")
             return
         }
         
         for request in requests {
             
-            print("[BLE Peripheral] write request:", request);
+            print("[flutter_ble_peripheral] write request:", request);
 
             let characteristic = request.characteristic
             guard let data = request.value else {
-              print("[BLE Peripheral] request.value is nil");
+              print("[flutter_ble_peripheral] request.value is nil");
               return
             }
 
             // Write only supported in rxCharacteristic
             guard characteristic == self.rxCharacteristic else {
                 peripheralManager.respond(to: request, withResult: .requestNotSupported)
-                print("[BLE Peripheral] respond requestNotSupported (only supported in rxCharacteristic)")
+                print("[flutter_ble_peripheral] respond requestNotSupported (only supported in rxCharacteristic)")
                 return 
             }
 
-            print("[BLE Peripheral] request.value:", request.value)
-            print("[BLE Peripheral] characteristic.value:", characteristic.value)
+            print("[flutter_ble_peripheral] request.value:", request.value!)
+            print("[flutter_ble_peripheral] characteristic.value:", characteristic.value!)
             
             if data.count > 0 {
-                print("[BLE Peripheral] Receive data: \(data)")
+                print("[flutter_ble_peripheral] Receive data: \(data)")
                 onDataReceived?(data)
             }
             
@@ -229,21 +204,17 @@ extension Peripheral: CBPeripheralManagerDelegate {
         
         if characteristic == txCharacteristic {
             
-            print("[BLE Peripheral] didSubscribeTo:", central, characteristic)
+            print("[flutter_ble_peripheral] didSubscribeTo:", central, characteristic)
             
             // Update MTU
             self.mtu = central.maximumUpdateValueLength;
 
             // Add to subscriptions
-            if #available(macOS 10.13, *) {
-                txSubscriptions.insert(central.identifier)
-            } else {
-                // Fallback on earlier versions
-            }
+            txSubscriptions.insert(central.identifier)
            
             txSubscribed = !txSubscriptions.isEmpty
             
-            print("[BLE Peripheral] txSubscriptions:", txSubscriptions)
+            print("[flutter_ble_peripheral] txSubscriptions:", txSubscriptions)
         }
     }
     
@@ -251,32 +222,16 @@ extension Peripheral: CBPeripheralManagerDelegate {
         
         if characteristic == txCharacteristic {
         
-            print("[BLE Peripheral] didUnsubscribeFrom:", central, characteristic)
+            print("[flutter_ble_peripheral] didUnsubscribeFrom:", central, characteristic)
             
             // Remove from txSubscriptions
-            if #available(macOS 10.13, *) {
-                txSubscriptions.remove(central.identifier)
-            } else {
-                // Fallback on earlier versions
-            }
+            txSubscriptions.remove(central.identifier)
             
             txSubscribed = !txSubscriptions.isEmpty
             
-            print("[BLE Peripheral] txSubscriptions:", txSubscriptions)
+            print("[flutter_ble_peripheral] txSubscriptions:", txSubscriptions)
         }
     }
 }
 
-class AdvertiseData {
-    var uuid: String?
-    var localName: String?     //CBAdvertisementDataLocalNameKey
-    
-    static let serviceUUID: String = "8ebdb2f3-7817-45c9-95c5-c5e9031aaa47"
-    static let txCharacteristicUUID: String = "08590F7E-DB05-467E-8757-72F6FAEB13D4"
-    static let rxCharacteristicUUID: String = "08590F7E-DB05-467E-8757-72F6FAEB13D5"
-    
-    init(uuid: String?, localName: String?) {
-        self.uuid = Self.serviceUUID //uuid;
-        self.localName = localName
-    }
-}
+

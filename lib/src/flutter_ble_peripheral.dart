@@ -5,10 +5,12 @@
  */
 
 import 'dart:async';
+import 'dart:typed_data';
 
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
-import 'advertise_data.dart';
+import '../flutter_ble_peripheral.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -27,17 +29,21 @@ class FlutterBlePeripheral {
   final MethodChannel _methodChannel =
       const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
-  /// Event Channel used to communicate events with
-  final EventChannel _eventChannel =
-      const EventChannel('dev.steenbakker.flutter_ble_peripheral/ble_event');
+  /// Event Channel for MTU state
+  final EventChannel _mtuChangedEventChannel = const EventChannel(
+      'dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed');
+
+  /// Event Channel used to changed state
+  final EventChannel _stateChangedEventChannel = const EventChannel(
+      'dev.steenbakker.flutter_ble_peripheral/ble_state_changed');
+
+  // Event Channel used to received data
+  final EventChannel _dataReceivedEventChannel = const EventChannel(
+      'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> start(AdvertiseData data) async {
-    if (data.uuid == null) {
-      throw IllegalArgumentException(
-          'Illegal arguments! UUID must not be null or empty');
-    }
-
+    debugPrint('Start advertising');
     Map params = <String, dynamic>{
       'uuid': data.uuid,
       'manufacturerId': data.manufacturerId,
@@ -46,7 +52,7 @@ class FlutterBlePeripheral {
       'serviceData': data.serviceData,
       'includeDeviceName': data.includeDeviceName,
       'localName': data.localName,
-      'transmissionPowerIncluded': data.transmissionPowerIncluded,
+      'transmissionPowerIncluded': data.includePowerLevel,
       'advertiseMode': data.advertiseMode.index,
       'connectable': data.connectable,
       'timeout': data.timeout,
@@ -58,6 +64,7 @@ class FlutterBlePeripheral {
 
   /// Stop advertising
   Future<void> stop() async {
+    debugPrint('Stop advertising');
     await _methodChannel.invokeMethod('stop');
   }
 
@@ -71,24 +78,45 @@ class FlutterBlePeripheral {
     return await _methodChannel.invokeMethod('isSupported');
   }
 
-  /// Returns Stream of booleans indicating if advertising.
-  ///
-  /// After listening to this Stream, you'll be notified about changes in advertising state.
-  /// Returns `true` if advertising. See also: [isAdvertising]
-  Stream<bool> getAdvertisingStateChange() {
-    return _eventChannel.receiveBroadcastStream().cast<bool>();
+  /// Returns `true` if device is connected
+  Future<bool> isConnected() async {
+    return await _methodChannel.invokeMethod('isConnected');
   }
-}
 
-/// Special exception for illegal arguments
-class IllegalArgumentException implements Exception {
-  /// Description of exception
-  final String message;
+  /// Start advertising. Takes [AdvertiseData] as an input.
+  Future<void> sendData(Uint8List data) async {
+    debugPrint('Send data: $data');
+    await _methodChannel.invokeMethod('sendData', data);
+  }
 
-  IllegalArgumentException(this.message);
+  /// Returns Stream of MTU updates.
+  Stream<int> getMtuChanged() {
+    return _mtuChangedEventChannel
+        .receiveBroadcastStream()
+        .cast<int>()
+        .distinct()
+        .map((event) {
+      debugPrint('mtu: $event');
+      return event;
+    });
+  }
 
-  @override
-  String toString() {
-    return 'IllegalArgumentException: $message';
+  /// Returns Stream of state.
+  ///
+  /// After listening to this Stream, you'll be notified about changes in peripheral state.
+  Stream<PeripheralState> getStateChanged() {
+    return _stateChangedEventChannel
+        .receiveBroadcastStream()
+        .map((dynamic event) {
+      debugPrint('state: ');
+      return PeripheralState.values[event as int];
+    });
+  }
+
+  /// Returns Stream of data.
+  ///
+  ///
+  Stream<Uint8List> getDataReceived() {
+    return _dataReceivedEventChannel.receiveBroadcastStream().cast<Uint8List>();
   }
 }

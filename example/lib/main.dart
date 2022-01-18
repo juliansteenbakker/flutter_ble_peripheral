@@ -6,6 +6,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const FlutterBlePeripheralExample());
 
@@ -20,22 +21,17 @@ class FlutterBlePeripheralExample extends StatefulWidget {
 class _FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
   final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
-  final AdvertiseData _data = AdvertiseData();
-  bool _isBroadcasting = false;
-  bool? _isSupported;
+  final AdvertiseData _data = AdvertiseData(
+    uuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
+    manufacturerId: 1234,
+    manufacturerData: [1, 2, 3, 4, 5, 6],
+  );
+
+  bool _isSupported = false;
 
   @override
   void initState() {
     super.initState();
-    setState(() {
-      _data.includeDeviceName = false;
-      _data.uuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
-      _data.manufacturerId = 1234;
-      _data.timeout = 1000;
-      _data.manufacturerData = [1, 2, 3, 4, 5, 6];
-      _data.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_ULTRA_LOW;
-      _data.advertiseMode = AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY;
-    });
     initPlatformState();
   }
 
@@ -49,14 +45,31 @@ class _FlutterBlePeripheralExampleState
   void _toggleAdvertise() async {
     if (await blePeripheral.isAdvertising()) {
       await blePeripheral.stop();
-      setState(() {
-        _isBroadcasting = false;
-      });
     } else {
       await blePeripheral.start(_data);
-      setState(() {
-        _isBroadcasting = true;
-      });
+    }
+  }
+
+  void _requestPermissions() async {
+    await Permission.bluetooth.shouldShowRequestRationale;
+
+    Map<Permission, PermissionStatus> statuses = await [
+      Permission.bluetooth,
+      Permission.bluetoothAdvertise,
+      Permission.bluetoothConnect,
+      Permission.bluetoothScan,
+      Permission.location,
+    ].request();
+    for (final status in statuses.keys) {
+      if (statuses[status] == PermissionStatus.granted) {
+        debugPrint('$status permission granted');
+      } else if (statuses[status] == PermissionStatus.denied) {
+        debugPrint(
+            '$status denied. Show a dialog with a reason and again ask for the permission.');
+      } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
+        debugPrint(
+            '$status permanently denied. Take the user to the settings page.');
+      }
     }
   }
 
@@ -72,20 +85,35 @@ class _FlutterBlePeripheralExampleState
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.center,
                 children: <Widget>[
-              Text('Is advertising: $_isBroadcasting'),
+              Text('Is supported: $_isSupported'),
               StreamBuilder(
-                  stream: blePeripheral.getAdvertisingStateChange(),
-                  initialData: 'Advertisement not started.',
+                  stream: blePeripheral.getStateChanged(),
+                  initialData: PeripheralState.unknown,
                   builder:
                       (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
-                    return Text('Is advertising stream: ${snapshot.data}');
+                    return Text('State: ${snapshot.data}');
                   }),
-              Text('Current uuid is ${_data.uuid}'),
-              Text('Is advertising supported:  $_isSupported'),
+              StreamBuilder(
+                  stream: blePeripheral.getDataReceived(),
+                  initialData: 'None',
+                  builder:
+                      (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                    return Text('Data received: ${snapshot.data}');
+                  }),
+              Text('Current UUID: ${_data.uuid}'),
               MaterialButton(
                   onPressed: _toggleAdvertise,
                   child: Text(
                     'Toggle advertising',
+                    style: Theme.of(context)
+                        .primaryTextTheme
+                        .button!
+                        .copyWith(color: Colors.blue),
+                  )),
+              MaterialButton(
+                  onPressed: _requestPermissions,
+                  child: Text(
+                    'Request Permissions',
                     style: Theme.of(context)
                         .primaryTextTheme
                         .button!
