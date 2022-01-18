@@ -1,3 +1,8 @@
+## 0.6.0
+* Refactored large parts of the code for both Android & iOS.
+* Upgraded Android to Android 12 permission system.
+* Other minor improvements
+
 ## 0.5.0+1
 Changes of 0.5.0 weren't visible on pub.dev
 
