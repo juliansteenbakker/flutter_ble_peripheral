@@ -21,6 +21,7 @@ import dev.steenbakker.flutter_ble_peripheral.handlers.DataReceivedHandler
 import dev.steenbakker.flutter_ble_peripheral.handlers.MtuChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralData
+import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.MethodCall
@@ -45,18 +46,17 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         )
         methodChannel?.setMethodCallHandler(this)
 
+        mtuChangedHandler.register(flutterPluginBinding, flutterBlePeripheralManager)
+        stateChangedHandler.register(flutterPluginBinding, flutterBlePeripheralManager)
+        dataReceivedHandler.register(flutterPluginBinding, flutterBlePeripheralManager)
+
         context = flutterPluginBinding.applicationContext
 
         try {
             flutterBlePeripheralManager.init(flutterPluginBinding.applicationContext)
         } catch (e: PeripheralException) {
             flutterBlePeripheralManager.handlePeripheralException(e, null)
-            return
         }
-
-        mtuChangedHandler.register(flutterPluginBinding, flutterBlePeripheralManager)
-        stateChangedHandler.register(flutterPluginBinding, flutterBlePeripheralManager)
-        dataReceivedHandler.register(flutterPluginBinding, flutterBlePeripheralManager)
     }
 
     override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
@@ -158,7 +158,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     }
 
     private fun isConnected(result: MethodChannel.Result) {
-        val isConnected = flutterBlePeripheralManager.isConnected()
+        val isConnected = stateChangedHandler.state == PeripheralState.connected
 
         Handler(Looper.getMainLooper()).post {
             Log.i(tag, "Is BLE connected: $isConnected")

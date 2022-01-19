@@ -1,5 +1,6 @@
 package dev.steenbakker.flutter_ble_peripheral.exceptions
 
+import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import java.lang.Exception
 
-class PeripheralException(message: String) : Exception(message)
+class PeripheralException(val state: PeripheralState) : Exception(state.name)

@@ -3,11 +3,18 @@ package dev.steenbakker.flutter_ble_peripheral.handlers
 import android.os.Handler
 import android.os.Looper
 import dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralManager
+import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
+import io.flutter.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 
 class StateChangedHandler : EventChannel.StreamHandler {
+    private val tag: String = "BLE Peripheral state "
+
     private var eventSink: EventChannel.EventSink? = null
+
+    var state = PeripheralState.idle
+
 
     fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, flutterBlePeripheralManager: FlutterBlePeripheralManager) {
         val eventChannel = EventChannel(
@@ -18,9 +25,15 @@ class StateChangedHandler : EventChannel.StreamHandler {
         eventChannel.setStreamHandler(this)
 
         flutterBlePeripheralManager.onStateChanged = { state ->
-            Handler(Looper.getMainLooper()).post {
-                eventSink?.success(state.ordinal)
-            }
+            send(state)
+        }
+    }
+
+    private fun send(state: PeripheralState) {
+        Log.i(tag, state.name)
+        this.state = state
+        Handler(Looper.getMainLooper()).post {
+            eventSink?.success(state.ordinal)
         }
     }
 
