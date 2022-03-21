@@ -6,8 +6,24 @@ import dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 
-class MtuChangedHandler : EventChannel.StreamHandler {
+class MtuChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, flutterBlePeripheralManager: FlutterBlePeripheralManager) : EventChannel.StreamHandler {
     private var eventSink: EventChannel.EventSink? = null
+
+
+    init {
+        val eventChannel = EventChannel(
+            flutterPluginBinding.binaryMessenger,
+            "dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed"
+        )
+
+        eventChannel.setStreamHandler(this)
+
+//        flutterBlePeripheralManager.onMtuChanged = { mtu ->
+//            Handler(Looper.getMainLooper()).post {
+//                eventSink?.success(mtu)
+//            }
+//        }
+    }
 
     fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, flutterBlePeripheralManager: FlutterBlePeripheralManager) {
         val eventChannel = EventChannel(
@@ -17,11 +33,11 @@ class MtuChangedHandler : EventChannel.StreamHandler {
 
         eventChannel.setStreamHandler(this)
 
-        flutterBlePeripheralManager.onMtuChanged = { mtu ->
-            Handler(Looper.getMainLooper()).post {
-                eventSink?.success(mtu)
-            }
-        }
+//        flutterBlePeripheralManager.onMtuChanged = { mtu ->
+//            Handler(Looper.getMainLooper()).post {
+//                eventSink?.success(mtu)
+//            }
+//        }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {

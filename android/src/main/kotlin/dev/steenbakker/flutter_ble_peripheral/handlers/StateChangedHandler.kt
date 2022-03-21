@@ -8,28 +8,30 @@ import io.flutter.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 
-class StateChangedHandler : EventChannel.StreamHandler {
+class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) : EventChannel.StreamHandler {
     private val tag: String = "BLE Peripheral state "
 
     private var eventSink: EventChannel.EventSink? = null
 
     var state = PeripheralState.idle
 
-
-    fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, flutterBlePeripheralManager: FlutterBlePeripheralManager) {
+    init {
         val eventChannel = EventChannel(
             flutterPluginBinding.binaryMessenger,
             "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
         )
-
         eventChannel.setStreamHandler(this)
-
-        flutterBlePeripheralManager.onStateChanged = { state ->
-            send(state)
-        }
     }
 
-    private fun send(state: PeripheralState) {
+//    fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
+//        val eventChannel = EventChannel(
+//            flutterPluginBinding.binaryMessenger,
+//            "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
+//        )
+//        eventChannel.setStreamHandler(this)
+//    }
+
+    fun publishPeripheralState(state: PeripheralState) {
         Log.i(tag, state.name)
         this.state = state
         Handler(Looper.getMainLooper()).post {
@@ -39,6 +41,7 @@ class StateChangedHandler : EventChannel.StreamHandler {
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
         this.eventSink = eventSink
+        publishPeripheralState(state)
     }
 
     override fun onCancel(event: Any?) {

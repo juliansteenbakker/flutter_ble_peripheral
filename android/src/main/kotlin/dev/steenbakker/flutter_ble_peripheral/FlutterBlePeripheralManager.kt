@@ -8,19 +8,19 @@ package dev.steenbakker.flutter_ble_peripheral
 
 import android.bluetooth.*
 import android.bluetooth.le.*
+import android.bluetooth.le.AdvertisingSetCallback
 import android.content.Context
 import android.os.Build
-import android.os.ParcelUuid
 import androidx.annotation.RequiresApi
 import dev.steenbakker.flutter_ble_peripheral.exceptions.PeripheralException
-import dev.steenbakker.flutter_ble_peripheral.models.PeripheralData
-import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
+import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
+import dev.steenbakker.flutter_ble_peripheral.models.*
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
 import java.util.*
 
 
-class FlutterBlePeripheralManager {
+class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: StateChangedHandler) {
 
     private val tag: String = "BLE Peripheral"
     private lateinit var mBluetoothManager: BluetoothManager
@@ -29,20 +29,20 @@ class FlutterBlePeripheralManager {
     private var mBluetoothGatt: BluetoothGatt? = null
     private var mBluetoothDevice: BluetoothDevice? = null
 
-    private lateinit var context: Context
 
     private var isAdvertising = false
 
-    var onMtuChanged: ((Int) -> Unit)? = null
-    var onStateChanged: ((PeripheralState) -> Unit)? = null
-    var onDataReceived: ((ByteArray) -> Unit)? = null
+//    var onMtuChanged: ((Int) -> Unit)? = null
+//    var onStateChanged: ((PeripheralState) -> Unit)? = null
+//    var onDataReceived: ((ByteArray) -> Unit)? = null
+//    val stateChange: StateChangedHandler = StateChangedHandler()
 
     private var txCharacteristic: BluetoothGattCharacteristic? = null
     private var rxCharacteristic: BluetoothGattCharacteristic? = null
 
-    fun init(context: Context) {
-        this.context = context
+    var result: MethodChannel.Result? = null
 
+    init {
         val bluetoothManager: BluetoothManager? =
             context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
 
@@ -52,28 +52,34 @@ class FlutterBlePeripheralManager {
             mBluetoothManager = bluetoothManager
 
             val bluetoothAdapter: BluetoothAdapter = bluetoothManager.adapter
+            //&& !bluetoothAdapter.isMultipleAdvertisementSupported
             if (bluetoothAdapter.bluetoothLeAdvertiser == null) {
-                throw PeripheralException(PeripheralState.poweredOff)
+                throw PeripheralException(PeripheralState.unsupported)
             } else {
+//                bluetoothAdapter.state
                 mBluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
+                 if (bluetoothAdapter.bluetoothLeAdvertiser == null) {
+                     stateChangedHandler.publishPeripheralState(PeripheralState.poweredOff)
+                 }
+                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
             }
         }
     }
 
-    fun handlePeripheralException(e: PeripheralException, result: MethodChannel.Result?) {
+    private fun handlePeripheralException(e: PeripheralException, result: MethodChannel.Result?) {
         when (e.state) {
             PeripheralState.unsupported -> {
-                onStateChanged?.invoke(PeripheralState.unsupported)
+                stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
                 Log.e(tag, "This device does not support bluetooth LE")
                 result?.error("Not Supported", "This device does not support bluetooth LE", e.state.name)
             }
             PeripheralState.poweredOff -> {
-                onStateChanged?.invoke(PeripheralState.poweredOff)
-                Log.e(tag, "Bluetooth may be turned off or is not supported")
-                result?.error("Not powered", "Bluetooth may be turned off or is not supported", e.state.name)
+                stateChangedHandler.publishPeripheralState(PeripheralState.poweredOff)
+                Log.e(tag, "Bluetooth may be turned off")
+                result?.error("Not powered", "Bluetooth may be turned off", e.state.name)
             }
             else -> {
-                onStateChanged?.invoke(e.state)
+                stateChangedHandler.publishPeripheralState(e.state)
                 Log.e(tag, e.state.name)
                 result?.error(e.state.name, null, null)
             }
@@ -84,7 +90,9 @@ class FlutterBlePeripheralManager {
         override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
             super.onStartSuccess(settingsInEffect)
             isAdvertising = true
-            onStateChanged?.invoke(PeripheralState.advertising)
+            result?.success(null)
+            result = null
+            stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
         }
 
         override fun onStartFailure(errorCode: Int) {
@@ -94,35 +102,36 @@ class FlutterBlePeripheralManager {
                 ADVERTISE_FAILED_ALREADY_STARTED -> {
                     statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
                     isAdvertising = true
-                    onStateChanged?.invoke(PeripheralState.advertising)
+                    stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
                 }
                 ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
                     statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
                     isAdvertising = false
-                    onStateChanged?.invoke(PeripheralState.unsupported)
+                    stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
                 }
                 ADVERTISE_FAILED_INTERNAL_ERROR -> {
                     statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
                     isAdvertising = false
-                    onStateChanged?.invoke(PeripheralState.idle)
+                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
                 }
                 ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
                     statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
                     isAdvertising = false
-                    onStateChanged?.invoke(PeripheralState.idle)
+                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
                 }
                 ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                     statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
                     isAdvertising = false
-                    onStateChanged?.invoke(PeripheralState.idle)
+                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
                 }
                 else -> {
                     statusText = "UNDOCUMENTED"
-                    onStateChanged?.invoke(PeripheralState.unknown)
+                    stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
                 }
             }
-
             Log.e(tag, "ERROR while starting advertising: $errorCode - $statusText")
+            result?.error(statusText, null, null)
+            result = null
             isAdvertising = false
         }
     }
@@ -146,6 +155,51 @@ class FlutterBlePeripheralManager {
             txPower: Int,
             status: Int
         ) {
+            super.onAdvertisingSetStarted(advertisingSet, txPower, status)
+            var statusText = ""
+            when (status) {
+                ADVERTISE_SUCCESS -> {
+                    isAdvertising = true
+                    result?.success(txPower)
+                    stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+                }
+                ADVERTISE_FAILED_ALREADY_STARTED -> {
+                    statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
+                    isAdvertising = true
+                    stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+                }
+                ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
+                    statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
+                    isAdvertising = false
+                    stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
+                }
+                ADVERTISE_FAILED_INTERNAL_ERROR -> {
+                    statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
+                    isAdvertising = false
+                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                }
+                ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
+                    statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
+                    isAdvertising = false
+                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                }
+                ADVERTISE_FAILED_DATA_TOO_LARGE -> {
+                    statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
+                    isAdvertising = false
+                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                }
+                else -> {
+                    statusText = "UNDOCUMENTED"
+                    stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
+                }
+
+            }
+            if (status != ADVERTISE_SUCCESS) {
+                Log.e(tag, "ERROR while starting advertising set: $status - $statusText")
+                result?.error(status.toString(), statusText, "startAdvertisingSet")
+                result = null
+            }
+
         }
 
         /**
@@ -154,7 +208,11 @@ class FlutterBlePeripheralManager {
          *
          * @param advertisingSet The advertising set.
          */
-        override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {}
+        override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
+//            super.onAdvertisingSetStarted(advertisingSet, txPower, status)
+//            isAdvertising = false
+//            stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        }
 
         /**
          * Callback triggered in response to [BluetoothLeAdvertiser.startAdvertisingSet]
@@ -241,169 +299,56 @@ class FlutterBlePeripheralManager {
             status: Int
         ) {
         }
-
-        /**
-         * Callback triggered in response to [AdvertisingSet.getOwnAddress]
-         * indicating result of the operation.
-         *
-         * @param advertisingSet The advertising set.
-         * @param addressType type of address.
-         * @param address advertising set bluetooth address.
-         * @hide
-         */
-//        override fun onOwnAddressRead(advertisingSet: AdvertisingSet?, addressType: Int, address: String?) {}
     }
 
-    fun start(peripheralData: PeripheralData, result: MethodChannel.Result, peripheralResponse: PeripheralData?) {
-        try {
-            init(context)
-        } catch (e: PeripheralException) {
-            handlePeripheralException(e, result)
-            return
-        }
+    /**
+     * Start continuous advertising
+     */
+    fun start(peripheralData: AdvertiseData, peripheralSettings: AdvertiseSettings, result: MethodChannel.Result, peripheralResponse: AdvertiseData?) {
+//        try {
+//            init(context)
+//        } catch (e: PeripheralException) {
+//            handlePeripheralException(e, result)
+//            return
+//        }
 
-        val advertiseSettings = AdvertiseSettings.Builder()
-            .setAdvertiseMode(peripheralData.advertiseMode)
-            .setConnectable(peripheralData.connectable)
-            .setTimeout(peripheralData.timeout)
-            .setTxPowerLevel(peripheralData.txPowerLevel)
-            .build()
+        this.result = result
 
-        val advertiseData = AdvertiseData.Builder()
-            .setIncludeDeviceName(peripheralData.includeDeviceName)
-            .setIncludeTxPowerLevel(peripheralData.includeTxPowerLevel)
-            .addServiceUuid(ParcelUuid(UUID.fromString(peripheralData.uuid)))
-//            .addManufacturerData()
-//            .addServiceData()
-//            .addServiceSolicitationUuid()
-            .build()
+        mBluetoothLeAdvertiser!!.startAdvertising(
+            peripheralSettings,
+            peripheralData,
+                peripheralResponse,
+            mAdvertiseCallback
+        )
 
-        if (peripheralResponse != null) {
-//            val scanResponse = AdvertiseData.Builder()
-//                .setIncludeDeviceName(peripheralData.includeDeviceName)
-//                .setIncludeTxPowerLevel(peripheralData.includeTxPowerLevel)
-//                .addServiceUuid(ParcelUuid(UUID.fromString(peripheralData.uuid)))
-//            .addManufacturerData()
-//            .addServiceData()
-//            .addServiceSolicitationUuid()
-//                .build()
-
-//            mBluetoothLeAdvertiser!!.startAdvertising(
-//                advertiseSettings,
-//                advertiseData,
-//                scanResponse,
-//                mAdvertiseCallback
-//            )
-        } else {
-            mBluetoothLeAdvertiser!!.startAdvertising(
-                advertiseSettings,
-                advertiseData,
-                mAdvertiseCallback
-            )
-        }
-
-
-        // TODO: Add service to advertise
-//        addService(peripheralData)
+//        addService(peripheralData) TODO: Add service to advertise
     }
 
+    /**
+     * Start advertising for a certain period
+     */
     @RequiresApi(Build.VERSION_CODES.O)
-    fun startSet(peripheralData: PeripheralData, result: MethodChannel.Result) {
-        try {
-            init(context)
-        } catch (e: PeripheralException) {
-            handlePeripheralException(e, result)
-            return
-        }
+    fun startSet(advertiseData: AdvertiseData, advertiseSettingsSet: AdvertisingSetParameters, result: MethodChannel.Result, peripheralResponse: AdvertiseData?,
+                 periodicResponse: AdvertiseData?, periodicResponseSettings: PeriodicAdvertisingParameters?, maxExtendedAdvertisingEvents: Int = 0, duration: Int = 0) {
+//        try {
+//            init(context)
+//        } catch (e: PeripheralException) {
+//            handlePeripheralException(e, result)
+//            return
+//        }
 
-        val advertiseSettingsSet = AdvertisingSetParameters.Builder()
-//            .setAnonymous()
-//            .setConnectable()
-//            .setIncludeTxPower()
-//            .setInterval()
-//            .setLegacyMode()
-//            .setPrimaryPhy()
-//            .setScannable()
-//            .setSecondaryPhy()
-//            .setTxPowerLevel()
-            .build()
-
-//        val advertiseSettings = AdvertiseSettings.Builder()
-//            .setAdvertiseMode(peripheralData.advertiseMode)
-//            .setConnectable(peripheralData.connectable)
-//            .setTimeout(peripheralData.timeout)
-//            .setTxPowerLevel(peripheralData.txPowerLevel)
-//            .build()
-
-        val advertiseData = AdvertiseData.Builder()
-            .setIncludeDeviceName(peripheralData.includeDeviceName)
-            .setIncludeTxPowerLevel(peripheralData.includeTxPowerLevel)
-            .addServiceUuid(ParcelUuid(UUID.fromString(peripheralData.uuid)))
-            .build()
-
-        val scanResponse = AdvertiseData.Builder()
-            .setIncludeDeviceName(peripheralData.includeDeviceName)
-            .setIncludeTxPowerLevel(peripheralData.includeTxPowerLevel)
-            .addServiceUuid(ParcelUuid(UUID.fromString(peripheralData.uuid)))
-//            .addManufacturerData()
-//            .addServiceData()
-//            .addServiceSolicitationUuid()
-            .build()
-
-        val periodicAdvertisingParameters = PeriodicAdvertisingParameters.Builder()
-//            .setAnonymous()
-//            .setConnectable()
-//            .setIncludeTxPower()
-//            .setInterval()
-//            .setLegacyMode()
-//            .setPrimaryPhy()
-//            .setScannable()
-//            .setSecondaryPhy()
-//            .setTxPowerLevel()
-            .build()
-
-        val periodicData = AdvertiseData.Builder()
-            .setIncludeDeviceName(peripheralData.includeDeviceName)
-            .setIncludeTxPowerLevel(peripheralData.includeTxPowerLevel)
-            .addServiceUuid(ParcelUuid(UUID.fromString(peripheralData.uuid)))
-//            .addManufacturerData()
-//            .addServiceData()
-//            .addServiceSolicitationUuid()
-            .build()
-
-        val duration = 0
-        val maxExtendedAdvertisingEvents = 0
-
+        this.result = result
 
         mBluetoothLeAdvertiser!!.startAdvertisingSet(
-            advertiseSettingsSet,
-            advertiseData,
-            scanResponse,
-            periodicAdvertisingParameters,
-            periodicData,
-            duration,
-            maxExtendedAdvertisingEvents,
-            mAdvertiseSetCallback,
-//            handler
+                advertiseSettingsSet,
+                advertiseData,
+                peripheralResponse,
+                periodicResponseSettings,
+                periodicResponse,
+                duration,
+                maxExtendedAdvertisingEvents,
+                mAdvertiseSetCallback,
         )
-//
-//        mBluetoothLeAdvertiser!!.startAdvertisingSet(
-//            advertiseSettingsSet,
-//            advertiseData,
-//            scanResponse,
-//            periodicAdvertisingParameters,
-//            periodicData,
-//            mAdvertiseSetCallback
-//        )
-//
-//        mBluetoothLeAdvertiser!!.startAdvertisingSet(
-//            advertiseSettingsSet,
-//            advertiseData,
-//            scanResponse,
-//            periodicAdvertisingParameters,
-//            periodicData,
-//            mAdvertiseSetCallback
-//        )
 
         // TODO: Add service to advertise
 //        addService(peripheralData)
@@ -414,128 +359,131 @@ class FlutterBlePeripheralManager {
     }
 
     fun stop(result: MethodChannel.Result) {
-        try {
-            init(context)
-        } catch (e: PeripheralException) {
-            handlePeripheralException(e, result)
-            return
-        }
+//        try {
+//            init(context)
+//        } catch (e: PeripheralException) {
+//            handlePeripheralException(e, result)
+//            return
+//        }
 
         mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
+
         isAdvertising = false
 
-        onStateChanged?.invoke(PeripheralState.idle)
+        stateChangedHandler.publishPeripheralState(PeripheralState.idle)
     }
 
     // TODO: Add service to advertise
-    private fun addService(peripheralData: PeripheralData) {
-        txCharacteristic = BluetoothGattCharacteristic(
-            UUID.fromString(peripheralData.txCharacteristicUUID),
-            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE,
-        )
-
-        rxCharacteristic = BluetoothGattCharacteristic(
-            UUID.fromString(peripheralData.rxCharacteristicUUID),
-            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE,
-        )
-
-        val service = BluetoothGattService(
-            UUID.fromString(peripheralData.serviceDataUuid),
-            BluetoothGattService.SERVICE_TYPE_PRIMARY,
-        )
-
-        val gattCallback = object : BluetoothGattCallback() {
-            override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
-                onMtuChanged?.invoke(mtu)
-            }
-        }
-
-        val serverCallback = object : BluetoothGattServerCallback() {
-            override fun onMtuChanged(device: BluetoothDevice?, mtu: Int) {
-                onMtuChanged?.invoke(mtu)
-            }
-
-            override fun onConnectionStateChange(
-                device: BluetoothDevice?,
-                status: Int,
-                newState: Int
-            ) {
-                when (status) {
-                    BluetoothProfile.STATE_CONNECTED -> {
-                        mBluetoothDevice = device
-                        mBluetoothGatt = mBluetoothDevice?.connectGatt(context, true, gattCallback)
-                        onStateChanged?.invoke(PeripheralState.connected)
-                        Log.i(tag, "Device connected $device")
-                    }
-
-                    BluetoothProfile.STATE_DISCONNECTED -> {
-                        onStateChanged?.invoke(PeripheralState.idle)
-                        Log.i(tag, "Device disconnect $device")
-                    }
-                }
-            }
-
-            override fun onCharacteristicReadRequest(
-                device: BluetoothDevice,
-                requestId: Int,
-                offset: Int,
-                characteristic: BluetoothGattCharacteristic
-            ) {
-                Log.i(tag, "BLE Read Request")
-
-                val status = when (characteristic.uuid) {
-                    rxCharacteristic?.uuid -> BluetoothGatt.GATT_SUCCESS
-                    else -> BluetoothGatt.GATT_FAILURE
-                }
-
-                mBluetoothGattServer.sendResponse(device, requestId, status, 0, null)
-            }
-
-            override fun onCharacteristicWriteRequest(
-                device: BluetoothDevice,
-                requestId: Int,
-                characteristic: BluetoothGattCharacteristic,
-                preparedWrite: Boolean,
-                responseNeeded: Boolean,
-                offset: Int,
-                value: ByteArray?
-            ) {
-                Log.i(tag, "BLE Write Request")
-
-                val isValid = value?.isNotEmpty() == true && characteristic == rxCharacteristic
-
-                Log.i(tag, "BLE Write Request - Is valid? $isValid")
-
-                if (isValid) {
-                    mBluetoothDevice = device
-                    mBluetoothGatt = mBluetoothDevice?.connectGatt(context, true, gattCallback)
-                    onStateChanged?.invoke(PeripheralState.connected)
-
-                    onDataReceived?.invoke(value!!)
-                    Log.i(tag, "BLE Received Data $peripheralData")
-                }
-
-                if (responseNeeded) {
-                    Log.i(tag, "BLE Write Request - Response")
-                    mBluetoothGattServer.sendResponse(
-                        device,
-                        requestId,
-                        BluetoothGatt.GATT_SUCCESS,
-                        0,
-                        null
-                    )
-                }
-            }
-        }
-
-        service.addCharacteristic(txCharacteristic)
-        service.addCharacteristic(rxCharacteristic)
-
-        mBluetoothGattServer = mBluetoothManager
-            .openGattServer(context, serverCallback)
-            .also { it.addService(service) }
+    private fun addService() {
+//        var txCharacteristicUUID: String = "08590F7E-DB05-467E-8757-72F6FAEB13D4",
+//        var rxCharacteristicUUID: String = "08590F7E-DB05-467E-8757-72F6FAEB13D5",
+//        txCharacteristic = BluetoothGattCharacteristic(
+//            UUID.fromString(peripheralData.txCharacteristicUUID),
+//            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+//            BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE,
+//        )
+//
+//        rxCharacteristic = BluetoothGattCharacteristic(
+//            UUID.fromString(peripheralData.rxCharacteristicUUID),
+//            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
+//            BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE,
+//        )
+//
+//        val service = BluetoothGattService(
+//            UUID.fromString(peripheralData.serviceDataUuid),
+//            BluetoothGattService.SERVICE_TYPE_PRIMARY,
+//        )
+//
+//        val gattCallback = object : BluetoothGattCallback() {
+//            override fun onMtuChanged(gatt: BluetoothGatt?, mtu: Int, status: Int) {
+//                onMtuChanged?.invoke(mtu)
+//            }
+//        }
+//
+//        val serverCallback = object : BluetoothGattServerCallback() {
+//            override fun onMtuChanged(device: BluetoothDevice?, mtu: Int) {
+//                onMtuChanged?.invoke(mtu)
+//            }
+//
+//            override fun onConnectionStateChange(
+//                device: BluetoothDevice?,
+//                status: Int,
+//                newState: Int
+//            ) {
+//                when (status) {
+//                    BluetoothProfile.STATE_CONNECTED -> {
+//                        mBluetoothDevice = device
+//                        mBluetoothGatt = mBluetoothDevice?.connectGatt(context, true, gattCallback)
+//                        stateChangedHandler.publishPeripheralState(PeripheralState.connected)
+//                        Log.i(tag, "Device connected $device")
+//                    }
+//
+//                    BluetoothProfile.STATE_DISCONNECTED -> {
+//                        stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+//                        Log.i(tag, "Device disconnect $device")
+//                    }
+//                }
+//            }
+//
+//            override fun onCharacteristicReadRequest(
+//                device: BluetoothDevice,
+//                requestId: Int,
+//                offset: Int,
+//                characteristic: BluetoothGattCharacteristic
+//            ) {
+//                Log.i(tag, "BLE Read Request")
+//
+//                val status = when (characteristic.uuid) {
+//                    rxCharacteristic?.uuid -> BluetoothGatt.GATT_SUCCESS
+//                    else -> BluetoothGatt.GATT_FAILURE
+//                }
+//
+//                mBluetoothGattServer.sendResponse(device, requestId, status, 0, null)
+//            }
+//
+//            override fun onCharacteristicWriteRequest(
+//                device: BluetoothDevice,
+//                requestId: Int,
+//                characteristic: BluetoothGattCharacteristic,
+//                preparedWrite: Boolean,
+//                responseNeeded: Boolean,
+//                offset: Int,
+//                value: ByteArray?
+//            ) {
+//                Log.i(tag, "BLE Write Request")
+//
+//                val isValid = value?.isNotEmpty() == true && characteristic == rxCharacteristic
+//
+//                Log.i(tag, "BLE Write Request - Is valid? $isValid")
+//
+//                if (isValid) {
+//                    mBluetoothDevice = device
+//                    mBluetoothGatt = mBluetoothDevice?.connectGatt(context, true, gattCallback)
+//                    stateChangedHandler.publishPeripheralState(PeripheralState.connected)
+//
+//                    onDataReceived?.invoke(value!!)
+//                    Log.i(tag, "BLE Received Data $peripheralData")
+//                }
+//
+//                if (responseNeeded) {
+//                    Log.i(tag, "BLE Write Request - Response")
+//                    mBluetoothGattServer.sendResponse(
+//                        device,
+//                        requestId,
+//                        BluetoothGatt.GATT_SUCCESS,
+//                        0,
+//                        null
+//                    )
+//                }
+//            }
+//        }
+//
+//        service.addCharacteristic(txCharacteristic)
+//        service.addCharacteristic(rxCharacteristic)
+//
+//        mBluetoothGattServer = mBluetoothManager
+//            .openGattServer(context, serverCallback)
+//            .also { it.addService(service) }
     }
 
     fun send(data: ByteArray) {
