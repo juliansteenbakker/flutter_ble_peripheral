@@ -17,12 +17,12 @@ class DataReceivedHandler : EventChannel.StreamHandler {
 
         eventChannel.setStreamHandler(this)
 
-        flutterBlePeripheralManager.onDataReceived = {
-
-            Handler(Looper.getMainLooper()).post {
-                eventSink?.success(it)
-            }
-        }
+//        flutterBlePeripheralManager.onDataReceived = {
+//
+//            Handler(Looper.getMainLooper()).post {
+//                eventSink?.success(it)
+//            }
+//        }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
