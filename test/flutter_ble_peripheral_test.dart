@@ -26,6 +26,6 @@ void main() {
   });
 
   test('checking if is advertising returns true', () async {
-    expect(await blePeripheral.isAdvertising(), isTrue);
+    expect(await blePeripheral.isAdvertising, isTrue);
   });
 }

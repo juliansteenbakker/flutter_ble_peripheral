@@ -2,7 +2,6 @@ package dev.steenbakker.flutter_ble_peripheral.handlers
 
 import android.os.Handler
 import android.os.Looper
-import dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralManager
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
@@ -15,11 +14,13 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
 
     var state = PeripheralState.idle
 
+    private val eventChannel = EventChannel(
+        flutterPluginBinding.binaryMessenger,
+        "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
+    )
+
     init {
-        val eventChannel = EventChannel(
-            flutterPluginBinding.binaryMessenger,
-            "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
-        )
+
         eventChannel.setStreamHandler(this)
     }
 

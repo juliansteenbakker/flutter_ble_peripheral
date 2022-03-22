@@ -116,28 +116,26 @@ class FlutterBlePeripheral {
       });
     }
 
-    await _methodChannel.invokeMethod('start', parameters);
+    return _methodChannel.invokeMethod('start', parameters);
   }
 
   /// Stop advertising
   Future<void> stop() async {
-    await _methodChannel.invokeMethod('stop');
+    return _methodChannel.invokeMethod('stop');
   }
 
   /// Returns `true` if advertising or false if not advertising
-  Future<bool> isAdvertising() async {
+  Future<bool> get isAdvertising async {
     return await _methodChannel.invokeMethod<bool>('isAdvertising') ?? false;
   }
 
   /// Returns `true` if advertising over BLE is supported
-  Future<bool> isSupported() async {
-    return await _methodChannel.invokeMethod<bool>('isSupported') ?? false;
-  }
+  Future<bool> get isSupported async =>
+    await _methodChannel.invokeMethod<bool>('isSupported') ?? false;
 
   /// Returns `true` if device is connected
-  Future<bool> isConnected() async {
-    return await _methodChannel.invokeMethod<bool>('isConnected') ?? false;
-  }
+  Future<bool> get isConnected async =>
+      await _methodChannel.invokeMethod<bool>('isConnected') ?? false;
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> sendData(Uint8List data) async {
@@ -147,7 +145,7 @@ class FlutterBlePeripheral {
   /// Stop advertising
   Future<bool> enableBluetooth({bool askUser = true}) async {
     return await _methodChannel.invokeMethod<bool>(
-            'enableBluetooth', askUser) ??
+            'enableBluetooth', askUser,) ??
         false;
   }
 

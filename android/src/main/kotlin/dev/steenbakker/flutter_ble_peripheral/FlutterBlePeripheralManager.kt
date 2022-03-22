@@ -6,16 +6,21 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
+import android.app.Activity
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.bluetooth.le.AdvertisingSetCallback
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
+import androidx.core.app.ActivityCompat
 import dev.steenbakker.flutter_ble_peripheral.exceptions.PeripheralException
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.*
 import io.flutter.Log
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
+import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import java.util.*
 
@@ -40,6 +45,8 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
     private var txCharacteristic: BluetoothGattCharacteristic? = null
     private var rxCharacteristic: BluetoothGattCharacteristic? = null
 
+    private var isSet = false
+
     var result: MethodChannel.Result? = null
 
     init {
@@ -62,6 +69,28 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
                      stateChangedHandler.publishPeripheralState(PeripheralState.poweredOff)
                  }
                 stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+            }
+        }
+    }
+
+    var pendingResultForActivityResult: MethodChannel.Result? = null
+    private val requestEnableBt = 4
+
+    fun enableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
+        if (mBluetoothManager.adapter.isEnabled) {
+            result.success(true)
+        } else {
+            if (call.arguments as Boolean) {
+                pendingResultForActivityResult = result
+                val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+                ActivityCompat.startActivityForResult(
+                    activityBinding.activity,
+                    intent,
+                    requestEnableBt,
+                    null
+                )
+            } else {
+                mBluetoothManager.adapter.enable()
             }
         }
     }
@@ -155,6 +184,7 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
             txPower: Int,
             status: Int
         ) {
+            Log.i("FlutterBlePeripheral", "onAdvertisingSetStarted() status: $advertisingSet, txPOWER $txPower, status $status")
             super.onAdvertisingSetStarted(advertisingSet, txPower, status)
             var statusText = ""
             when (status) {
@@ -209,9 +239,10 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
          * @param advertisingSet The advertising set.
          */
         override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
-//            super.onAdvertisingSetStarted(advertisingSet, txPower, status)
-//            isAdvertising = false
-//            stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+            Log.i("FlutterBlePeripheral", "onAdvertisingSetStopped() status: $advertisingSet")
+            super.onAdvertisingSetStopped(advertisingSet)
+            isAdvertising = false
+            stateChangedHandler.publishPeripheralState(PeripheralState.idle)
         }
 
         /**
@@ -227,6 +258,10 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
             enable: Boolean,
             status: Int
         ) {
+            Log.i("FlutterBlePeripheral", "onAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
+            super.onAdvertisingEnabled(advertisingSet, enable, status)
+            isAdvertising = true
+            stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
         }
 
         /**
@@ -236,7 +271,12 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
          * @param advertisingSet The advertising set.
          * @param status Status of the operation.
          */
-        override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {}
+        override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {
+            Log.i("FlutterBlePeripheral", "onAdvertisingDataSet() status: $advertisingSet, status $status")
+            super.onAdvertisingDataSet(advertisingSet, status)
+            isAdvertising = true
+            stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        }
 
         /**
          * Callback triggered in response to [AdvertisingSet.setAdvertisingData] indicating
@@ -245,7 +285,12 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
          * @param advertisingSet The advertising set.
          * @param status Status of the operation.
          */
-        override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {}
+        override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
+            Log.i("FlutterBlePeripheral", "onScanResponseDataSet() status: $advertisingSet, status $status")
+            super.onAdvertisingDataSet(advertisingSet, status)
+            isAdvertising = true
+            stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        }
 
         /**
          * Callback triggered in response to [AdvertisingSet.setAdvertisingParameters]
@@ -259,6 +304,7 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
             advertisingSet: AdvertisingSet?,
             txPower: Int, status: Int
         ) {
+            Log.i("FlutterBlePeripheral", "onAdvertisingParametersUpdated() status: $advertisingSet, txPOWER $txPower, status $status")
         }
 
         /**
@@ -272,6 +318,7 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
             advertisingSet: AdvertisingSet?,
             status: Int
         ) {
+            Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingParametersUpdated() status: $advertisingSet, status $status")
         }
 
         /**
@@ -285,6 +332,7 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
             advertisingSet: AdvertisingSet?,
             status: Int
         ) {
+            Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingDataSet() status: $advertisingSet, status $status")
         }
 
         /**
@@ -298,6 +346,7 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
             advertisingSet: AdvertisingSet?, enable: Boolean,
             status: Int
         ) {
+            Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
         }
     }
 
@@ -314,6 +363,7 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
 
         this.result = result
 
+        isSet = false
         mBluetoothLeAdvertiser!!.startAdvertising(
             peripheralSettings,
             peripheralData,
@@ -339,6 +389,7 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
 
         this.result = result
 
+        isSet = true
         mBluetoothLeAdvertiser!!.startAdvertisingSet(
                 advertiseSettingsSet,
                 advertiseData,
@@ -365,12 +416,17 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
 //            handlePeripheralException(e, result)
 //            return
 //        }
+        if (isSet) {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                mBluetoothLeAdvertiser!!.stopAdvertisingSet(mAdvertiseSetCallback)
+            }
 
-        mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
+        } else {
+            mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
+            isAdvertising = false
+            stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+        }
 
-        isAdvertising = false
-
-        stateChangedHandler.publishPeripheralState(PeripheralState.idle)
     }
 
     // TODO: Add service to advertise

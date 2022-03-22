@@ -34,6 +34,7 @@ class FlutterBlePeripheralExampleState
   final AdvertiseSettings advertiseSettings = AdvertiseSettings(
     advertiseMode: AdvertiseMode.advertiseModeBalanced,
     txPowerLevel: AdvertiseTxPower.advertiseTxPowerMedium,
+    timeout: 3000
   );
 
   final AdvertiseSetParameters advertiseSetParameters = AdvertiseSetParameters(
@@ -49,28 +50,38 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<void> initPlatformState() async {
-    final isSupported = await blePeripheral.isSupported();
+    final isSupported = await blePeripheral.isSupported;
     setState(() {
       _isSupported = isSupported;
     });
   }
 
   Future<void> _toggleAdvertise() async {
-    if (await blePeripheral.isAdvertising()) {
+    if (await blePeripheral.isAdvertising) {
       await blePeripheral.stop();
     } else {
       await blePeripheral.start(advertiseData: advertiseData);
     }
   }
 
+  Future<void> _toggleAdvertiseSet() async {
+    if (await blePeripheral.isAdvertising) {
+      await blePeripheral.stop();
+    } else {
+      await blePeripheral.start(advertiseData: advertiseData, advertiseSetParameters: advertiseSetParameters);
+    }
+  }
+
   Future<void> _requestPermissions() async {
-    await Permission.bluetooth.shouldShowRequestRationale;
+    // await Permission.bluetooth.shouldShowRequestRationale;
+
+    // if ()
 
     final Map<Permission, PermissionStatus> statuses = await [
       Permission.bluetooth,
       Permission.bluetoothAdvertise,
-      Permission.bluetoothConnect,
-      Permission.bluetoothScan,
+      // Permission.bluetoothConnect,
+      // Permission.bluetoothScan,
       Permission.location,
     ].request();
     for (final status in statuses.keys) {
@@ -126,6 +137,15 @@ class FlutterBlePeripheralExampleState
                         .button!
                         .copyWith(color: Colors.blue),
                   ),),
+                  MaterialButton(
+                    onPressed: _toggleAdvertiseSet,
+                    child: Text(
+                      'Toggle advertising set for 1 second',
+                      style: Theme.of(context)
+                          .primaryTextTheme
+                          .button!
+                          .copyWith(color: Colors.blue),
+                    ),),
                   StreamBuilder(
                     stream: blePeripheral.onPeripheralStateChanged,
                     initialData: PeripheralState.unknown,
