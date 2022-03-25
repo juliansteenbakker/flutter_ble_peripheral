@@ -20,7 +20,6 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
     )
 
     init {
-
         eventChannel.setStreamHandler(this)
     }
 

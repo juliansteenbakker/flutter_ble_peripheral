@@ -10,24 +10,27 @@ import CoreLocation
 
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
-    private let flutterBlePeripheralManager = FlutterBlePeripheralManager()
+    private let flutterBlePeripheralManager: FlutterBlePeripheralManager
     
-    private let stateChangedHandler = StateChangedHandler()
-    private let mtuChangedHandler = MtuChangedHandler()
-    private let dataReceivedHandler = DataReceivedHandler()
+    private let stateChangedHandler: StateChangedHandler
+//    private let mtuChangedHandler = MtuChangedHandler()
+//    private let dataReceivedHandler = DataReceivedHandler()
+    init(stateChangedHandler: StateChangedHandler) {
+        self.stateChangedHandler = stateChangedHandler
+        flutterBlePeripheralManager = FlutterBlePeripheralManager(stateChangedHandler: stateChangedHandler)
+        super.init()
+    }
     
     public static func register(with registrar: FlutterPluginRegistrar) {
-        
-        let instance = SwiftFlutterBlePeripheralPlugin()
+        let instance = SwiftFlutterBlePeripheralPlugin(stateChangedHandler: StateChangedHandler(registrar: registrar))
         
         // Method channel
         let methodChannel = FlutterMethodChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state", binaryMessenger: registrar.messenger())
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
-        
+
         // Event channels
-        instance.stateChangedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
-        instance.mtuChangedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
-        instance.dataReceivedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
+//        instance.mtuChangedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
+//        instance.dataReceivedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
     }
     
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -35,15 +38,15 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         case "start":
             startPeripheral(call, result)
         case "stop":
-            stopPeripheral(call, result)
+            stopPeripheral(result)
         case "isAdvertising":
-            result(flutterBlePeripheralManager.isAdvertising())
+            result(stateChangedHandler.state == PeripheralState.advertising)
         case "isSupported":
             isSupported(result)
         case "isConnected":
-            isConnected(call, result)
-        case "sendData":
-            sendData(call, result)
+            result(stateChangedHandler.state == PeripheralState.connected)
+//        case "sendData":
+//            sendData(call, result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -59,8 +62,9 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         result(nil)
     }
     
-    private func stopPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
-        flutterBlePeripheralManager.stop()
+    private func stopPeripheral(_ result: @escaping FlutterResult) {
+        flutterBlePeripheralManager.peripheralManager.stopAdvertising()
+        stateChangedHandler.publishPeripheralState(state: PeripheralState.idle)
         result(nil)
     }
     
@@ -73,104 +77,12 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         }
     }
     
-    private func isConnected(_ call: FlutterMethodCall,
-                             _ result: @escaping FlutterResult) {
-        result(flutterBlePeripheralManager.isConnected())
-    }
-    
-    private func sendData(_ call: FlutterMethodCall,
-                          _ result: @escaping FlutterResult) {
-        
-        if let flutterData = call.arguments as? FlutterStandardTypedData {
-          flutterBlePeripheralManager.send(data: flutterData.data)
-        }
-        result(nil)
-    }
-}
-
-public class StateChangedHandler: NSObject, FlutterStreamHandler {
-    
-    private var eventSink: FlutterEventSink?
-    
-    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: FlutterBlePeripheralManager) {
-        
-        let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state_changed",
-                                               binaryMessenger: registrar.messenger())
-        eventChannel.setStreamHandler(self)
-        
-        peripheral.onStateChanged = { peripheralState in
-          if let eventSink = self.eventSink {
-              eventSink(peripheralState.rawValue)
-          }
-        }
-    }
-    
-    public func onListen(withArguments arguments: Any?,
-                         eventSink: @escaping FlutterEventSink) -> FlutterError? {
-        self.eventSink = eventSink
-        return nil
-    }
-    
-    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        eventSink = nil
-        return nil
-    }
-}
-
-public class MtuChangedHandler: NSObject, FlutterStreamHandler {
-    
-    private var eventSink: FlutterEventSink?
-    
-    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: FlutterBlePeripheralManager) {
-        
-        let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed",
-                                               binaryMessenger: registrar.messenger())
-        eventChannel.setStreamHandler(self)
-        
-        peripheral.onMtuChanged = { mtuSize in
-            if let eventSink = self.eventSink {
-                eventSink(mtuSize)
-            }
-        }
-    }
-    
-    public func onListen(withArguments arguments: Any?,
-                         eventSink: @escaping FlutterEventSink) -> FlutterError? {
-        self.eventSink = eventSink
-        return nil
-    }
-    
-    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        eventSink = nil
-        return nil
-    }
-}
-
-public class DataReceivedHandler: NSObject, FlutterStreamHandler {
-    
-    private var eventSink: FlutterEventSink?
-    
-    fileprivate func register(with registrar: FlutterPluginRegistrar, peripheral: FlutterBlePeripheralManager) {
-        
-        let eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_data_received",
-                                               binaryMessenger: registrar.messenger())
-        eventChannel.setStreamHandler(self)
-        
-        peripheral.onDataReceived = { data in
-            if let eventSink = self.eventSink {
-                eventSink(FlutterStandardTypedData(bytes: data))
-            }
-        }
-    }
-    
-    public func onListen(withArguments arguments: Any?,
-                         eventSink: @escaping FlutterEventSink) -> FlutterError? {
-        self.eventSink = eventSink
-        return nil
-    }
-    
-    public func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        eventSink = nil
-        return nil
-    }
+//    private func sendData(_ call: FlutterMethodCall,
+//                          _ result: @escaping FlutterResult) {
+//
+//        if let flutterData = call.arguments as? FlutterStandardTypedData {
+//          flutterBlePeripheralManager.send(data: flutterData.data)
+//        }
+//        result(nil)
+//    }
 }

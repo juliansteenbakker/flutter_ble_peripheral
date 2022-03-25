@@ -11,7 +11,7 @@ class AdvertiseData {
   /// Android & iOS
   ///
   /// Specifies the service UUID to be advertised
-  final String serviceUuid;
+  final String? serviceUuid;
 
   /// Android only
   ///
@@ -57,7 +57,7 @@ class AdvertiseData {
   final String? serviceSolicitationUuid;
 
   AdvertiseData({
-    this.serviceUuid = '',
+    this.serviceUuid,
     this.manufacturerId,
     this.manufacturerData,
     this.serviceDataUuid,

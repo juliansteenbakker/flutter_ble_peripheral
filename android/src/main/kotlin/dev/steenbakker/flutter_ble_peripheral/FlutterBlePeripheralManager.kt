@@ -13,195 +13,75 @@ import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
-import dev.steenbakker.flutter_ble_peripheral.exceptions.PeripheralException
-import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
-import dev.steenbakker.flutter_ble_peripheral.models.*
-import io.flutter.Log
+import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingCallback
+import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingSetCallback
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 
 
-class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: StateChangedHandler) {
+class FlutterBlePeripheralManager(context: Context) {
 
-    private val tag: String = "BLE Peripheral"
-    private lateinit var mBluetoothManager: BluetoothManager
-    private lateinit var mBluetoothGattServer: BluetoothGattServer
-    private var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
-    private var mBluetoothGatt: BluetoothGatt? = null
-    private var mBluetoothDevice: BluetoothDevice? = null
-
-
-    private var isAdvertising = false
-
-//    var onMtuChanged: ((Int) -> Unit)? = null
-//    var onStateChanged: ((PeripheralState) -> Unit)? = null
-//    var onDataReceived: ((ByteArray) -> Unit)? = null
-//    val stateChange: StateChangedHandler = StateChangedHandler()
-
-    private var txCharacteristic: BluetoothGattCharacteristic? = null
-    private var rxCharacteristic: BluetoothGattCharacteristic? = null
-
-    private var isSet = false
-
-    var result: MethodChannel.Result? = null
-
-    init {
-        val bluetoothManager: BluetoothManager? =
-            context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-
-        if (bluetoothManager == null) {
-            throw PeripheralException(PeripheralState.unsupported)
-        } else {
-            mBluetoothManager = bluetoothManager
-
-            val bluetoothAdapter: BluetoothAdapter = bluetoothManager.adapter
-            //&& !bluetoothAdapter.isMultipleAdvertisementSupported
-            if (bluetoothAdapter.bluetoothLeAdvertiser == null) {
-                throw PeripheralException(PeripheralState.unsupported)
-            } else {
-//                bluetoothAdapter.state
-                mBluetoothLeAdvertiser = bluetoothAdapter.bluetoothLeAdvertiser
-                 if (bluetoothAdapter.bluetoothLeAdvertiser == null) {
-                     stateChangedHandler.publishPeripheralState(PeripheralState.poweredOff)
-                 }
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-            }
-        }
-    }
+    var mBluetoothManager: BluetoothManager?
+    var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
 
     var pendingResultForActivityResult: MethodChannel.Result? = null
-    private val requestEnableBt = 4
+    val requestEnableBt = 4
 
+    //TODO
+//    private lateinit var mBluetoothGattServer: BluetoothGattServer
+//    private var mBluetoothGatt: BluetoothGatt? = null
+//    private var mBluetoothDevice: BluetoothDevice? = null
+//    private var txCharacteristic: BluetoothGattCharacteristic? = null
+//    private var rxCharacteristic: BluetoothGattCharacteristic? = null
+
+    init {
+        mBluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+    }
+
+    /**
+     * Enables bluetooth with a dialog or without.
+     */
     fun enableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
-        if (mBluetoothManager.adapter.isEnabled) {
+        if (mBluetoothManager!!.adapter.isEnabled) {
             result.success(true)
         } else {
             if (call.arguments as Boolean) {
                 pendingResultForActivityResult = result
                 val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
                 ActivityCompat.startActivityForResult(
-                    activityBinding.activity,
-                    intent,
-                    requestEnableBt,
-                    null
+                        activityBinding.activity,
+                        intent,
+                        requestEnableBt,
+                        null
                 )
             } else {
-                mBluetoothManager.adapter.enable()
+                mBluetoothManager!!.adapter.enable()
             }
-        }
-    }
-
-    private fun handlePeripheralException(e: PeripheralException, result: MethodChannel.Result?) {
-        when (e.state) {
-            PeripheralState.unsupported -> {
-                stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
-                Log.e(tag, "This device does not support bluetooth LE")
-                result?.error("Not Supported", "This device does not support bluetooth LE", e.state.name)
-            }
-            PeripheralState.poweredOff -> {
-                stateChangedHandler.publishPeripheralState(PeripheralState.poweredOff)
-                Log.e(tag, "Bluetooth may be turned off")
-                result?.error("Not powered", "Bluetooth may be turned off", e.state.name)
-            }
-            else -> {
-                stateChangedHandler.publishPeripheralState(e.state)
-                Log.e(tag, e.state.name)
-                result?.error(e.state.name, null, null)
-            }
-        }
-    }
-
-    private val mAdvertiseCallback = object : AdvertiseCallback() {
-        override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
-            super.onStartSuccess(settingsInEffect)
-            isAdvertising = true
-            result?.success(null)
-            result = null
-            stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
-        }
-
-        override fun onStartFailure(errorCode: Int) {
-            super.onStartFailure(errorCode)
-            val statusText: String
-            when (errorCode) {
-                ADVERTISE_FAILED_ALREADY_STARTED -> {
-                    statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
-                    isAdvertising = true
-                    stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
-                }
-                ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
-                    statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
-                    isAdvertising = false
-                    stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
-                }
-                ADVERTISE_FAILED_INTERNAL_ERROR -> {
-                    statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
-                    isAdvertising = false
-                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-                }
-                ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
-                    statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
-                    isAdvertising = false
-                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-                }
-                ADVERTISE_FAILED_DATA_TOO_LARGE -> {
-                    statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
-                    isAdvertising = false
-                    stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-                }
-                else -> {
-                    statusText = "UNDOCUMENTED"
-                    stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
-                }
-            }
-            Log.e(tag, "ERROR while starting advertising: $errorCode - $statusText")
-            result?.error(statusText, null, null)
-            result = null
-            isAdvertising = false
         }
     }
 
     /**
-     * Start continuous advertising
+     * Start advertising using the startAdvertising() method.
      */
-    fun start(peripheralData: AdvertiseData, peripheralSettings: AdvertiseSettings, result: MethodChannel.Result, peripheralResponse: AdvertiseData?) {
-//        try {
-//            init(context)
-//        } catch (e: PeripheralException) {
-//            handlePeripheralException(e, result)
-//            return
-//        }
-
-        this.result = result
-
-        isSet = false
+    fun start(peripheralData: AdvertiseData, peripheralSettings: AdvertiseSettings, peripheralResponse: AdvertiseData?, mAdvertiseCallback: PeripheralAdvertisingCallback) {
         mBluetoothLeAdvertiser!!.startAdvertising(
-            peripheralSettings,
-            peripheralData,
+                peripheralSettings,
+                peripheralData,
                 peripheralResponse,
-            mAdvertiseCallback
+                mAdvertiseCallback
         )
 
 //        addService(peripheralData) TODO: Add service to advertise
     }
 
     /**
-     * Start advertising for a certain period
+     * Start advertising using the startAdvertisingSet method.
      */
     @RequiresApi(Build.VERSION_CODES.O)
-    fun startSet(advertiseData: AdvertiseData, advertiseSettingsSet: AdvertisingSetParameters, result: MethodChannel.Result, peripheralResponse: AdvertiseData?,
-                 periodicResponse: AdvertiseData?, periodicResponseSettings: PeriodicAdvertisingParameters?, maxExtendedAdvertisingEvents: Int = 0, duration: Int = 0) {
-//        try {
-//            init(context)
-//        } catch (e: PeripheralException) {
-//            handlePeripheralException(e, result)
-//            return
-//        }
+    fun startSet(advertiseData: AdvertiseData, advertiseSettingsSet: AdvertisingSetParameters, peripheralResponse: AdvertiseData?,
+                 periodicResponse: AdvertiseData?, periodicResponseSettings: PeriodicAdvertisingParameters?, maxExtendedAdvertisingEvents: Int = 0, duration: Int = 0, mAdvertiseSetCallback: PeripheralAdvertisingSetCallback) {
 
-        this.result = result
-
-        isSet = true
         mBluetoothLeAdvertiser!!.startAdvertisingSet(
                 advertiseSettingsSet,
                 advertiseData,
@@ -216,33 +96,12 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
         // TODO: Add service to advertise
 //        addService(peripheralData)
     }
+}
 
-    fun isAdvertising(): Boolean {
-        return isAdvertising
-    }
 
-    fun stop(result: MethodChannel.Result) {
-//        try {
-//            init(context)
-//        } catch (e: PeripheralException) {
-//            handlePeripheralException(e, result)
-//            return
-//        }
-        if (isSet) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-                mBluetoothLeAdvertiser!!.stopAdvertisingSet(mAdvertiseSetCallback)
-            }
-
-        } else {
-            mBluetoothLeAdvertiser!!.stopAdvertising(mAdvertiseCallback)
-            isAdvertising = false
-            stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-        }
-
-    }
-
-    // TODO: Add service to advertise
-    private fun addService() {
+// TODO: Add service to advertise
+//
+//    private fun addService() {
 //        var txCharacteristicUUID: String = "08590F7E-DB05-467E-8757-72F6FAEB13D4",
 //        var rxCharacteristicUUID: String = "08590F7E-DB05-467E-8757-72F6FAEB13D5",
 //        txCharacteristic = BluetoothGattCharacteristic(
@@ -352,198 +211,12 @@ class FlutterBlePeripheralManager(context: Context, val stateChangedHandler: Sta
 //        mBluetoothGattServer = mBluetoothManager
 //            .openGattServer(context, serverCallback)
 //            .also { it.addService(service) }
-    }
-
-    fun send(data: ByteArray) {
-        txCharacteristic?.let { char ->
-            char.value = data
-            mBluetoothGatt?.writeCharacteristic(char)
-            mBluetoothGattServer.notifyCharacteristicChanged(mBluetoothDevice, char, false)
-        }
-    }
-}
-
-@RequiresApi(Build.VERSION_CODES.O)
-private val mAdvertiseSetCallback = object : AdvertisingSetCallback(result: String) {
-
-    /**
-     * Callback triggered in response to {@link BluetoothLeAdvertiser#startAdvertisingSet}
-     * indicating result of the operation. If status is ADVERTISE_SUCCESS, then advertisingSet
-     * contains the started set and it is advertising. If error occurred, advertisingSet is
-     * null, and status will be set to proper error code.
-     *
-     * @param advertisingSet The advertising set that was started or null if error.
-     * @param txPower tx power that will be used for this set.
-     * @param status Status of the operation.
-     */
-
-    override fun onAdvertisingSetStarted(
-            advertisingSet: AdvertisingSet?,
-            txPower: Int,
-            status: Int
-    ) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingSetStarted() status: $advertisingSet, txPOWER $txPower, status $status")
-        super.onAdvertisingSetStarted(advertisingSet, txPower, status)
-        var statusText = ""
-        when (status) {
-            ADVERTISE_SUCCESS -> {
-                isAdvertising = true
-                result?.success(txPower)
-                stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
-            }
-            ADVERTISE_FAILED_ALREADY_STARTED -> {
-                statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
-                isAdvertising = true
-                stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
-            }
-            ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
-                statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
-                isAdvertising = false
-                stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
-            }
-            ADVERTISE_FAILED_INTERNAL_ERROR -> {
-                statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
-                isAdvertising = false
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-            }
-            ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
-                statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
-                isAdvertising = false
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-            }
-            ADVERTISE_FAILED_DATA_TOO_LARGE -> {
-                statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
-                isAdvertising = false
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-            }
-            else -> {
-                statusText = "UNDOCUMENTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
-            }
-
-        }
-        if (status != ADVERTISE_SUCCESS) {
-            Log.e(tag, "ERROR while starting advertising set: $status - $statusText")
-            result?.error(status.toString(), statusText, "startAdvertisingSet")
-            result = null
-        }
-
-    }
-
-    /**
-     * Callback triggered in response to [BluetoothLeAdvertiser.stopAdvertisingSet]
-     * indicating advertising set is stopped.
-     *
-     * @param advertisingSet The advertising set.
-     */
-    override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingSetStopped() status: $advertisingSet")
-        super.onAdvertisingSetStopped(advertisingSet)
-        isAdvertising = false
-        stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-    }
-
-    /**
-     * Callback triggered in response to [BluetoothLeAdvertiser.startAdvertisingSet]
-     * indicating result of the operation. If status is ADVERTISE_SUCCESS, then advertising set is
-     * advertising.
-     *
-     * @param advertisingSet The advertising set.
-     * @param status Status of the operation.
-     */
-    override fun onAdvertisingEnabled(
-            advertisingSet: AdvertisingSet?,
-            enable: Boolean,
-            status: Int
-    ) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
-        super.onAdvertisingEnabled(advertisingSet, enable, status)
-        isAdvertising = true
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
-    }
-
-    /**
-     * Callback triggered in response to [AdvertisingSet.setAdvertisingData] indicating
-     * result of the operation. If status is ADVERTISE_SUCCESS, then data was changed.
-     *
-     * @param advertisingSet The advertising set.
-     * @param status Status of the operation.
-     */
-    override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingDataSet() status: $advertisingSet, status $status")
-        super.onAdvertisingDataSet(advertisingSet, status)
-        isAdvertising = true
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
-    }
-
-    /**
-     * Callback triggered in response to [AdvertisingSet.setAdvertisingData] indicating
-     * result of the operation.
-     *
-     * @param advertisingSet The advertising set.
-     * @param status Status of the operation.
-     */
-    override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-        Log.i("FlutterBlePeripheral", "onScanResponseDataSet() status: $advertisingSet, status $status")
-        super.onAdvertisingDataSet(advertisingSet, status)
-        isAdvertising = true
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
-    }
-
-    /**
-     * Callback triggered in response to [AdvertisingSet.setAdvertisingParameters]
-     * indicating result of the operation.
-     *
-     * @param advertisingSet The advertising set.
-     * @param txPower tx power that will be used for this set.
-     * @param status Status of the operation.
-     */
-    override fun onAdvertisingParametersUpdated(
-            advertisingSet: AdvertisingSet?,
-            txPower: Int, status: Int
-    ) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingParametersUpdated() status: $advertisingSet, txPOWER $txPower, status $status")
-    }
-
-    /**
-     * Callback triggered in response to [AdvertisingSet.setPeriodicAdvertisingParameters]
-     * indicating result of the operation.
-     *
-     * @param advertisingSet The advertising set.
-     * @param status Status of the operation.
-     */
-    override fun onPeriodicAdvertisingParametersUpdated(
-            advertisingSet: AdvertisingSet?,
-            status: Int
-    ) {
-        Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingParametersUpdated() status: $advertisingSet, status $status")
-    }
-
-    /**
-     * Callback triggered in response to [AdvertisingSet.setPeriodicAdvertisingData]
-     * indicating result of the operation.
-     *
-     * @param advertisingSet The advertising set.
-     * @param status Status of the operation.
-     */
-    override fun onPeriodicAdvertisingDataSet(
-            advertisingSet: AdvertisingSet?,
-            status: Int
-    ) {
-        Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingDataSet() status: $advertisingSet, status $status")
-    }
-
-    /**
-     * Callback triggered in response to [AdvertisingSet.setPeriodicAdvertisingEnabled]
-     * indicating result of the operation.
-     *
-     * @param advertisingSet The advertising set.
-     * @param status Status of the operation.
-     */
-    override fun onPeriodicAdvertisingEnabled(
-            advertisingSet: AdvertisingSet?, enable: Boolean,
-            status: Int
-    ) {
-        Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
-    }
-}
+//    }
+//
+//    fun send(data: ByteArray) {
+//        txCharacteristic?.let { char ->
+//            char.value = data
+//            mBluetoothGatt?.writeCharacteristic(char)
+//            mBluetoothGattServer.notifyCharacteristicChanged(mBluetoothDevice, char, false)
+//        }
+//    }
