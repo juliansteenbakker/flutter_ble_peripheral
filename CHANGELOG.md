@@ -1,3 +1,13 @@
+## 1.0.0
+BREAKING CHANGES:
+You now define the data to be advertised using the AdvertiseData() constructor.
+AdvertiseData is the only supported object in iOS. AdvertiseSettings and other objects are only
+supported on Android.
+
+NEW:
+* You can now make use of the new startAdvertisingSet parameter on Android 26+
+
+
 ## 0.6.0
 * Refactored large parts of the code for both Android & iOS.
 * Upgraded Android to Android 12 permission system.

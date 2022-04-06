@@ -12,8 +12,8 @@ class BleStatusScreen extends StatelessWidget {
         return "This device does not support Bluetooth";
       case PeripheralState.unauthorized:
         return "Authorize the BlePeripheral example app to use Bluetooth and location";
-      // case PeripheralState.:
-      //   return "Bluetooth is powered off on your device turn it on";
+      case PeripheralState.poweredOff:
+        return "Bluetooth is powered off on your device turn it on";
       // case PeripheralState.unauthorized:
       //   return "Enable location services";
       case PeripheralState.idle:

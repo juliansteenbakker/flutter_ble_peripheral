@@ -4,22 +4,25 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+import 'dart:typed_data';
+
 /// Model of the data to be advertised.
 class AdvertiseData {
   /// Android & iOS
   ///
-  /// Specifies the UUID to be advertised
-  final String uuid;
+  /// Specifies the service UUID to be advertised
+  final String? serviceUuid;
 
   /// Android only
   ///
   /// Specifies a manufacturer id
+  /// Manufacturer ID assigned by Bluetooth SIG.
   final int? manufacturerId;
 
   /// Android only
   ///
   /// Specifies manufacturer data.
-  final List<int>? manufacturerData;
+  final Uint8List? manufacturerData;
 
   /// Android only
   ///
@@ -48,72 +51,20 @@ class AdvertiseData {
   /// Default: false
   final bool? includePowerLevel;
 
-  /// Android only
+  /// Android > SDK 31 only
   ///
-  /// Set advertise mode to control the advertising power and latency.
-  /// Default: AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY
-  final AdvertiseMode advertiseMode;
+  /// A service solicitation UUID to advertise data.
+  final String? serviceSolicitationUuid;
 
-  /// Android only
-  ///
-  /// Set whether the advertisement type should be connectable or non-connectable.
-  /// Default: false
-  final bool connectable;
-
-  /// Android only
-  ///
-  /// Limit advertising to a given amount of time.
-  /// May not exceed 180000 milliseconds.
-  /// Default: 400 milliseconds
-  final int timeout;
-
-  /// Android only
-  ///
-  /// Set advertise TX power level to control the transmission power level for the advertising.
-  /// Default: AdvertisePower.ADVERTISE_TX_POWER_HIGH
-  final AdvertisePower txPowerLevel;
-
-  AdvertiseData(
-      {this.uuid = '',
-      this.manufacturerId,
-      this.manufacturerData,
-      this.serviceDataUuid,
-      this.serviceData,
-      this.includeDeviceName = false,
-      this.localName,
-      this.includePowerLevel = false,
-      this.connectable = false,
-      this.timeout = 400,
-      this.advertiseMode = AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY,
-      this.txPowerLevel = AdvertisePower.ADVERTISE_TX_POWER_HIGH});
-}
-
-enum AdvertiseMode {
-  /// Perform Bluetooth LE advertising in low power mode. This is the default and preferred
-  /// advertising mode as it consumes the least power.
-  ADVERTISE_MODE_LOW_POWER,
-
-  /// Perform Bluetooth LE advertising in balanced power mode. This is balanced between advertising
-  /// frequency and power consumption.
-  ADVERTISE_MODE_BALANCED,
-
-  /// Perform Bluetooth LE advertising in low latency, high power mode. This has the highest power
-  /// consumption and should not be used for continuous background advertising.
-  ADVERTISE_MODE_LOW_LATENCY
-}
-
-enum AdvertisePower {
-  /// Advertise using the lowest transmission (TX) power level. Low transmission power can be used
-  /// to restrict the visibility range of advertising packets.
-  ADVERTISE_TX_POWER_ULTRA_LOW,
-
-  /// Advertise using low TX power level.
-  ADVERTISE_TX_POWER_LOW,
-
-  /// Advertise using medium TX power level.
-  ADVERTISE_TX_POWER_MEDIUM,
-
-  /// Advertise using high TX power level. This corresponds to largest visibility range of the
-  /// advertising packet.
-  ADVERTISE_TX_POWER_HIGH
+  AdvertiseData({
+    this.serviceUuid,
+    this.manufacturerId,
+    this.manufacturerData,
+    this.serviceDataUuid,
+    this.serviceData,
+    this.includeDeviceName = false,
+    this.localName,
+    this.includePowerLevel = false,
+    this.serviceSolicitationUuid,
+  });
 }

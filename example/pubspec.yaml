@@ -7,16 +7,16 @@ environment:
   flutter: ">=1.10.0"
 
 dependencies:
-  permission_handler: ^8.3.0
   flutter:
     sdk: flutter
-
   flutter_ble_peripheral:
     path: ../
+  permission_handler: ^8.3.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  lint: ^1.8.2
 
 flutter:
   uses-material-design: true
