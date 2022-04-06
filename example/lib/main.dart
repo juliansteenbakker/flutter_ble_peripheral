@@ -76,15 +76,9 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<void> _requestPermissions() async {
-    // await Permission.bluetooth.shouldShowRequestRationale;
-
-    // if ()
-
     final Map<Permission, PermissionStatus> statuses = await [
       Permission.bluetooth,
       Permission.bluetoothAdvertise,
-      // Permission.bluetoothConnect,
-      // Permission.bluetoothScan,
       Permission.location,
     ].request();
     for (final status in statuses.keys) {
@@ -194,7 +188,6 @@ class FlutterBlePeripheralExampleState
                   );
                 },
               ),
-
               MaterialButton(
                 onPressed: () async {
                   final bool enabled = await blePeripheral.enableBluetooth();
