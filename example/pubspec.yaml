@@ -13,12 +13,10 @@ dependencies:
     path: ../
   permission_handler: ^8.3.0
 
-
-
-
 dev_dependencies:
   flutter_test:
     sdk: flutter
+  lint: ^1.8.2
 
 flutter:
   uses-material-design: true
