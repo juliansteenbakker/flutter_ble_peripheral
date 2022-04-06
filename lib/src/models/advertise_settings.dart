@@ -1,10 +1,8 @@
-
 import 'package:flutter_ble_peripheral/src/models/enums/advertise_mode.dart';
 import 'package:flutter_ble_peripheral/src/models/enums/advertise_tx_power.dart';
 
 /// Model of the data to be advertised.
 class AdvertiseSettings {
-
   /// Android only
   ///
   /// Set advertise mode to control the advertising power and latency.
@@ -31,9 +29,9 @@ class AdvertiseSettings {
   final AdvertiseTxPower txPowerLevel;
 
   AdvertiseSettings({
-  this.connectable = false,
-  this.timeout = 400,
-  this.advertiseMode = AdvertiseMode.advertiseModeLowLatency,
-  this.txPowerLevel = AdvertiseTxPower.advertiseTxPowerLow,
+    this.connectable = false,
+    this.timeout = 400,
+    this.advertiseMode = AdvertiseMode.advertiseModeLowLatency,
+    this.txPowerLevel = AdvertiseTxPower.advertiseTxPowerLow,
   });
 }

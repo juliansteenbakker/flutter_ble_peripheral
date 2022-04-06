@@ -33,11 +33,13 @@ class FlutterBlePeripheral {
 
   /// Event Channel for MTU state
   final EventChannel _mtuChangedEventChannel = const EventChannel(
-      'dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed', );
+    'dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed',
+  );
 
   /// Event Channel used to changed state
   final EventChannel _stateChangedEventChannel = const EventChannel(
-      'dev.steenbakker.flutter_ble_peripheral/ble_state_changed',);
+    'dev.steenbakker.flutter_ble_peripheral/ble_state_changed',
+  );
 
   Stream<int>? _mtuState;
   Stream<PeripheralState>? _peripheralState;
@@ -47,14 +49,14 @@ class FlutterBlePeripheral {
   //     'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
 
   /// Start advertising. Takes [AdvertiseData] as an input.
-  Future<void> start(
-      {required AdvertiseData advertiseData,
-      AdvertiseSettings? advertiseSettings,
-      AdvertiseSetParameters? advertiseSetParameters,
-      AdvertiseData? advertiseResponseData,
-      AdvertiseData? advertisePeriodicData,
-      PeriodicAdvertiseSettings? periodicAdvertiseSettings,}) async {
-
+  Future<void> start({
+    required AdvertiseData advertiseData,
+    AdvertiseSettings? advertiseSettings,
+    AdvertiseSetParameters? advertiseSetParameters,
+    AdvertiseData? advertiseResponseData,
+    AdvertiseData? advertisePeriodicData,
+    PeriodicAdvertiseSettings? periodicAdvertiseSettings,
+  }) async {
     final Map<String, dynamic> parameters = {
       'uuid': advertiseData.serviceUuid,
       'manufacturerId': advertiseData.manufacturerId,
@@ -69,7 +71,8 @@ class FlutterBlePeripheral {
 
     if (advertiseSettings != null && advertiseSetParameters != null) {
       throw Exception(
-          "You can't define both advertiseSettings & setAdvertiseSettings");
+        "You can't define both advertiseSettings & setAdvertiseSettings",
+      );
     } else if (advertiseSettings != null) {
       parameters.addAll({
         'advertiseMode': advertiseSettings.advertiseMode.index,
@@ -90,7 +93,8 @@ class FlutterBlePeripheral {
         'anonymous': advertiseSetParameters.anonymous,
         'includeTxPowerLevel': advertiseSetParameters.includeTxPowerLevel,
         'duration': advertiseSetParameters.duration,
-        'maxExtendedAdvertisingEvents': advertiseSetParameters.maxExtendedAdvertisingEvents
+        'maxExtendedAdvertisingEvents':
+            advertiseSetParameters.maxExtendedAdvertisingEvents
       });
     } else {
       advertiseSettings ??= AdvertiseSettings();
@@ -111,7 +115,8 @@ class FlutterBlePeripheral {
         'periodicServiceData': advertiseData.serviceData,
         'periodicIncludeDeviceName': advertiseData.includeDeviceName,
         'periodicTransmissionPowerIncluded': advertiseData.includePowerLevel,
-        'periodicServiceSolicitationUuid': advertiseData.serviceSolicitationUuid,
+        'periodicServiceSolicitationUuid':
+            advertiseData.serviceSolicitationUuid,
         // 'periodicServiceSolicitationUuid': da, TODO: interval
       });
     }
@@ -131,7 +136,7 @@ class FlutterBlePeripheral {
 
   /// Returns `true` if advertising over BLE is supported
   Future<bool> get isSupported async =>
-    await _methodChannel.invokeMethod<bool>('isSupported') ?? false;
+      await _methodChannel.invokeMethod<bool>('isSupported') ?? false;
 
   /// Returns `true` if device is connected
   Future<bool> get isConnected async =>
@@ -145,7 +150,9 @@ class FlutterBlePeripheral {
   /// Stop advertising
   Future<bool> enableBluetooth({bool askUser = true}) async {
     return await _methodChannel.invokeMethod<bool>(
-            'enableBluetooth', askUser,) ??
+          'enableBluetooth',
+          askUser,
+        ) ??
         false;
   }
 

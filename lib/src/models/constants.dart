@@ -16,4 +16,3 @@ const int txPowerMax = 1;
 const int txPowerMedium = -7;
 const int txPowerMin = -127;
 const int txPowerUltraLow = -21;
-

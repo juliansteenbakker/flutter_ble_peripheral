@@ -32,16 +32,17 @@ class AdvertiseSetParameters {
 
   final int? maxExtendedAdvertisingEvents;
 
-  AdvertiseSetParameters(
-      {this.connectable = false,
-      this.txPowerLevel = txPowerHigh,
-      this.interval = intervalHigh,
-      this.legacyMode = false,
-      this.primaryPhy,
-      this.scannable,
-      this.secondaryPhy,
-      this.anonymous,
-      this.includeTxPowerLevel = false,
-      this.duration,
-      this.maxExtendedAdvertisingEvents});
+  AdvertiseSetParameters({
+    this.connectable = false,
+    this.txPowerLevel = txPowerHigh,
+    this.interval = intervalHigh,
+    this.legacyMode = false,
+    this.primaryPhy,
+    this.scannable,
+    this.secondaryPhy,
+    this.anonymous,
+    this.includeTxPowerLevel = false,
+    this.duration,
+    this.maxExtendedAdvertisingEvents,
+  });
 }
