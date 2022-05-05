@@ -1,3 +1,7 @@
+## 1.0.0
+Stable release including the changes noted in the beta releases.
+This release also updates Android dependencies.
+
 ## 1.0.0-beta.2
 Fixed macOS version not working
 
