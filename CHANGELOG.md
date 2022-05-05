@@ -10,7 +10,6 @@ supported on Android.
 NEW:
 * You can now make use of the new startAdvertisingSet parameter on Android 26+
 
-
 ## 0.6.0
 * Refactored large parts of the code for both Android & iOS.
 * Upgraded Android to Android 12 permission system.
