@@ -1,4 +1,7 @@
-## 1.0.0
+## 1.0.0-beta.2
+Fixed macOS version not working
+
+## 1.0.0-beta.1
 BREAKING CHANGES:
 You now define the data to be advertised using the AdvertiseData() constructor.
 AdvertiseData is the only supported object in iOS. AdvertiseSettings and other objects are only
