@@ -1,3 +1,9 @@
+## 1.1.1
+Bugs fixed:
+- Fixed an issue which caused the enableBluetooth function to reply twice.
+- Fixed analyzer issues
+- Upgraded dependencies
+
 ## 1.1.0
 Upgraded android sdk to 33.
 Added permission check on enableBluetooth function. 

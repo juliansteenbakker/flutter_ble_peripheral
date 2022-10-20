@@ -11,12 +11,12 @@ dependencies:
     sdk: flutter
   flutter_ble_peripheral:
     path: ../
-  permission_handler: ^8.3.0
+  permission_handler: ^10.2.0
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  lint: ^1.8.2
+  lint: ^1.10.0
 
 flutter:
   uses-material-design: true

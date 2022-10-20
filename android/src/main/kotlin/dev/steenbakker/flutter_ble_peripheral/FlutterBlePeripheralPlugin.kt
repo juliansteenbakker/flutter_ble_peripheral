@@ -79,7 +79,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     private fun enableBluetooth(call: MethodCall, result: MethodChannel.Result) {
         if (activityBinding != null) {
             this.call = call
-            this.pendingResultForActivityResult = result
+            this.pendingResultForPermission = result
             flutterBlePeripheralManager!!.checkAndEnableBluetooth(call, result, activityBinding!!)
         } else {
             result.error("No activity", "FlutterBlePeripheral is not correctly initialized", "null")
@@ -309,7 +309,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 //        }
 //    }
 
-    private var pendingResultForActivityResult: MethodChannel.Result? = null
+    private var pendingResultForPermission: MethodChannel.Result? = null
     private var call: MethodCall? = null
 
     override fun onRequestPermissionsResult(
@@ -323,8 +323,8 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 val grantResult = grantResults[i]
                 if (permission == Manifest.permission.BLUETOOTH_CONNECT || permission == Manifest.permission.BLUETOOTH_ADVERTISE || permission == Manifest.permission.ACCESS_FINE_LOCATION || permission == Manifest.permission.ACCESS_COARSE_LOCATION) {
                     if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                        if (call != null && pendingResultForActivityResult != null && activityBinding != null) {
-                            flutterBlePeripheralManager?.enableBluetooth(call!!, pendingResultForActivityResult!!, activityBinding!! )
+                        if (call != null && pendingResultForPermission != null && activityBinding != null) {
+                            flutterBlePeripheralManager?.enableBluetooth(call!!, pendingResultForPermission!!, activityBinding!! )
                             return true
                         }
 
@@ -340,10 +340,12 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         binding.addActivityResultListener { requestCode, resultCode, _ ->
             when (requestCode) {
                 FlutterBlePeripheralManager.REQUEST_ENABLE_BT -> {
-                    // @TODO - used underlying value of `Activity.RESULT_CANCELED` since we tend to use `androidx` in which I were not able to find the constant.
+                    Activity.RESULT_CANCELED
                     if (flutterBlePeripheralManager?.pendingResultForActivityResult != null) {
                         flutterBlePeripheralManager!!.pendingResultForActivityResult!!.success(resultCode == Activity.RESULT_OK)
+                        flutterBlePeripheralManager?.pendingResultForActivityResult = null
                     }
+
                     return@addActivityResultListener true
                 }
 //                REQUEST_DISCOVERABLE_BLUETOOTH -> {

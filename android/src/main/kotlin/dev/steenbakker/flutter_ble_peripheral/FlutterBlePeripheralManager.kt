@@ -101,7 +101,7 @@ class FlutterBlePeripheralManager(context: Context) {
 
     @Suppress("deprecation")
     fun enableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
-        if (call.arguments as Boolean) {
+        if (call.arguments as Boolean && pendingResultForActivityResult == null) {
             pendingResultForActivityResult = result
             val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             ActivityCompat.startActivityForResult(
