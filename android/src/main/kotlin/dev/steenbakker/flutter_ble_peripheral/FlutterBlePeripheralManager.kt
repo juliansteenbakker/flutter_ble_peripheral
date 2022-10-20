@@ -6,10 +6,12 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
+import android.Manifest
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
@@ -22,11 +24,15 @@ import io.flutter.plugin.common.MethodChannel
 
 class FlutterBlePeripheralManager(context: Context) {
 
+    companion object {
+        const val REQUEST_ENABLE_BT = 4
+        const val REQUEST_PERMISSION_BT = 8
+    }
+
     var mBluetoothManager: BluetoothManager?
     var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
 
     var pendingResultForActivityResult: MethodChannel.Result? = null
-    val requestEnableBt = 4
 
     //TODO
 //    private lateinit var mBluetoothGattServer: BluetoothGattServer
@@ -39,25 +45,73 @@ class FlutterBlePeripheralManager(context: Context) {
         mBluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     }
 
+    // Permissions for Bluetooth API > 31
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun hasBluetoothAdvertisePermission(context: Context): Boolean {
+        return (context.checkSelfPermission(
+            Manifest.permission.BLUETOOTH_ADVERTISE
+        )
+                == PackageManager.PERMISSION_GRANTED)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.S)
+    private fun hasBluetoothConnectPermission(context: Context): Boolean {
+        return (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
+                == PackageManager.PERMISSION_GRANTED)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    private fun hasLocationFinePermission(context: Context): Boolean {
+        return (context.checkSelfPermission(
+            Manifest.permission.ACCESS_FINE_LOCATION
+        )
+                == PackageManager.PERMISSION_GRANTED)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.M)
+    private fun hasLocationCoarsePermission(context: Context): Boolean {
+        return (context.checkSelfPermission(
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+                == PackageManager.PERMISSION_GRANTED)
+    }
+
     /**
      * Enables bluetooth with a dialog or without.
      */
-    fun enableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
+    fun checkAndEnableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
         if (mBluetoothManager!!.adapter.isEnabled) {
             result.success(true)
         } else {
-            if (call.arguments as Boolean) {
-                pendingResultForActivityResult = result
-                val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
-                ActivityCompat.startActivityForResult(
-                        activityBinding.activity,
-                        intent,
-                        requestEnableBt,
-                        null
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && (!hasBluetoothAdvertisePermission(activityBinding.activity) || !hasBluetoothConnectPermission(activityBinding.activity))) {
+                ActivityCompat.requestPermissions(activityBinding.activity,
+                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE),
+                    REQUEST_PERMISSION_BT
+                )
+            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.S  && (!hasLocationCoarsePermission(activityBinding.activity) || !hasLocationFinePermission(activityBinding.activity))) {
+                ActivityCompat.requestPermissions(activityBinding.activity,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    REQUEST_PERMISSION_BT
                 )
             } else {
-                mBluetoothManager!!.adapter.enable()
+                enableBluetooth(call, result, activityBinding)
             }
+        }
+    }
+
+    @Suppress("deprecation")
+    fun enableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
+        if (call.arguments as Boolean) {
+            pendingResultForActivityResult = result
+            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+            ActivityCompat.startActivityForResult(
+                activityBinding.activity,
+                intent,
+                REQUEST_ENABLE_BT,
+                null
+            )
+        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU){
+            mBluetoothManager!!.adapter.enable()
         }
     }
 
@@ -81,7 +135,6 @@ class FlutterBlePeripheralManager(context: Context) {
     @RequiresApi(Build.VERSION_CODES.O)
     fun startSet(advertiseData: AdvertiseData, advertiseSettingsSet: AdvertisingSetParameters, peripheralResponse: AdvertiseData?,
                  periodicResponse: AdvertiseData?, periodicResponseSettings: PeriodicAdvertisingParameters?, maxExtendedAdvertisingEvents: Int = 0, duration: Int = 0, mAdvertiseSetCallback: PeripheralAdvertisingSetCallback) {
-
         mBluetoothLeAdvertiser!!.startAdvertisingSet(
                 advertiseSettingsSet,
                 advertiseData,

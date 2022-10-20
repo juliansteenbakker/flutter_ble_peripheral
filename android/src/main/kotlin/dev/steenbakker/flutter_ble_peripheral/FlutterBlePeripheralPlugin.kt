@@ -18,8 +18,6 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
-import androidx.annotation.NonNull
-import androidx.annotation.RequiresApi
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingCallback
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingSetCallback
 import dev.steenbakker.flutter_ble_peripheral.exceptions.PeripheralException
@@ -32,21 +30,22 @@ import io.flutter.embedding.engine.plugins.activity.ActivityAware
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
+import io.flutter.plugin.common.PluginRegistry
 import java.util.*
 
 
-class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware {
+class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
 
     private var methodChannel: MethodChannel? = null
     private val tag: String = "flutter_ble_peripheral"
     private var flutterBlePeripheralManager: FlutterBlePeripheralManager? = null
 
     private lateinit var stateChangedHandler: StateChangedHandler
-//    private lateinit var mtuChangedHandler: MtuChangedHandler
-//        private val dataReceivedHandler = DataReceivedHandler()
     private var context: Context? = null
 
-    override fun onAttachedToEngine(@NonNull flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
+    private var activityBinding: ActivityPluginBinding? = null
+
+    override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         context = flutterPluginBinding.applicationContext
         methodChannel = MethodChannel(
                 flutterPluginBinding.binaryMessenger,
@@ -54,14 +53,13 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         )
         methodChannel?.setMethodCallHandler(this)
 
+
         stateChangedHandler = StateChangedHandler(flutterPluginBinding)
         stateChangedHandler.publishPeripheralState(PeripheralState.poweredOff)
         flutterBlePeripheralManager = FlutterBlePeripheralManager(flutterPluginBinding.applicationContext)
-//        mtuChangedHandler = MtuChangedHandler(flutterPluginBinding, flutterBlePeripheralManager!!)
-//        dataReceivedHandler.register(flutterPluginBinding, flutterBlePeripheralManager)
     }
 
-    override fun onDetachedFromEngine(@NonNull binding: FlutterPlugin.FlutterPluginBinding) {
+    override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel?.setMethodCallHandler(null)
         methodChannel = null
         flutterBlePeripheralManager = null
@@ -69,7 +67,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
     }
 
-    private fun checkBluetooth() {
+    private fun checkBluetoothState() {
         if (flutterBlePeripheralManager!!.mBluetoothManager == null) throw PeripheralException(PeripheralState.unsupported)
 
         // Can't check whether ble is turned off or not supported, see https://stackoverflow.com/questions/32092902/why-ismultipleadvertisementsupported-returns-false-when-getbluetoothleadverti
@@ -78,37 +76,16 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 ?: throw PeripheralException(PeripheralState.poweredOff)
     }
 
-    private var activityBinding: ActivityPluginBinding? = null
-
-//    private fun handlePeripheralException(e: PeripheralException, result: MethodChannel.Result?) {
-//        when (e.state) {
-//            PeripheralState.unsupported -> {
-//                stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
-//                Log.e(tag, "This device does not support bluetooth LE")
-//                result?.error("Not Supported", "This device does not support bluetooth LE", e.state.name)
-//            }
-//            PeripheralState.poweredOff -> {
-//                stateChangedHandler.publishPeripheralState(PeripheralState.poweredOff)
-//                Log.e(tag, "Bluetooth may be turned off")
-//                result?.error("Not powered", "Bluetooth may be turned off", e.state.name)
-//            }
-//            else -> {
-//                stateChangedHandler.publishPeripheralState(e.state)
-//                Log.e(tag, e.state.name)
-//                result?.error(e.state.name, null, null)
-//            }
-//        }
-//    }
-
     private fun enableBluetooth(call: MethodCall, result: MethodChannel.Result) {
         if (activityBinding != null) {
-            flutterBlePeripheralManager!!.enableBluetooth(call, result, activityBinding!!)
+            this.call = call
+            this.pendingResultForActivityResult = result
+            flutterBlePeripheralManager!!.checkAndEnableBluetooth(call, result, activityBinding!!)
         } else {
             result.error("No activity", "FlutterBlePeripheral is not correctly initialized", "null")
         }
     }
-
-    override fun onMethodCall(@NonNull call: MethodCall, @NonNull result: MethodChannel.Result) {
+    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (flutterBlePeripheralManager == null || context == null) {
             result.error("Not initialized", "FlutterBlePeripheral is not correctly initialized", "null")
         }
@@ -116,7 +93,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         if (call.method == "enableBluetooth") {
             enableBluetooth(call, result)
         } else {
-            checkBluetooth()
+            checkBluetoothState()
 
             try {
                 when (call.method) {
@@ -153,7 +130,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
     @Suppress("UNCHECKED_CAST")
     private fun startPeripheral(call: MethodCall, result: MethodChannel.Result) {
-        hasPermissions(context!!)
+//        hasPermissions(context!!)
 
         if (call.arguments !is Map<*, *>) {
             throw IllegalArgumentException("Arguments are not a map! " + call.arguments)
@@ -281,12 +258,6 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
             flutterBlePeripheralManager!!.start(advertiseData.build(), advertiseSettings.build(), advertiseResponseData?.build(), advertisingCallback!!)
         }
-
-//
-//        Handler(Looper.getMainLooper()).post {
-//            Log.i(tag, "Start advertise: $advertiseData")
-//            result.success(null)
-//        }
     }
 
     private var advertisingSetCallback: PeripheralAdvertisingSetCallback? = null
@@ -338,78 +309,37 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 //        }
 //    }
 
-    private fun hasPermissions(context: Context): Boolean {
-        // Required for API > 31
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (!hasBluetoothAdvertisePermission(context)) {
-                throw PermissionNotFoundException("BLUETOOTH_ADVERTISE")
-            }
-//            if (!hasBluetoothConnectPermission(context)) {
-//                throw PermissionNotFoundException("BLUETOOTH_CONNECT")
-//            }
-//            if (!hasBluetoothScanPermission(context)) {
-//                throw PermissionNotFoundException("BLUETOOTH_SCAN")
-//            }
+    private var pendingResultForActivityResult: MethodChannel.Result? = null
+    private var call: MethodCall? = null
 
-            // Required for API > 28
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-            if (!hasLocationFinePermission(context)) {
-                throw PermissionNotFoundException("ACCESS_FINE_LOCATION")
-            }
+    override fun onRequestPermissionsResult(
+        requestCode: Int,
+        permissions: Array<out String>,
+        grantResults: IntArray
+    ): Boolean {
+        if (requestCode == FlutterBlePeripheralManager.REQUEST_PERMISSION_BT) {
+            for (i in permissions.indices) {
+                val permission = permissions[i]
+                val grantResult = grantResults[i]
+                if (permission == Manifest.permission.BLUETOOTH_CONNECT || permission == Manifest.permission.BLUETOOTH_ADVERTISE || permission == Manifest.permission.ACCESS_FINE_LOCATION || permission == Manifest.permission.ACCESS_COARSE_LOCATION) {
+                    if (grantResult == PackageManager.PERMISSION_GRANTED) {
+                        if (call != null && pendingResultForActivityResult != null && activityBinding != null) {
+                            flutterBlePeripheralManager?.enableBluetooth(call!!, pendingResultForActivityResult!!, activityBinding!! )
+                            return true
+                        }
 
-            // Required for API < 28
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M){
-            if (!hasLocationCoarsePermission(context)) {
-                throw PermissionNotFoundException("ACCESS_COARSE_LOCATION")
+                    }
+                }
             }
         }
-        return true
-
+        return false
     }
-
-    // Permissions for Bluetooth API > 31
-    @RequiresApi(Build.VERSION_CODES.S)
-    private fun hasBluetoothAdvertisePermission(context: Context): Boolean {
-        return (context.checkSelfPermission(
-                Manifest.permission.BLUETOOTH_ADVERTISE
-        )
-                == PackageManager.PERMISSION_GRANTED)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.S)
-    private fun hasBluetoothConnectPermission(context: Context): Boolean {
-        return (context.checkSelfPermission(Manifest.permission.BLUETOOTH_CONNECT)
-                == PackageManager.PERMISSION_GRANTED)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.S)
-    private fun hasBluetoothScanPermission(context: Context): Boolean {
-        return (context.checkSelfPermission(Manifest.permission.BLUETOOTH_SCAN)
-                == PackageManager.PERMISSION_GRANTED)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.M)
-    private fun hasLocationFinePermission(context: Context): Boolean {
-        return (context.checkSelfPermission(
-                Manifest.permission.ACCESS_FINE_LOCATION
-        )
-                == PackageManager.PERMISSION_GRANTED)
-    }
-
-    @RequiresApi(Build.VERSION_CODES.M)
-    private fun hasLocationCoarsePermission(context: Context): Boolean {
-        return (context.checkSelfPermission(
-                Manifest.permission.ACCESS_COARSE_LOCATION
-        )
-                == PackageManager.PERMISSION_GRANTED)
-    }
-
-
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
+        binding.addRequestPermissionsResultListener(this)
         binding.addActivityResultListener { requestCode, resultCode, _ ->
             when (requestCode) {
-                flutterBlePeripheralManager?.requestEnableBt -> {
+                FlutterBlePeripheralManager.REQUEST_ENABLE_BT -> {
                     // @TODO - used underlying value of `Activity.RESULT_CANCELED` since we tend to use `androidx` in which I were not able to find the constant.
                     if (flutterBlePeripheralManager?.pendingResultForActivityResult != null) {
                         flutterBlePeripheralManager!!.pendingResultForActivityResult!!.success(resultCode == Activity.RESULT_OK)

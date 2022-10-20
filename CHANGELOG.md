@@ -1,3 +1,7 @@
+## 1.1.0
+Upgraded android sdk to 33.
+Added permission check on enableBluetooth function. 
+
 ## 1.0.0
 Stable release including the changes noted in the beta releases.
 This release also updates Android dependencies.

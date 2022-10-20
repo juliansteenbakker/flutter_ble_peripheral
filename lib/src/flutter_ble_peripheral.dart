@@ -28,8 +28,8 @@ class FlutterBlePeripheral {
   FlutterBlePeripheral._internal();
 
   /// Method Channel used to communicate state with
-  final MethodChannel _methodChannel =
-      const MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+  static const MethodChannel _methodChannel =
+      MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
   /// Event Channel for MTU state
   final EventChannel _mtuChangedEventChannel = const EventChannel(
@@ -148,6 +148,9 @@ class FlutterBlePeripheral {
   }
 
   /// Stop advertising
+  ///
+  /// [askUser] ONLY AVAILABLE ON ANDROID SDK < 33
+  /// If set to false, it will enable bluetooth without asking user.
   Future<bool> enableBluetooth({bool askUser = true}) async {
     return await _methodChannel.invokeMethod<bool>(
           'enableBluetooth',
