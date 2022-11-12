@@ -9,15 +9,22 @@ import Foundation
 import CoreBluetooth
 import CoreLocation
 
-class FlutterBlePeripheralManager : NSObject {
+class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
+    func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
+        
+    }
+    
+    var peripheralManager: CBPeripheralManager!
     
     let stateChangedHandler: StateChangedHandler
     
     init(stateChangedHandler: StateChangedHandler) {
         self.stateChangedHandler = stateChangedHandler
+        super.init()
+        peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
     }
     
-    lazy var peripheralManager: CBPeripheralManager  = CBPeripheralManager(delegate: self, queue: nil)
+//    lazy var peripheralManager: CBPeripheralManager! = CBPeripheralManager(delegate: self, queue: nil)
 //    var peripheralData: NSDictionary!
 
     // min MTU before iOS 10
@@ -54,7 +61,7 @@ class FlutterBlePeripheralManager : NSObject {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = advertiseData.localName
         }
         
-        peripheralManager.startAdvertising(dataToBeAdvertised)
+//        peripheralManager.startAdvertising(dataToBeAdvertised)
         
 //         TODO: Add service to advertise
 //        if peripheralManager.state == .poweredOn {
