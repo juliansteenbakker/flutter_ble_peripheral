@@ -5,4 +5,4 @@ export 'src/models/advertise_settings.dart';
 export 'src/models/constants.dart';
 export 'src/models/enums/advertise_mode.dart';
 export 'src/models/enums/advertise_tx_power.dart';
-export 'src/models/peripheral_state.dart';
+export 'src/models/enums/peripheral_state.dart';

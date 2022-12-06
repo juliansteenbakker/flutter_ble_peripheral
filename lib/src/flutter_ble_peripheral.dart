@@ -10,10 +10,12 @@ import 'dart:typed_data';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_data.dart';
+import 'package:flutter_ble_peripheral/src/models/advertise_error.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_set_parameters.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_settings.dart';
+import 'package:flutter_ble_peripheral/src/models/enums/android_error.dart';
+import 'package:flutter_ble_peripheral/src/models/enums/peripheral_state.dart';
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
-import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -50,7 +52,7 @@ class FlutterBlePeripheral {
   //     'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
 
   /// Start advertising. Takes [AdvertiseData] as an input.
-  Future<void> start({
+  Future<AdvertiseError?> start({
     required AdvertiseData advertiseData,
     AdvertiseSettings? advertiseSettings,
     AdvertiseSetParameters? advertiseSetParameters,
@@ -122,7 +124,19 @@ class FlutterBlePeripheral {
       });
     }
 
-    return _methodChannel.invokeMethod('start', parameters);
+    try {
+      await _methodChannel.invokeMethod('start', parameters);
+    } on PlatformException catch(e) {
+      final errorCode = int.tryParse(e.code) ?? 999;
+      dynamic error;
+      if (errorCode > 0 && errorCode <= 5) {
+        error = AndroidError.values.firstWhere((element) => element.code == errorCode);
+      } else if (errorCode >= 10 && errorCode <= 16) {
+        error = PeripheralState.values.firstWhere((element) => element.code == errorCode);
+      }
+      return AdvertiseError(errorCode: errorCode, message: e.message, error: error);
+    }
+    return null;
   }
 
   /// Stop advertising
@@ -146,6 +160,11 @@ class FlutterBlePeripheral {
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> sendData(Uint8List data) async {
     await _methodChannel.invokeMethod('sendData', data);
+  }
+
+  /// Request permission
+  Future<bool> requestPermission() async {
+   return await _methodChannel.invokeMethod<bool>('requestPermission') ?? false;
   }
 
   /// Stop advertising

@@ -17,9 +17,6 @@ enum PeripheralState {
   /// BLE is turned off.
   poweredOff,
 
-  // /// Android only: Location services are disabled.
-  // locationServicesDisabled,
-
   /// BLE is fully operating for this app.
   idle,
 
@@ -28,4 +25,25 @@ enum PeripheralState {
 
   /// BLE is connected to a device.
   connected,
+}
+
+extension PeripheralStateExtension on PeripheralState {
+  int get code {
+    switch (this) {
+      case PeripheralState.unknown:
+        return 10;
+      case PeripheralState.unsupported:
+        return 11;
+      case PeripheralState.unauthorized:
+        return 12;
+      case PeripheralState.poweredOff:
+        return 13;
+      case PeripheralState.idle:
+        return 14;
+      case PeripheralState.advertising:
+        return 15;
+      case PeripheralState.connected:
+        return 16;
+    }
+  }
 }

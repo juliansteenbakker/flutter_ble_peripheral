@@ -7,8 +7,8 @@
 
 import Foundation
 
-enum PeripheralState : Int{
-//    case idle, unauthorized, unsupported, advertising, connected
+enum PeripheralState : Int {
+
     /// Status is not (yet) determined.
     case unknown
 

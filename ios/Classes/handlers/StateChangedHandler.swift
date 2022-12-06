@@ -32,6 +32,7 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
     public func onListen(withArguments arguments: Any?,
                          eventSink: @escaping FlutterEventSink) -> FlutterError? {
         self.eventSink = eventSink
+        publishPeripheralState(state: state)
         return nil
     }
     

@@ -7,6 +7,9 @@
 import Flutter
 import UIKit
 import CoreLocation
+import Foundation
+import CoreBluetooth
+import CoreLocation
 
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
@@ -20,6 +23,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         flutterBlePeripheralManager = FlutterBlePeripheralManager(stateChangedHandler: stateChangedHandler)
         super.init()
     }
+    public static var result: FlutterResult? = nil
     
     public static func register(with registrar: FlutterPluginRegistrar) {
         let instance = SwiftFlutterBlePeripheralPlugin(stateChangedHandler: StateChangedHandler(registrar: registrar))
@@ -45,6 +49,14 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             isSupported(result)
         case "isConnected":
             result(stateChangedHandler.state == PeripheralState.connected)
+        case "requestPermission", "enableBluetooth":
+            guard let settingsUrl = URL(string: UIApplication.openSettingsURLString) else {
+                return
+            }
+            
+            if UIApplication.shared.canOpenURL(settingsUrl) {
+                UIApplication.shared.open(settingsUrl, completionHandler: nil)
+            }
 //        case "sendData":
 //            sendData(call, result)
         default:
@@ -53,13 +65,20 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     }
     
     private func startPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+        if (stateChangedHandler.state == .unauthorized) {
+            result(FlutterError(code: "12", message: "App is not authorized to use bluetooth", details: nil))
+            return
+        } else if (stateChangedHandler.state == .poweredOff) {
+            result(FlutterError(code: "13", message: "Bluetooth is turned off", details: nil))
+            return
+        }
+        SwiftFlutterBlePeripheralPlugin.result = result
         let map = call.arguments as? Dictionary<String, Any>
         let advertiseData = PeripheralData(
             uuid: map?["uuid"] as? String ,
             localName: map?["localName"] as? String
         )
         flutterBlePeripheralManager.start(advertiseData: advertiseData)
-        result(nil)
     }
     
     private func stopPeripheral(_ result: @escaping FlutterResult) {

@@ -9,10 +9,7 @@ import Foundation
 import CoreBluetooth
 import CoreLocation
 
-class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
-    func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        
-    }
+class FlutterBlePeripheralManager : NSObject {
     
     var peripheralManager: CBPeripheralManager!
     
@@ -22,6 +19,25 @@ class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
         self.stateChangedHandler = stateChangedHandler
         super.init()
         peripheralManager = CBPeripheralManager(delegate: self, queue: nil)
+    }
+    
+    func start(advertiseData: PeripheralData) {
+    
+        var dataToBeAdvertised: [String: Any]! = [:]
+        if (advertiseData.uuid != nil) {
+            dataToBeAdvertised[CBAdvertisementDataServiceUUIDsKey] = [CBUUID(string: advertiseData.uuid!)]
+        }
+        
+        if (advertiseData.localName != nil) {
+            dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = advertiseData.localName
+        }
+        
+        peripheralManager.startAdvertising(dataToBeAdvertised)
+        
+//         TODO: Add service to advertise
+//        if peripheralManager.state == .poweredOn {
+//            addService()
+//        }
     }
     
 //    lazy var peripheralManager: CBPeripheralManager! = CBPeripheralManager(delegate: self, queue: nil)
@@ -50,24 +66,7 @@ class FlutterBlePeripheralManager : NSObject, CBPeripheralManagerDelegate {
 //
 //    var txSubscriptions = Set<UUID>()
     
-    func start(advertiseData: PeripheralData) {
-        
-        var dataToBeAdvertised: [String: Any]! = [:]
-        if (advertiseData.uuid != nil) {
-            dataToBeAdvertised[CBAdvertisementDataServiceUUIDsKey] = [CBUUID(string: advertiseData.uuid!)]
-        }
-        
-        if (advertiseData.localName != nil) {
-            dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = advertiseData.localName
-        }
-        
-//        peripheralManager.startAdvertising(dataToBeAdvertised)
-        
-//         TODO: Add service to advertise
-//        if peripheralManager.state == .poweredOn {
-//            addService()
-//        }
-    }
+
     
 // TODO: Add service to advertise
 //    private func addService() {
