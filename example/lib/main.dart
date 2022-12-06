@@ -10,7 +10,6 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const FlutterBlePeripheralExample());
 
@@ -61,7 +60,16 @@ class FlutterBlePeripheralExampleState
     if (await blePeripheral.isAdvertising) {
       await blePeripheral.stop();
     } else {
-      await blePeripheral.start(advertiseData: advertiseData);
+      final error = await blePeripheral.start(advertiseData: advertiseData);
+      if (error != null) {
+        _messangerKey.currentState!.showSnackBar(
+          SnackBar(
+            content: Text('Error: ${error.errorCode}, ${error.message}'),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+
     }
   }
 
@@ -69,29 +77,16 @@ class FlutterBlePeripheralExampleState
     if (await blePeripheral.isAdvertising) {
       await blePeripheral.stop();
     } else {
-      await blePeripheral.start(
+      final error = await blePeripheral.start(
         advertiseData: advertiseData,
         advertiseSetParameters: advertiseSetParameters,
       );
-    }
-  }
-
-  Future<void> _requestPermissions() async {
-    final Map<Permission, PermissionStatus> statuses = await [
-      Permission.bluetooth,
-      Permission.bluetoothAdvertise,
-      Permission.location,
-    ].request();
-    for (final status in statuses.keys) {
-      if (statuses[status] == PermissionStatus.granted) {
-        debugPrint('$status permission granted');
-      } else if (statuses[status] == PermissionStatus.denied) {
-        debugPrint(
-          '$status denied. Show a dialog with a reason and again ask for the permission.',
-        );
-      } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
-        debugPrint(
-          '$status permanently denied. Take the user to the settings page.',
+      if (error != null) {
+        _messangerKey.currentState!.showSnackBar(
+          SnackBar(
+            content: Text('Error: ${error.errorCode}, ${error.message}'),
+            backgroundColor: Colors.red,
+          ),
         );
       }
     }
@@ -117,8 +112,9 @@ class FlutterBlePeripheralExampleState
                 initialData: PeripheralState.unknown,
                 builder:
                     (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
+                  final state = snapshot.data as PeripheralState?;
                   return Text(
-                    'State: ${describeEnum(snapshot.data as PeripheralState)}',
+                    'State: ${state != null ? describeEnum(state) : ''}',
                   );
                 },
               ),
@@ -150,45 +146,6 @@ class FlutterBlePeripheralExampleState
                       .copyWith(color: Colors.blue),
                 ),
               ),
-              StreamBuilder(
-                stream: blePeripheral.onPeripheralStateChanged,
-                initialData: PeripheralState.unknown,
-                builder: (
-                  BuildContext context,
-                  AsyncSnapshot<PeripheralState> snapshot,
-                ) {
-                  return MaterialButton(
-                    onPressed: snapshot.data == PeripheralState.poweredOff
-                        ? () async {
-                            final bool enabled = await blePeripheral
-                                .enableBluetooth(askUser: false);
-                            if (enabled) {
-                              _messangerKey.currentState!.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bluetooth enabled!'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            } else {
-                              _messangerKey.currentState!.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bluetooth not enabled!'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        : null,
-                    child: Text(
-                      'Enable Bluetooth (ANDROID)',
-                      style: Theme.of(context)
-                          .primaryTextTheme
-                          .button!
-                          .copyWith(color: Colors.blue),
-                    ),
-                  );
-                },
-              ),
               MaterialButton(
                 onPressed: () async {
                   final bool enabled = await blePeripheral.enableBluetooth();
@@ -209,7 +166,7 @@ class FlutterBlePeripheralExampleState
                   }
                 },
                 child: Text(
-                  'Ask if enable Bluetooth (ANDROID)',
+                  'Ask if enable Bluetooth',
                   style: Theme.of(context)
                       .primaryTextTheme
                       .button!
@@ -217,7 +174,24 @@ class FlutterBlePeripheralExampleState
                 ),
               ),
               MaterialButton(
-                onPressed: _requestPermissions,
+                onPressed: () async {
+                  final bool enabled = await FlutterBlePeripheral().requestPermission();
+                  if (enabled) {
+                    _messangerKey.currentState!.showSnackBar(
+                      const SnackBar(
+                        content: Text('Permissions granted!'),
+                        backgroundColor: Colors.green,
+                      ),
+                    );
+                  } else {
+                    _messangerKey.currentState!.showSnackBar(
+                      const SnackBar(
+                        content: Text('Permissions denied!'),
+                        backgroundColor: Colors.red,
+                      ),
+                    );
+                  }
+                },
                 child: Text(
                   'Request Permissions',
                   style: Theme.of(context)

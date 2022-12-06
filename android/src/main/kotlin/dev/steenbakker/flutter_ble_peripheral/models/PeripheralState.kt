@@ -1,27 +1,24 @@
 package dev.steenbakker.flutter_ble_peripheral.models
 
-enum class PeripheralState {
+enum class PeripheralState(val value: Int) {
     /// Status is not (yet) determined.
-    unknown,
+    unknown(10),
 
     /// BLE is not supported on this device.
-    unsupported,
+    unsupported(11),
 
     /// BLE usage is not authorized for this app.
-    unauthorized,
+    unauthorized(12),
 
     /// BLE is turned off.
-    poweredOff,
-
-    // /// Android only: Location services are disabled.
-    // locationServicesDisabled,
+    poweredOff(13),
 
     /// BLE is fully operating for this app.
-    idle,
+    idle(14),
 
     /// BLE is advertising data.
-    advertising,
+    advertising(15),
 
     /// BLE is connected to a device.
-    connected,
+    connected(16),
 }

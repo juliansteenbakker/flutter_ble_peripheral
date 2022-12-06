@@ -23,16 +23,7 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
         eventChannel.setStreamHandler(this)
     }
 
-//    fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-//        val eventChannel = EventChannel(
-//            flutterPluginBinding.binaryMessenger,
-//            "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
-//        )
-//        eventChannel.setStreamHandler(this)
-//    }
-
     fun publishPeripheralState(state: PeripheralState) {
-        Log.i(tag, state.name)
         this.state = state
         Handler(Looper.getMainLooper()).post {
             eventSink?.success(state.ordinal)
