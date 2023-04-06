@@ -27,3 +27,5 @@ flutter:
         pluginClass: FlutterBlePeripheralPlugin
       macos:
         pluginClass: FlutterBlePeripheralPlugin
+      windows:
+        pluginClass: FlutterBlePeripheralPluginCApi
