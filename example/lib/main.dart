@@ -136,7 +136,7 @@ class FlutterBlePeripheralExampleState
                   'Toggle advertising',
                   style: Theme.of(context)
                       .primaryTextTheme
-                      .button!
+                      .labelLarge!
                       .copyWith(color: Colors.blue),
                 ),
               ),
@@ -146,7 +146,7 @@ class FlutterBlePeripheralExampleState
                   'Toggle advertising set for 1 second',
                   style: Theme.of(context)
                       .primaryTextTheme
-                      .button!
+                      .labelLarge!
                       .copyWith(color: Colors.blue),
                 ),
               ),
@@ -183,7 +183,7 @@ class FlutterBlePeripheralExampleState
                       'Enable Bluetooth (ANDROID)',
                       style: Theme.of(context)
                           .primaryTextTheme
-                          .button!
+                          .labelLarge!
                           .copyWith(color: Colors.blue),
                     ),
                   );
@@ -212,7 +212,7 @@ class FlutterBlePeripheralExampleState
                   'Ask if enable Bluetooth (ANDROID)',
                   style: Theme.of(context)
                       .primaryTextTheme
-                      .button!
+                      .labelLarge!
                       .copyWith(color: Colors.blue),
                 ),
               ),
@@ -222,7 +222,7 @@ class FlutterBlePeripheralExampleState
                   'Request Permissions',
                   style: Theme.of(context)
                       .primaryTextTheme
-                      .button!
+                      .labelLarge!
                       .copyWith(color: Colors.blue),
                 ),
               ),
