@@ -60,8 +60,9 @@ class FlutterBlePeripheralExampleState
     if (await blePeripheral.isAdvertising) {
       await blePeripheral.stop();
     } else {
-      final error = await blePeripheral.start(advertiseData: advertiseData);
-      if (error != null) {
+      try {
+        await blePeripheral.start(advertiseData: advertiseData);
+      } on AdvertiseException catch (error) {
         _messangerKey.currentState!.showSnackBar(
           SnackBar(
             content: Text('Error: ${error.errorCode}, ${error.message}'),
@@ -69,7 +70,6 @@ class FlutterBlePeripheralExampleState
           ),
         );
       }
-
     }
   }
 
@@ -77,11 +77,12 @@ class FlutterBlePeripheralExampleState
     if (await blePeripheral.isAdvertising) {
       await blePeripheral.stop();
     } else {
-      final error = await blePeripheral.start(
-        advertiseData: advertiseData,
-        advertiseSetParameters: advertiseSetParameters,
-      );
-      if (error != null) {
+      try {
+        await blePeripheral.start(
+          advertiseData: advertiseData,
+          advertiseSetParameters: advertiseSetParameters,
+        );
+      } on AdvertiseException catch (error) {
         _messangerKey.currentState!.showSnackBar(
           SnackBar(
             content: Text('Error: ${error.errorCode}, ${error.message}'),
@@ -175,7 +176,8 @@ class FlutterBlePeripheralExampleState
               ),
               MaterialButton(
                 onPressed: () async {
-                  final bool enabled = await FlutterBlePeripheral().requestPermission();
+                  final bool enabled =
+                      await FlutterBlePeripheral().requestPermission();
                   if (enabled) {
                     _messangerKey.currentState!.showSnackBar(
                       const SnackBar(

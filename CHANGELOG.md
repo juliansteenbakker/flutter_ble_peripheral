@@ -1,3 +1,10 @@
+## 2.0.0
+Features:
+- Start() now throws AdvertiseError if an error occurred.
+- Start() now automatically requests any permissions if needed, and enabled bluetooth if disabled.
+- requestPermission() returns false if permissions are not present, or true if permissions are granted
+- Refactored large parts of iOS and Android codebase.
+
 ## 1.1.1
 Bugs fixed:
 - Fixed an issue which caused the enableBluetooth function to reply twice.

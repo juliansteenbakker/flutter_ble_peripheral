@@ -46,7 +46,6 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     private var context: Context? = null
 
     private var activityBinding: ActivityPluginBinding? = null
-
     private var bluetoothReceiver: PeripheralManagerDelegate? = null
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
@@ -103,6 +102,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             result.error("No activity", "FlutterBlePeripheral is not correctly initialized", "null")
         }
     }
+
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (flutterBlePeripheralManager == null || context == null) {
             result.error("Not initialized", "FlutterBlePeripheral is not correctly initialized", "null")
@@ -270,7 +270,6 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             (arguments["txPowerLevel"] as Int?)?.let { advertiseSettings.setTxPowerLevel(it) }
 
             advertisingCallback = PeripheralAdvertisingCallback(result, stateChangedHandler)
-
             flutterBlePeripheralManager!!.start(advertiseData.build(), advertiseSettings.build(), advertiseResponseData?.build(), advertisingCallback!!)
         }
     }

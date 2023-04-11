@@ -1,5 +1,6 @@
 export 'src/flutter_ble_peripheral.dart';
 export 'src/models/advertise_data.dart';
+export 'src/models/advertise_exception.dart';
 export 'src/models/advertise_set_parameters.dart';
 export 'src/models/advertise_settings.dart';
 export 'src/models/constants.dart';
