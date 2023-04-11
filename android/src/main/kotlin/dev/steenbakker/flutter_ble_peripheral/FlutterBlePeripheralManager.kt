@@ -7,7 +7,6 @@
 package dev.steenbakker.flutter_ble_peripheral
 
 import android.Manifest
-import android.app.Activity
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
@@ -18,6 +17,7 @@ import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingCallback
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingSetCallback
+import dev.steenbakker.flutter_ble_peripheral.models.PermissionState
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -85,7 +85,7 @@ class FlutterBlePeripheralManager(context: Context) {
             result.success(true)
         } else {
             pendingResultForActivityResult = result
-            if (checkPermissions(activityBinding, request)) {
+            if (checkPermissions(activityBinding, request).isEmpty()) {
                 enableBluetooth(call, result, activityBinding)
             }
         }
@@ -94,25 +94,45 @@ class FlutterBlePeripheralManager(context: Context) {
     /**
      * Checks or requests permissions
      */
-    fun checkPermissions(activityBinding: ActivityPluginBinding, request: Boolean): Boolean {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && (!hasBluetoothAdvertisePermission(activityBinding.activity) || !hasBluetoothConnectPermission(activityBinding.activity))) {
+    fun checkPermissions(activityBinding: ActivityPluginBinding, request: Boolean): Map<String, Int> {
+        val results = mutableMapOf<String, Int>()
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            if (!hasBluetoothAdvertisePermission(activityBinding.activity)) {
+                results[Manifest.permission.BLUETOOTH_ADVERTISE] = PermissionState.Denied.ordinal
+            }
+
+            if (!hasBluetoothConnectPermission(activityBinding.activity)) {
+                results[Manifest.permission.BLUETOOTH_CONNECT] = PermissionState.Denied.ordinal
+            }
+
             if (request) {
                 ActivityCompat.requestPermissions(activityBinding.activity,
                     arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE),
                     REQUEST_PERMISSION_BT
                 )
+            } else {
+             return results
             }
-            return false
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.S  && (!hasLocationCoarsePermission(activityBinding.activity) || !hasLocationFinePermission(activityBinding.activity))) {
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+            if (!hasLocationCoarsePermission(activityBinding.activity)) {
+                results[Manifest.permission.ACCESS_COARSE_LOCATION] = PermissionState.Denied.ordinal
+            }
+
+            if (!hasLocationFinePermission(activityBinding.activity)) {
+                results[Manifest.permission.ACCESS_FINE_LOCATION] = PermissionState.Denied.ordinal
+            }
+
             if (request) {
                 ActivityCompat.requestPermissions(activityBinding.activity,
                     arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
                     REQUEST_PERMISSION_BT
                 )
+            } else {
+                return results
             }
-            return false
         }
-        return true
+        return results
     }
 
     @Suppress("deprecation")

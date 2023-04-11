@@ -1,12 +1,12 @@
 package dev.steenbakker.flutter_ble_peripheral.models
 
-enum class PermissionState {
+enum class PermissionState(val nr: Int) {
     /// Status is not (yet) determined.
-    Granted,
+    Granted(0),
 
     /// BLE is not supported on this device.
-    ShouldShowRequestPermissionRationale,
+    Denied(1),
 
     /// BLE usage is not authorized for this app.
-    PermanentlyDenied,
+    PermanentlyDenied(2),
 }

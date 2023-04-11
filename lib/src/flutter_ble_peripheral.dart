@@ -166,7 +166,8 @@ class FlutterBlePeripheral {
   }
 
   Future<Map<String, PermissionState>?> hasPermission() async {
-    return _methodChannel.invokeMethod<Map<String, PermissionState>>('hasPermissions');
+    final response = await _methodChannel.invokeMethod<Map<String?, int?>>('hasPermissions');
+    // return response?.map((key, value) => MapEntry(key, PermissionState.values[value]));
   }
 
   Future<void> openBluetoothSettings() async {

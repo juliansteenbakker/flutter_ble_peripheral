@@ -109,6 +109,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 flutterBlePeripheralManager!!.mBluetoothLeAdvertiser ?: flutterBlePeripheralManager!!.mBluetoothManager!!.adapter.bluetoothLeAdvertiser
             }
         }
+        flutterBlePeripheralManager!!.mBluetoothLeAdvertiser = flutterBlePeripheralManager!!.mBluetoothManager!!.adapter.bluetoothLeAdvertiser
 
         val arguments = call.arguments as? Map<*, *>
         val requestPermission = arguments?.get("requestPermission") as Boolean? ?: true
@@ -125,7 +126,12 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 result.success(flutterBlePeripheralManager!!.checkPermissions(activityBinding!!, false))
             }
             "requestPermissions" -> Handler(Looper.getMainLooper()).post {
-                result.success(flutterBlePeripheralManager!!.checkPermissions(activityBinding!!, true))
+                this.pendingResultForPermission = result
+                val response = flutterBlePeripheralManager!!.checkPermissions(activityBinding!!, true)
+                if (response.isEmpty()) {
+                    result.success(response)
+                    this.pendingResultForPermission = null
+                }
             }
             "enableBluetooth" -> enableBluetooth(call, result, requestPermission)
             "openAppSettings" -> Handler(Looper.getMainLooper()).post {
@@ -324,7 +330,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 //        }
 //    }
 
-    private var pendingResultForPermission: MethodChannel.Result? = null
+    var pendingResultForPermission: MethodChannel.Result? = null
     private var call: MethodCall? = null
 
     override fun onRequestPermissionsResult(
@@ -333,13 +339,13 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         grantResults: IntArray
     ): Boolean {
         if (requestCode == FlutterBlePeripheralManager.REQUEST_PERMISSION_BT) {
-            val results = mutableMapOf<String, PermissionState>()
+            val results = mutableMapOf<String, Int>()
 
             for (i in permissions.indices) {
                 val permission = permissions[i]
                 val grantResult = grantResults[i]
                 if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                    results[permission] = PermissionState.Granted
+                    results[permission] = PermissionState.Granted.ordinal
 
                     // If asked to turn bluetooth on, turn it on
                     if (flutterBlePeripheralManager?.pendingResultForActivityResult != null && activityBinding != null) {
@@ -347,9 +353,9 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                     }
                 } else {
                     if (ActivityCompat.shouldShowRequestPermissionRationale(activityBinding!!.activity, permission)) {
-                        results[permission] = PermissionState.ShouldShowRequestPermissionRationale
+                        results[permission] = PermissionState.Denied.ordinal
                     } else {
-                        results[permission] = PermissionState.PermanentlyDenied
+                        results[permission] = PermissionState.PermanentlyDenied.ordinal
                     }
                 }
             }

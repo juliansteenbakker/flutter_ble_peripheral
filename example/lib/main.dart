@@ -38,7 +38,7 @@ class FlutterBlePeripheralExampleState
   );
 
   final AdvertiseSetParameters advertiseSetParameters = AdvertiseSetParameters(
-    txPowerLevel: txPowerMedium,
+    txPowerLevel: txPowerMax,
   );
 
   bool _isSupported = false;
@@ -143,7 +143,7 @@ class FlutterBlePeripheralExampleState
     _messangerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text('Has permission: $hasPermissions'),
-        backgroundColor: hasPermissions == PermissionState.granted ? Colors.green : Colors.red,
+        backgroundColor: hasPermissions != null && hasPermissions.isEmpty ? Colors.green : Colors.red,
       ),
     );
 
