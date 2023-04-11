@@ -14,6 +14,7 @@ import 'package:flutter_ble_peripheral/src/models/advertise_set_parameters.dart'
 import 'package:flutter_ble_peripheral/src/models/advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
+import 'package:flutter_ble_peripheral/src/models/permission_state.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -159,6 +160,19 @@ class FlutterBlePeripheral {
         ) ??
         false;
   }
+
+  Future<Map<String, PermissionState>?> requestPermission() async {
+    return _methodChannel.invokeMethod<Map<String, PermissionState>>('requestPermissions');
+  }
+
+  Future<Map<String, PermissionState>?> hasPermission() async {
+    return _methodChannel.invokeMethod<Map<String, PermissionState>>('hasPermissions');
+  }
+
+  Future<void> openBluetoothSettings() async {
+    await _methodChannel.invokeMethod('openBluetoothSettings');
+  }
+
 
   /// Returns Stream of MTU updates.
   Stream<int> get onMtuChanged {

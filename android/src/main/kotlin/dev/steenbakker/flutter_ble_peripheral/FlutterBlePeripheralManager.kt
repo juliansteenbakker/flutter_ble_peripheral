@@ -7,6 +7,7 @@
 package dev.steenbakker.flutter_ble_peripheral
 
 import android.Manifest
+import android.app.Activity
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
@@ -79,30 +80,47 @@ class FlutterBlePeripheralManager(context: Context) {
     /**
      * Enables bluetooth with a dialog or without.
      */
-    fun checkAndEnableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
+    fun checkAndEnableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding, request: Boolean) {
         if (mBluetoothManager!!.adapter.isEnabled) {
             result.success(true)
         } else {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && (!hasBluetoothAdvertisePermission(activityBinding.activity) || !hasBluetoothConnectPermission(activityBinding.activity))) {
-                ActivityCompat.requestPermissions(activityBinding.activity,
-                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE),
-                    REQUEST_PERMISSION_BT
-                )
-            } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.S  && (!hasLocationCoarsePermission(activityBinding.activity) || !hasLocationFinePermission(activityBinding.activity))) {
-                ActivityCompat.requestPermissions(activityBinding.activity,
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                    REQUEST_PERMISSION_BT
-                )
-            } else {
+            pendingResultForActivityResult = result
+            if (checkPermissions(activityBinding, request)) {
                 enableBluetooth(call, result, activityBinding)
             }
         }
     }
 
+    /**
+     * Checks or requests permissions
+     */
+    fun checkPermissions(activityBinding: ActivityPluginBinding, request: Boolean): Boolean {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && (!hasBluetoothAdvertisePermission(activityBinding.activity) || !hasBluetoothConnectPermission(activityBinding.activity))) {
+            if (request) {
+                ActivityCompat.requestPermissions(activityBinding.activity,
+                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE),
+                    REQUEST_PERMISSION_BT
+                )
+            }
+            return false
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.S  && (!hasLocationCoarsePermission(activityBinding.activity) || !hasLocationFinePermission(activityBinding.activity))) {
+            if (request) {
+                ActivityCompat.requestPermissions(activityBinding.activity,
+                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
+                    REQUEST_PERMISSION_BT
+                )
+            }
+            return false
+        }
+        return true
+    }
+
     @Suppress("deprecation")
     fun enableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
-        if (call.arguments as Boolean && pendingResultForActivityResult == null) {
-            pendingResultForActivityResult = result
+        if (!(call.arguments as Boolean) && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(mBluetoothManager!!.adapter.enable())
+        } else {
+            pendingResultForActivityResult ?: result
             val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
             ActivityCompat.startActivityForResult(
                 activityBinding.activity,
@@ -110,8 +128,6 @@ class FlutterBlePeripheralManager(context: Context) {
                 REQUEST_ENABLE_BT,
                 null
             )
-        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU){
-            mBluetoothManager!!.adapter.enable()
         }
     }
 

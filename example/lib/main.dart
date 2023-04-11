@@ -10,7 +10,6 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const FlutterBlePeripheralExample());
 
@@ -77,24 +76,90 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<void> _requestPermissions() async {
-    final Map<Permission, PermissionStatus> statuses = await [
-      Permission.bluetooth,
-      Permission.bluetoothAdvertise,
-      Permission.location,
-    ].request();
+    final statuses = await blePeripheral.requestPermission();
+    if (statuses == null) {
+      _messangerKey.currentState?.showSnackBar(
+        const SnackBar(
+          content: Text('Something went wrong while requesting permissions...'),
+          backgroundColor: Colors.red,
+        ),
+      );
+      return;
+    }
     for (final status in statuses.keys) {
-      if (statuses[status] == PermissionStatus.granted) {
+      if (statuses[status] == PermissionState.granted) {
         debugPrint('$status permission granted');
-      } else if (statuses[status] == PermissionStatus.denied) {
+        _messangerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('Permissions granted!'),
+            backgroundColor: Colors.green,
+          ),
+        );
+      } else if (statuses[status] == PermissionState.denied) {
         debugPrint(
           '$status denied. Show a dialog with a reason and again ask for the permission.',
         );
-      } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
+        _messangerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('Permissions denied, but if we explain it to the user, we can request it again.'),
+            backgroundColor: Colors.yellow,
+          ),
+        );
+      } else if (statuses[status] == PermissionState.permanentlyDenied) {
         debugPrint(
           '$status permanently denied. Take the user to the settings page.',
         );
+        _messangerKey.currentState?.showSnackBar(
+          const SnackBar(
+            content: Text('Permissions permanently denied. Take the user to the settings screen.'),
+            backgroundColor: Colors.red,
+          ),
+        );
       }
     }
+
+    // final Map<Permission, PermissionStatus> statuses = await [
+    //   Permission.bluetooth,
+    //   Permission.bluetoothAdvertise,
+    //   Permission.location,
+    // ].request();
+    // for (final status in statuses.keys) {
+    //   if (statuses[status] == PermissionStatus.granted) {
+    //     debugPrint('$status permission granted');
+    //   } else if (statuses[status] == PermissionStatus.denied) {
+    //     debugPrint(
+    //       '$status denied. Show a dialog with a reason and again ask for the permission.',
+    //     );
+    //   } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
+    //     debugPrint(
+    //       '$status permanently denied. Take the user to the settings page.',
+    //     );
+    //   }
+    // }
+  }
+
+  Future<void> _hasPermissions() async {
+    final hasPermissions = await blePeripheral.hasPermission();
+    _messangerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text('Has permission: $hasPermissions'),
+        backgroundColor: hasPermissions == PermissionState.granted ? Colors.green : Colors.red,
+      ),
+    );
+
+    // for (final status in statuses.keys) {
+    //   if (statuses[status] == PermissionStatus.granted) {
+    //     debugPrint('$status permission granted');
+    //   } else if (statuses[status] == PermissionStatus.denied) {
+    //     debugPrint(
+    //       '$status denied. Show a dialog with a reason and again ask for the permission.',
+    //     );
+    //   } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
+    //     debugPrint(
+    //       '$status permanently denied. Take the user to the settings page.',
+    //     );
+    //   }
+    // }
   }
 
   final _messangerKey = GlobalKey<ScaffoldMessengerState>();
@@ -158,27 +223,24 @@ class FlutterBlePeripheralExampleState
                   AsyncSnapshot<PeripheralState> snapshot,
                 ) {
                   return MaterialButton(
-                    onPressed: snapshot.data == PeripheralState.poweredOff
-                        ? () async {
-                            final bool enabled = await blePeripheral
-                                .enableBluetooth(askUser: false);
-                            if (enabled) {
-                              _messangerKey.currentState!.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bluetooth enabled!'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            } else {
-                              _messangerKey.currentState!.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bluetooth not enabled!'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        : null,
+                    onPressed: () async {
+                      final bool enabled = await blePeripheral.enableBluetooth(askUser: false);
+                      if (enabled) {
+                        _messangerKey.currentState!.showSnackBar(
+                          const SnackBar(
+                            content: Text('Bluetooth enabled!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } else {
+                        _messangerKey.currentState!.showSnackBar(
+                          const SnackBar(
+                            content: Text('Bluetooth not enabled!'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                          },
                     child: Text(
                       'Enable Bluetooth (ANDROID)',
                       style: Theme.of(context)
@@ -220,6 +282,26 @@ class FlutterBlePeripheralExampleState
                 onPressed: _requestPermissions,
                 child: Text(
                   'Request Permissions',
+                  style: Theme.of(context)
+                      .primaryTextTheme
+                      .labelLarge!
+                      .copyWith(color: Colors.blue),
+                ),
+              ),
+              MaterialButton(
+                onPressed: _hasPermissions,
+                child: Text(
+                  'Has permissions',
+                  style: Theme.of(context)
+                      .primaryTextTheme
+                      .labelLarge!
+                      .copyWith(color: Colors.blue),
+                ),
+              ),
+              MaterialButton(
+                onPressed: () => blePeripheral.openBluetoothSettings(),
+                child: Text(
+                  'Open bluetooth settings',
                   style: Theme.of(context)
                       .primaryTextTheme
                       .labelLarge!

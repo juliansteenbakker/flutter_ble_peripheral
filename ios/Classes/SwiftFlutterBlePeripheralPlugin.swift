@@ -45,6 +45,9 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             isSupported(result)
         case "isConnected":
             result(stateChangedHandler.state == PeripheralState.connected)
+        case "openBluetoothSettings":
+            openAppSettings()
+            result(nil)
 //        case "sendData":
 //            sendData(call, result)
         default:
@@ -74,6 +77,14 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             result(true)
         } else {
             result(false)
+        }
+    }
+    
+    private func openAppSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            if UIApplication.shared.canOpenURL(url) {
+                UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            }
         }
     }
     
