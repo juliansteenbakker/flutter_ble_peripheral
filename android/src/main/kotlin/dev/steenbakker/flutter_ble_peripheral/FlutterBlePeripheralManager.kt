@@ -7,17 +7,23 @@
 package dev.steenbakker.flutter_ble_peripheral
 
 import android.Manifest
+import android.app.Activity
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingCallback
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingSetCallback
+import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import dev.steenbakker.flutter_ble_peripheral.models.PermissionState
+import dev.steenbakker.flutter_ble_peripheral.models.State
+import io.flutter.Log
 import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
@@ -30,10 +36,11 @@ class FlutterBlePeripheralManager(context: Context) {
         const val REQUEST_PERMISSION_BT = 8
     }
 
-    var mBluetoothManager: BluetoothManager?
+    var mBluetoothManager: BluetoothManager? = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
 
     var pendingResultForActivityResult: MethodChannel.Result? = null
+    var pendingResultForPermissionResult: MethodChannel.Result? = null
 
     //TODO
 //    private lateinit var mBluetoothGattServer: BluetoothGattServer
@@ -41,10 +48,6 @@ class FlutterBlePeripheralManager(context: Context) {
 //    private var mBluetoothDevice: BluetoothDevice? = null
 //    private var txCharacteristic: BluetoothGattCharacteristic? = null
 //    private var rxCharacteristic: BluetoothGattCharacteristic? = null
-
-    init {
-        mBluetoothManager = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-    }
 
     // Permissions for Bluetooth API > 31
     @RequiresApi(Build.VERSION_CODES.S)
@@ -80,74 +83,91 @@ class FlutterBlePeripheralManager(context: Context) {
     /**
      * Enables bluetooth with a dialog or without.
      */
-    fun checkAndEnableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding, request: Boolean) {
-        if (mBluetoothManager!!.adapter.isEnabled) {
-            result.success(true)
+    fun checkAndEnableBluetooth(shouldAsk: Boolean, result: MethodChannel.Result, activityBinding: ActivityPluginBinding): Boolean {
+        return if (mBluetoothManager!!.adapter.isEnabled) {
+            true
         } else {
-            pendingResultForActivityResult = result
-            if (checkPermissions(activityBinding, request).isEmpty()) {
-                enableBluetooth(call, result, activityBinding)
-            }
+            pendingResultForPermissionResult = result
+            val hasPermission = requestPermission(activityBinding.activity, result)
+            if (hasPermission == State.Granted) enableBluetooth(shouldAsk, result, activityBinding, false)
+            false
         }
     }
-
-    /**
-     * Checks or requests permissions
-     */
-    fun checkPermissions(activityBinding: ActivityPluginBinding, request: Boolean): Map<String, Int> {
-        val results = mutableMapOf<String, Int>()
-
+    fun requestPermission(activity: Activity, result: MethodChannel.Result?): State {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            if (!hasBluetoothAdvertisePermission(activityBinding.activity)) {
-                results[Manifest.permission.BLUETOOTH_ADVERTISE] = PermissionState.Denied.ordinal
+            if (!hasBluetoothAdvertisePermission(activity) || !hasBluetoothConnectPermission(activity)) {
+                if (result != null) {
+                    pendingResultForPermissionResult = result
+                    ActivityCompat.requestPermissions(
+                        activity,
+                        arrayOf(
+                            Manifest.permission.BLUETOOTH_CONNECT,
+                            Manifest.permission.BLUETOOTH_ADVERTISE
+                        ),
+                        REQUEST_PERMISSION_BT
+                    )
+                }
+                if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_ADVERTISE) ||
+                    ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_CONNECT)) {
+                    return State.Denied
+                }
+                return State.PermanentlyDenied
             }
-
-            if (!hasBluetoothConnectPermission(activityBinding.activity)) {
-                results[Manifest.permission.BLUETOOTH_CONNECT] = PermissionState.Denied.ordinal
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            if (!hasLocationCoarsePermission(activity) || !hasLocationFinePermission(activity)) {
+                if (result != null) {
+                    pendingResultForPermissionResult = result
+                    ActivityCompat.requestPermissions(
+                        activity,
+                        arrayOf(
+                            Manifest.permission.ACCESS_FINE_LOCATION,
+                            Manifest.permission.ACCESS_COARSE_LOCATION
+                        ),
+                        REQUEST_PERMISSION_BT
+                    )
+                }
+                if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_FINE_LOCATION) ||
+                    ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                    return State.Denied
+                }
+                return State.PermanentlyDenied
             }
-
-            if (request) {
-                ActivityCompat.requestPermissions(activityBinding.activity,
-                    arrayOf(Manifest.permission.BLUETOOTH_CONNECT, Manifest.permission.BLUETOOTH_ADVERTISE),
-                    REQUEST_PERMISSION_BT
-                )
-            } else {
-             return results
-            }
-        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
-            if (!hasLocationCoarsePermission(activityBinding.activity)) {
-                results[Manifest.permission.ACCESS_COARSE_LOCATION] = PermissionState.Denied.ordinal
-            }
-
-            if (!hasLocationFinePermission(activityBinding.activity)) {
-                results[Manifest.permission.ACCESS_FINE_LOCATION] = PermissionState.Denied.ordinal
-            }
-
-            if (request) {
-                ActivityCompat.requestPermissions(activityBinding.activity,
-                    arrayOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION),
-                    REQUEST_PERMISSION_BT
-                )
-            } else {
-                return results
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            if (!hasLocationCoarsePermission(activity)) {
+                if (result != null) {
+                    pendingResultForPermissionResult = result
+                    ActivityCompat.requestPermissions(
+                        activity,
+                        arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION),
+                        REQUEST_PERMISSION_BT
+                    )
+                }
+                if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_COARSE_LOCATION)) {
+                    return State.Denied
+                }
+                return State.PermanentlyDenied
             }
         }
-        return results
+        return State.Granted
     }
 
-    @Suppress("deprecation")
-    fun enableBluetooth(call: MethodCall, result: MethodChannel.Result, activityBinding: ActivityPluginBinding) {
-        if (!(call.arguments as Boolean) && Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            result.success(mBluetoothManager!!.adapter.enable())
-        } else {
-            pendingResultForActivityResult ?: result
-            val intent = Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE)
+    fun enableBluetooth(ask: Boolean, result: MethodChannel.Result?, activityBinding: ActivityPluginBinding, askForPermission: Boolean) {
+        if (ask && pendingResultForActivityResult == null) {
+            if (askForPermission) {
+                pendingResultForPermissionResult = result
+            } else {
+                pendingResultForActivityResult = result
+            }
+
             ActivityCompat.startActivityForResult(
                 activityBinding.activity,
-                intent,
+                Intent(BluetoothAdapter.ACTION_REQUEST_ENABLE),
                 REQUEST_ENABLE_BT,
                 null
             )
+        } else if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU){
+            @Suppress("DEPRECATION")
+            mBluetoothManager!!.adapter.enable()
         }
     }
 
@@ -155,6 +175,8 @@ class FlutterBlePeripheralManager(context: Context) {
      * Start advertising using the startAdvertising() method.
      */
     fun start(peripheralData: AdvertiseData, peripheralSettings: AdvertiseSettings, peripheralResponse: AdvertiseData?, mAdvertiseCallback: PeripheralAdvertisingCallback) {
+        Log.w("TEST", "MODE ${peripheralSettings.mode}")
+        Log.w("TEST", "POWER ${peripheralSettings.txPowerLevel}")
         mBluetoothLeAdvertiser!!.startAdvertising(
                 peripheralSettings,
                 peripheralData,
@@ -171,6 +193,8 @@ class FlutterBlePeripheralManager(context: Context) {
     @RequiresApi(Build.VERSION_CODES.O)
     fun startSet(advertiseData: AdvertiseData, advertiseSettingsSet: AdvertisingSetParameters, peripheralResponse: AdvertiseData?,
                  periodicResponse: AdvertiseData?, periodicResponseSettings: PeriodicAdvertisingParameters?, maxExtendedAdvertisingEvents: Int = 0, duration: Int = 0, mAdvertiseSetCallback: PeripheralAdvertisingSetCallback) {
+        Log.w("TEST", "INTERVAL ${advertiseSettingsSet.interval}")
+        Log.w("TEST", "POWER ${advertiseSettingsSet.txPowerLevel}")
         mBluetoothLeAdvertiser!!.startAdvertisingSet(
                 advertiseSettingsSet,
                 advertiseData,
@@ -184,6 +208,15 @@ class FlutterBlePeripheralManager(context: Context) {
 
         // TODO: Add service to advertise
 //        addService(peripheralData)
+    }
+
+    fun stop(advertisingCallback: AdvertiseCallback) {
+        mBluetoothLeAdvertiser!!.stopAdvertising(advertisingCallback)
+    }
+
+    @RequiresApi(Build.VERSION_CODES.O)
+    fun stopSet(advertisingSetCallback: AdvertisingSetCallback) {
+        mBluetoothLeAdvertiser!!.stopAdvertisingSet(advertisingSetCallback)
     }
 }
 
