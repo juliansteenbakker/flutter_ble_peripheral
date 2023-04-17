@@ -10,7 +10,6 @@ import 'dart:typed_data';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
-import 'package:permission_handler/permission_handler.dart';
 
 void main() => runApp(const FlutterBlePeripheralExample());
 
@@ -24,7 +23,6 @@ class FlutterBlePeripheralExample extends StatefulWidget {
 
 class FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
-  final FlutterBlePeripheral blePeripheral = FlutterBlePeripheral();
 
   final AdvertiseData advertiseData = AdvertiseData(
     serviceUuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
@@ -39,7 +37,7 @@ class FlutterBlePeripheralExampleState
   );
 
   final AdvertiseSetParameters advertiseSetParameters = AdvertiseSetParameters(
-    txPowerLevel: txPowerMedium,
+    txPowerLevel: txPowerMax,
   );
 
   bool _isSupported = false;
@@ -51,25 +49,25 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<void> initPlatformState() async {
-    final isSupported = await blePeripheral.isSupported;
+    final isSupported = await FlutterBlePeripheral().isSupported;
     setState(() {
       _isSupported = isSupported;
     });
   }
 
   Future<void> _toggleAdvertise() async {
-    if (await blePeripheral.isAdvertising) {
-      await blePeripheral.stop();
+    if (await FlutterBlePeripheral().isAdvertising) {
+      await FlutterBlePeripheral().stop();
     } else {
-      await blePeripheral.start(advertiseData: advertiseData);
+      await FlutterBlePeripheral().start(advertiseData: advertiseData);
     }
   }
 
   Future<void> _toggleAdvertiseSet() async {
-    if (await blePeripheral.isAdvertising) {
-      await blePeripheral.stop();
+    if (await FlutterBlePeripheral().isAdvertising) {
+      await FlutterBlePeripheral().stop();
     } else {
-      await blePeripheral.start(
+      await FlutterBlePeripheral().start(
         advertiseData: advertiseData,
         advertiseSetParameters: advertiseSetParameters,
       );
@@ -77,24 +75,41 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<void> _requestPermissions() async {
-    final Map<Permission, PermissionStatus> statuses = await [
-      Permission.bluetooth,
-      Permission.bluetoothAdvertise,
-      Permission.location,
-    ].request();
-    for (final status in statuses.keys) {
-      if (statuses[status] == PermissionStatus.granted) {
-        debugPrint('$status permission granted');
-      } else if (statuses[status] == PermissionStatus.denied) {
-        debugPrint(
-          '$status denied. Show a dialog with a reason and again ask for the permission.',
-        );
-      } else if (statuses[status] == PermissionStatus.permanentlyDenied) {
-        debugPrint(
-          '$status permanently denied. Take the user to the settings page.',
-        );
+      final hasPermission = await FlutterBlePeripheral().hasPermission();
+      switch (hasPermission) {
+        case BluetoothPeripheralState.denied:
+          _messangerKey.currentState?.showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.red,
+              content: Text(
+                'We don\'t have permissions, requesting now!',
+              ),
+            ),
+          );
+
+          await _requestPermissions();
+          break;
+        default:
+          _messangerKey.currentState?.showSnackBar(
+            SnackBar(
+              backgroundColor: Colors.green,
+              content: Text(
+                'State: $hasPermission!',
+              ),
+            ),
+          );
+          break;
       }
-    }
+  }
+
+  Future<void> _hasPermissions() async {
+    final hasPermissions = await FlutterBlePeripheral().hasPermission();
+    _messangerKey.currentState?.showSnackBar(
+      SnackBar(
+        content: Text('Has permission: $hasPermissions'),
+        backgroundColor: hasPermissions == BluetoothPeripheralState.granted ? Colors.green : Colors.red,
+      ),
+    );
   }
 
   final _messangerKey = GlobalKey<ScaffoldMessengerState>();
@@ -113,7 +128,7 @@ class FlutterBlePeripheralExampleState
             children: <Widget>[
               Text('Is supported: $_isSupported'),
               StreamBuilder(
-                stream: blePeripheral.onPeripheralStateChanged,
+                stream: FlutterBlePeripheral().onPeripheralStateChanged,
                 initialData: PeripheralState.unknown,
                 builder:
                     (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
@@ -123,7 +138,7 @@ class FlutterBlePeripheralExampleState
                 },
               ),
               // StreamBuilder(
-              //     stream: blePeripheral.getDataReceived(),
+              //     stream: FlutterBlePeripheral().getDataReceived(),
               //     initialData: 'None',
               //     builder:
               //         (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
@@ -136,7 +151,7 @@ class FlutterBlePeripheralExampleState
                   'Toggle advertising',
                   style: Theme.of(context)
                       .primaryTextTheme
-                      .button!
+                      .labelLarge!
                       .copyWith(color: Colors.blue),
                 ),
               ),
@@ -146,44 +161,41 @@ class FlutterBlePeripheralExampleState
                   'Toggle advertising set for 1 second',
                   style: Theme.of(context)
                       .primaryTextTheme
-                      .button!
+                      .labelLarge!
                       .copyWith(color: Colors.blue),
                 ),
               ),
               StreamBuilder(
-                stream: blePeripheral.onPeripheralStateChanged,
+                stream: FlutterBlePeripheral().onPeripheralStateChanged,
                 initialData: PeripheralState.unknown,
                 builder: (
                   BuildContext context,
                   AsyncSnapshot<PeripheralState> snapshot,
                 ) {
                   return MaterialButton(
-                    onPressed: snapshot.data == PeripheralState.poweredOff
-                        ? () async {
-                            final bool enabled = await blePeripheral
-                                .enableBluetooth(askUser: false);
-                            if (enabled) {
-                              _messangerKey.currentState!.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bluetooth enabled!'),
-                                  backgroundColor: Colors.green,
-                                ),
-                              );
-                            } else {
-                              _messangerKey.currentState!.showSnackBar(
-                                const SnackBar(
-                                  content: Text('Bluetooth not enabled!'),
-                                  backgroundColor: Colors.red,
-                                ),
-                              );
-                            }
-                          }
-                        : null,
+                    onPressed: () async {
+                      final bool enabled = await FlutterBlePeripheral().enableBluetooth(askUser: false);
+                      if (enabled) {
+                        _messangerKey.currentState!.showSnackBar(
+                          const SnackBar(
+                            content: Text('Bluetooth enabled!'),
+                            backgroundColor: Colors.green,
+                          ),
+                        );
+                      } else {
+                        _messangerKey.currentState!.showSnackBar(
+                          const SnackBar(
+                            content: Text('Bluetooth not enabled!'),
+                            backgroundColor: Colors.red,
+                          ),
+                        );
+                      }
+                          },
                     child: Text(
                       'Enable Bluetooth (ANDROID)',
                       style: Theme.of(context)
                           .primaryTextTheme
-                          .button!
+                          .labelLarge!
                           .copyWith(color: Colors.blue),
                     ),
                   );
@@ -191,7 +203,7 @@ class FlutterBlePeripheralExampleState
               ),
               MaterialButton(
                 onPressed: () async {
-                  final bool enabled = await blePeripheral.enableBluetooth();
+                  final bool enabled = await FlutterBlePeripheral().enableBluetooth();
                   if (enabled) {
                     _messangerKey.currentState!.showSnackBar(
                       const SnackBar(
@@ -212,7 +224,7 @@ class FlutterBlePeripheralExampleState
                   'Ask if enable Bluetooth (ANDROID)',
                   style: Theme.of(context)
                       .primaryTextTheme
-                      .button!
+                      .labelLarge!
                       .copyWith(color: Colors.blue),
                 ),
               ),
@@ -222,7 +234,27 @@ class FlutterBlePeripheralExampleState
                   'Request Permissions',
                   style: Theme.of(context)
                       .primaryTextTheme
-                      .button!
+                      .labelLarge!
+                      .copyWith(color: Colors.blue),
+                ),
+              ),
+              MaterialButton(
+                onPressed: _hasPermissions,
+                child: Text(
+                  'Has permissions',
+                  style: Theme.of(context)
+                      .primaryTextTheme
+                      .labelLarge!
+                      .copyWith(color: Colors.blue),
+                ),
+              ),
+              MaterialButton(
+                onPressed: () => FlutterBlePeripheral().openBluetoothSettings(),
+                child: Text(
+                  'Open bluetooth settings',
+                  style: Theme.of(context)
+                      .primaryTextTheme
+                      .labelLarge!
                       .copyWith(color: Colors.blue),
                 ),
               ),

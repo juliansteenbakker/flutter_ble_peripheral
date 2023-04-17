@@ -6,7 +6,12 @@
 
 import 'dart:typed_data';
 
+import 'package:flutter_ble_peripheral/src/models/uint8list_converter.dart';
+import 'package:json_annotation/json_annotation.dart';
+
+part 'advertise_data.g.dart';
 /// Model of the data to be advertised.
+@JsonSerializable()
 class AdvertiseData {
   /// Android & iOS
   ///
@@ -22,6 +27,7 @@ class AdvertiseData {
   /// Android only
   ///
   /// Specifies manufacturer data.
+  @Uint8ListConverter()
   final Uint8List? manufacturerData;
 
   /// Android only
@@ -67,4 +73,9 @@ class AdvertiseData {
     this.includePowerLevel = false,
     this.serviceSolicitationUuid,
   });
+
+  factory AdvertiseData.fromJson(Map<String, dynamic> json) =>
+      _$AdvertiseDataFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AdvertiseDataToJson(this);
 }

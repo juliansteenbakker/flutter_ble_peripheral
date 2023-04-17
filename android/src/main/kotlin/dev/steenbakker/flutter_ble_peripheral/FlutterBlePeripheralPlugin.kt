@@ -13,17 +13,20 @@ import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.AdvertisingSetParameters
 import android.bluetooth.le.PeriodicAdvertisingParameters
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.os.ParcelUuid
+import android.provider.Settings
+import androidx.core.app.ActivityCompat
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingCallback
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingSetCallback
-import dev.steenbakker.flutter_ble_peripheral.exceptions.PeripheralException
-import dev.steenbakker.flutter_ble_peripheral.exceptions.PermissionNotFoundException
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.*
+import dev.steenbakker.flutter_ble_peripheral.models.State.*
 import io.flutter.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.embedding.engine.plugins.activity.ActivityAware
@@ -36,26 +39,21 @@ import java.util.*
 
 class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandler, ActivityAware, PluginRegistry.RequestPermissionsResultListener {
 
-    private var methodChannel: MethodChannel? = null
     private val tag: String = "flutter_ble_peripheral"
-    private var flutterBlePeripheralManager: FlutterBlePeripheralManager? = null
 
+    private var methodChannel: MethodChannel? = null
     private lateinit var stateChangedHandler: StateChangedHandler
-    private var context: Context? = null
 
+    private var flutterBlePeripheralManager: FlutterBlePeripheralManager? = null
+    private var context: Context? = null
     private var activityBinding: ActivityPluginBinding? = null
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-        context = flutterPluginBinding.applicationContext
-        methodChannel = MethodChannel(
-                flutterPluginBinding.binaryMessenger,
-                "dev.steenbakker.flutter_ble_peripheral/ble_state"
-        )
+        methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
         methodChannel?.setMethodCallHandler(this)
 
-
+        context = flutterPluginBinding.applicationContext
         stateChangedHandler = StateChangedHandler(flutterPluginBinding)
-        stateChangedHandler.publishPeripheralState(PeripheralState.poweredOff)
         flutterBlePeripheralManager = FlutterBlePeripheralManager(flutterPluginBinding.applicationContext)
     }
 
@@ -67,80 +65,92 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
     }
 
-    private fun checkBluetoothState() {
-        if (flutterBlePeripheralManager!!.mBluetoothManager == null) throw PeripheralException(PeripheralState.unsupported)
+    private fun checkBluetoothState(result: MethodChannel.Result): State {
+        if (flutterBlePeripheralManager!!.mBluetoothManager == null || flutterBlePeripheralManager!!.mBluetoothManager?.adapter == null) {
+            result.success(Unsupported.ordinal)
+            startStopCall = null
+            return Unsupported
+        } else {
+            // Can't check whether ble is turned off or not supported, see https://stackoverflow.com/questions/32092902/why-ismultipleadvertisementsupported-returns-false-when-getbluetoothleadverti
+            // !bluetoothAdapter.isMultipleAdvertisementSupported
+            flutterBlePeripheralManager!!.mBluetoothLeAdvertiser = flutterBlePeripheralManager!!.mBluetoothManager!!.adapter.bluetoothLeAdvertiser
+            val hasPermissions = flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, result)
+            if (hasPermissions == Granted) {
+                if (!flutterBlePeripheralManager!!.mBluetoothManager!!.adapter.isEnabled) {
+                    flutterBlePeripheralManager!!.enableBluetooth(true, result, activityBinding!!, true)
+                } else {
+                    return Ready
+                }
+            }
+            return hasPermissions
+        }
+    }
 
-        // Can't check whether ble is turned off or not supported, see https://stackoverflow.com/questions/32092902/why-ismultipleadvertisementsupported-returns-false-when-getbluetoothleadverti
-        // !bluetoothAdapter.isMultipleAdvertisementSupported
-        flutterBlePeripheralManager!!.mBluetoothLeAdvertiser = flutterBlePeripheralManager!!.mBluetoothManager!!.adapter.bluetoothLeAdvertiser
-                ?: throw PeripheralException(PeripheralState.poweredOff)
+    var startStopCall: MethodCall? = null
+
+    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
+        if (flutterBlePeripheralManager == null || context == null) {
+            result.error("Not initialized", "FlutterBlePeripheral is not correctly initialized", null)
+        }
+
+        if (call.method == "start" || call.method == "stop") {
+            startStopCall = call
+            val state = checkBluetoothState(result)
+            if (state != Ready) {
+                return
+            }
+        }
+
+        when (call.method) {
+            "start" -> startPeripheral(call, result)
+            "stop" -> stopPeripheral(result)
+            "isSupported" -> isSupported(result, context!!)
+            "isAdvertising" -> Handler(Looper.getMainLooper()).post {
+                result.success(stateChangedHandler.state == PeripheralState.advertising)
+            }
+            "isConnected" -> isConnected(result)
+            "enableBluetooth" -> enableBluetooth(call, result)
+            "requestPermission" -> Handler(Looper.getMainLooper()).post {
+                flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, result)
+            }
+            "hasPermission" -> Handler(Looper.getMainLooper()).post {
+                result.success(flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, null).ordinal)
+            }
+            "openAppSettings" -> Handler(Looper.getMainLooper()).post {
+                activityBinding!!.activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context!!.packageName, null)))
+                result.success(null)
+            }
+            "openBluetoothSettings" -> Handler(Looper.getMainLooper()).post {
+                activityBinding!!.activity.startActivity( Intent(Settings.ACTION_BLUETOOTH_SETTINGS), null)
+                result.success(null)
+            }
+//                  "sendData" -> sendData(call, result)
+            else -> Handler(Looper.getMainLooper()).post {
+                result.notImplemented()
+            }
+        }
     }
 
     private fun enableBluetooth(call: MethodCall, result: MethodChannel.Result) {
         if (activityBinding != null) {
-            this.call = call
-            this.pendingResultForPermission = result
-            flutterBlePeripheralManager!!.checkAndEnableBluetooth(call, result, activityBinding!!)
+            val isEnabled = flutterBlePeripheralManager!!.checkAndEnableBluetooth(call.arguments as Boolean, result, activityBinding!!)
+            result.success(isEnabled)
         } else {
             result.error("No activity", "FlutterBlePeripheral is not correctly initialized", "null")
         }
     }
-    override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
-        if (flutterBlePeripheralManager == null || context == null) {
-            result.error("Not initialized", "FlutterBlePeripheral is not correctly initialized", "null")
-        }
 
-        if (call.method == "enableBluetooth") {
-            enableBluetooth(call, result)
-        } else {
-            checkBluetoothState()
-
-            try {
-                when (call.method) {
-                    "start" -> startPeripheral(call, result)
-                    "stop" -> stopPeripheral(result)
-                    "isAdvertising" -> Handler(Looper.getMainLooper()).post {
-                        result.success(stateChangedHandler.state == PeripheralState.advertising)
-                    }
-                    "isSupported" -> isSupported(result, context!!)
-                    "isConnected" -> isConnected(result)
-//                    "sendData" -> sendData(call, result)
-                    else -> Handler(Looper.getMainLooper()).post {
-                        result.notImplemented()
-                    }
-                }
-
-            } catch (e: PeripheralException) {
-                stateChangedHandler.publishPeripheralState(e.state)
-                result.error(
-                        e.state.name,
-                        e.localizedMessage,
-                        e.stackTrace
-                )
-            } catch (e: PermissionNotFoundException) {
-                result.error(
-                        "No Permission",
-                        "No permission for ${e.message} Please ask runtime permission.",
-                        "Manifest.permission.${e.message}"
-                )
-            }
-        }
-
-    }
-
-    @Suppress("UNCHECKED_CAST")
     private fun startPeripheral(call: MethodCall, result: MethodChannel.Result) {
-//        hasPermissions(context!!)
 
         if (call.arguments !is Map<*, *>) {
             throw IllegalArgumentException("Arguments are not a map! " + call.arguments)
         }
 
-        val arguments = call.arguments as Map<String, Any>
+        val arguments = call.arguments as Map<*, *>
 
         // First build main advertise data.
         val advertiseData: AdvertiseData.Builder = AdvertiseData.Builder()
-        (arguments["manufacturerData"] as ByteArray?)?.let { advertiseData.addManufacturerData((arguments["manufacturerId"] as Int), it) }
+        (arguments["manufacturerData"] as ArrayList<*>?)?.let { list -> advertiseData.addManufacturerData((arguments["manufacturerId"] as Int), list.map { (it as Int).toByte() }.toByteArray()) }
         (arguments["serviceData"] as ByteArray?)?.let { advertiseData.addServiceData(ParcelUuid(UUID.fromString(arguments["serviceDataUuid"] as String)), it) }
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             (arguments["serviceSolicitationUuid"] as String?)?.let { advertiseData.addServiceSolicitationUuid(
@@ -155,18 +165,18 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
         // Build advertise response data if provided
         var advertiseResponseData: AdvertiseData.Builder? = null
-        if ((arguments["responseManufacturerData"] as ByteArray?) != null || (arguments["responseServiceDataUuid"] as ByteArray?) != null || (arguments["responseServiceUuid"] as String?) != null) {
+        if ((arguments["responsemanufacturerData"] as ByteArray?) != null || (arguments["responseserviceDataUuid"] as ByteArray?) != null || (arguments["responseserviceUuid"] as String?) != null) {
             advertiseResponseData = AdvertiseData.Builder()
-            (arguments["responseManufacturerData"] as ByteArray?)?.let { advertiseData.addManufacturerData((arguments["responseManufacturerId"] as Int), it) }
-            (arguments["responseServiceData"] as ByteArray?).let { advertiseData.addServiceData(ParcelUuid(UUID.fromString(arguments["responseServiceDataUuid"] as String)), it) }
+            (arguments["responsemanufacturerData"] as ByteArray?)?.let { advertiseData.addManufacturerData((arguments["responsemanufacturerId"] as Int), it) }
+            (arguments["responseserviceData"] as ByteArray?).let { advertiseData.addServiceData(ParcelUuid(UUID.fromString(arguments["responseserviceDataUuid"] as String)), it) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                (arguments["responseServiceSolicitationUuid"] as String?)?.let { advertiseData.addServiceSolicitationUuid(
+                (arguments["responseserviceSolicitationUuid"] as String?)?.let { advertiseData.addServiceSolicitationUuid(
                         ParcelUuid(UUID.fromString(it))) }
 
-            (arguments["responseServiceUuid"] as String?)?.let { advertiseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
+            (arguments["responseserviceUuid"] as String?)?.let { advertiseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
             //TODO: addTransportDiscoveryData
-            (arguments["responseIncludeDeviceName"] as Boolean?)?.let { advertiseData.setIncludeDeviceName(it) }
-            (arguments["responseTransmissionPowerIncluded"] as Boolean?)?.let {
+            (arguments["responseincludeDeviceName"] as Boolean?)?.let { advertiseData.setIncludeDeviceName(it) }
+            (arguments["responsetransmissionPowerIncluded"] as Boolean?)?.let {
                 advertiseData.setIncludeTxPowerLevel(it)
             }
         }
@@ -176,61 +186,61 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
 
             val advertiseSettingsSet: AdvertisingSetParameters.Builder = AdvertisingSetParameters.Builder()
-            (arguments["anonymous"] as Boolean?)?.let { advertiseSettingsSet.setAnonymous(it) }
-            (arguments["connectable"] as Boolean?)?.let { advertiseSettingsSet.setConnectable(it) }
-            (arguments["setIncludeTxPower"] as Boolean?)?.let { advertiseSettingsSet.setIncludeTxPower(it) }
-            (arguments["interval"] as Int?)?.let { advertiseSettingsSet.setInterval(it) }
-            (arguments["legacyMode"] as Boolean?)?.let { advertiseSettingsSet.setLegacyMode(it) }
-            (arguments["primaryPhy"] as Int?)?.let { advertiseSettingsSet.setPrimaryPhy(it) }
-            (arguments["scannable"] as Boolean?)?.let { advertiseSettingsSet.setScannable(it) }
-            (arguments["secondaryPhy"] as Int?)?.let { advertiseSettingsSet.setSecondaryPhy(it) }
-            (arguments["txPowerLevel"] as Int?)?.let { advertiseSettingsSet.setTxPowerLevel(it) }
+            (arguments["setanonymous"] as Boolean?)?.let { advertiseSettingsSet.setAnonymous(it) }
+            (arguments["setconnectable"] as Boolean?)?.let { advertiseSettingsSet.setConnectable(it) }
+            (arguments["setsetIncludeTxPower"] as Boolean?)?.let { advertiseSettingsSet.setIncludeTxPower(it) }
+            (arguments["setinterval"] as Int?)?.let { advertiseSettingsSet.setInterval(it) }
+            (arguments["setlegacyMode"] as Boolean?)?.let { advertiseSettingsSet.setLegacyMode(it) }
+            (arguments["setprimaryPhy"] as Int?)?.let { advertiseSettingsSet.setPrimaryPhy(it) }
+            (arguments["setscannable"] as Boolean?)?.let { advertiseSettingsSet.setScannable(it) }
+            (arguments["setsecondaryPhy"] as Int?)?.let { advertiseSettingsSet.setSecondaryPhy(it) }
+            (arguments["settxPowerLevel"] as Int?)?.let { advertiseSettingsSet.setTxPowerLevel(it) }
 
             var periodicAdvertiseData: AdvertiseData.Builder? = null
             var periodicAdvertiseDataSettings: PeriodicAdvertisingParameters.Builder? = null
-            if ((arguments["periodicManufacturerData"] as ByteArray?) != null || (arguments["periodicServiceDataUuid"] as ByteArray?) != null || (arguments["periodicServiceUuid"] as String?) != null) {
+            if ((arguments["periodicmanufacturerData"] as ByteArray?) != null || (arguments["periodicServiceDataUuid"] as ByteArray?) != null || (arguments["periodicServiceUuid"] as String?) != null) {
                 periodicAdvertiseData = AdvertiseData.Builder()
                 periodicAdvertiseDataSettings = PeriodicAdvertisingParameters.Builder()
 
-                (arguments["periodicManufacturerData"] as ByteArray?)?.let {
+                (arguments["periodicmanufacturerData"] as ByteArray?)?.let {
                     periodicAdvertiseData.addManufacturerData(
                             (arguments["periodicManufacturerId"] as Int),
                             it
                     )
                 }
-                (arguments["periodicServiceData"] as ByteArray?).let {
+                (arguments["periodicserviceData"] as ByteArray?).let {
                     periodicAdvertiseData.addServiceData(
-                            ParcelUuid(UUID.fromString(arguments["periodicServiceDataUuid"] as String)),
+                            ParcelUuid(UUID.fromString(arguments["periodicserviceDataUuid"] as String)),
                             it
                     )
                 }
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                    (arguments["periodicServiceSolicitationUuid"] as String?)?.let {
+                    (arguments["periodicserviceSolicitationUuid"] as String?)?.let {
                         periodicAdvertiseData.addServiceSolicitationUuid(
                                 ParcelUuid(UUID.fromString(it))
                         )
                     }
 
-                (arguments["periodicServiceUuid"] as String?)?.let {
+                (arguments["periodicserviceUuid"] as String?)?.let {
                     periodicAdvertiseData.addServiceUuid(
                             ParcelUuid(UUID.fromString(it))
                     )
                 }
                 //TODO: addTransportDiscoveryData
-                (arguments["periodicIncludeDeviceName"] as Boolean?)?.let {
+                (arguments["periodicincludeDeviceName"] as Boolean?)?.let {
                     periodicAdvertiseData.setIncludeDeviceName(
                             it
                     )
                 }
-                (arguments["periodicTransmissionPowerIncluded"] as Boolean?)?.let {
+                (arguments["periodictransmissionPowerIncluded"] as Boolean?)?.let {
                     periodicAdvertiseData.setIncludeTxPowerLevel(it)
                 }
 
-                (arguments["periodicTransmissionPowerIncluded"] as Boolean?)?.let {
+                (arguments["periodicsettingstransmissionPowerIncluded"] as Boolean?)?.let {
                     periodicAdvertiseDataSettings.setIncludeTxPower(it)
                 }
 
-                (arguments["interval"] as Int?)?.let {
+                (arguments["periodicsettingsinterval"] as Int?)?.let {
                     periodicAdvertiseDataSettings.setInterval(it)
                 }
 
@@ -238,8 +248,8 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
             var maxExtendedAdvertisingEvents = 0
             var duration = 0
-            (arguments["maxExtendedAdvertisingEvents"] as Int?)?.let { maxExtendedAdvertisingEvents = it }
-            (arguments["duration"] as Int?)?.let { duration = it }
+            (arguments["setmaxExtendedAdvertisingEvents"] as Int?)?.let { maxExtendedAdvertisingEvents = it }
+            (arguments["setduration"] as Int?)?.let { duration = it }
 
             advertisingSetCallback = PeripheralAdvertisingSetCallback(result, stateChangedHandler)
 
@@ -264,19 +274,14 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     private var advertisingCallback: PeripheralAdvertisingCallback? = null
 
     private fun stopPeripheral(result: MethodChannel.Result) {
-        if (advertisingSetCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            flutterBlePeripheralManager!!.mBluetoothLeAdvertiser!!.stopAdvertisingSet(advertisingSetCallback)
-        } else {
-            flutterBlePeripheralManager!!.mBluetoothLeAdvertiser!!.stopAdvertising(advertisingCallback)
+        if (advertisingCallback != null) {
+            flutterBlePeripheralManager?.stop(advertisingCallback!!)
         }
 
-
-        stateChangedHandler.publishPeripheralState(PeripheralState.idle)
-
-        Handler(Looper.getMainLooper()).post {
-            Log.i(tag, "Stop advertise")
-            result.success(null)
+        if (advertisingSetCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ) {
+            flutterBlePeripheralManager?.stopSet(advertisingSetCallback!!)
         }
+        result.success(Ready.ordinal)
     }
 
     private fun isSupported(result: MethodChannel.Result, context: Context) {
@@ -309,7 +314,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 //        }
 //    }
 
-    private var pendingResultForPermission: MethodChannel.Result? = null
+    var pendingResultForPermission: MethodChannel.Result? = null
     private var call: MethodCall? = null
 
     override fun onRequestPermissionsResult(
@@ -318,21 +323,36 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         grantResults: IntArray
     ): Boolean {
         if (requestCode == FlutterBlePeripheralManager.REQUEST_PERMISSION_BT) {
+            var hasAllPermissions = true
+            var shouldShowRationale = false
             for (i in permissions.indices) {
                 val permission = permissions[i]
                 val grantResult = grantResults[i]
                 if (permission == Manifest.permission.BLUETOOTH_CONNECT || permission == Manifest.permission.BLUETOOTH_ADVERTISE || permission == Manifest.permission.ACCESS_FINE_LOCATION || permission == Manifest.permission.ACCESS_COARSE_LOCATION) {
-                    if (grantResult == PackageManager.PERMISSION_GRANTED) {
-                        if (call != null && pendingResultForPermission != null && activityBinding != null) {
-                            flutterBlePeripheralManager?.enableBluetooth(call!!, pendingResultForPermission!!, activityBinding!! )
-                            return true
+                    if (grantResult == PackageManager.PERMISSION_DENIED) {
+                        if (ActivityCompat.shouldShowRequestPermissionRationale(activityBinding!!.activity, permission)) {
+                            shouldShowRationale = true
                         }
-
+                        hasAllPermissions = false
                     }
                 }
             }
+
+            if (shouldShowRationale) {
+                flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(State.Denied.ordinal)
+            } else if (!flutterBlePeripheralManager!!.mBluetoothManager!!.adapter.isEnabled && startStopCall != null && hasAllPermissions) {
+                flutterBlePeripheralManager!!.enableBluetooth(true, flutterBlePeripheralManager?.pendingResultForPermissionResult, activityBinding!!, true)
+            } else {
+                if (hasAllPermissions) {
+                    flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(State.Granted.ordinal)
+                } else {
+                    flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(State.PermanentlyDenied.ordinal)
+                }
+                flutterBlePeripheralManager?.pendingResultForPermissionResult = null
+            }
         }
-        return false
+
+        return true
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -340,18 +360,23 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         binding.addActivityResultListener { requestCode, resultCode, _ ->
             when (requestCode) {
                 FlutterBlePeripheralManager.REQUEST_ENABLE_BT -> {
-                    Activity.RESULT_CANCELED
                     if (flutterBlePeripheralManager?.pendingResultForActivityResult != null) {
+                        startStopCall = null
                         flutterBlePeripheralManager!!.pendingResultForActivityResult!!.success(resultCode == Activity.RESULT_OK)
-                        flutterBlePeripheralManager?.pendingResultForActivityResult = null
+                    } else if (flutterBlePeripheralManager?.pendingResultForPermissionResult != null) {
+                        if (resultCode == Activity.RESULT_OK) {
+                            if (startStopCall != null) {
+                                onMethodCall(startStopCall!!, flutterBlePeripheralManager!!.pendingResultForPermissionResult!!)
+                                startStopCall = null
+                                flutterBlePeripheralManager?.pendingResultForPermissionResult = null
+                            }
+                        } else {
+                            flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(State.TurnedOff.ordinal)
+                        }
                     }
-
+                    flutterBlePeripheralManager?.pendingResultForActivityResult = null
                     return@addActivityResultListener true
                 }
-//                REQUEST_DISCOVERABLE_BLUETOOTH -> {
-//                    pendingResultForActivityResult.success(if (resultCode === 0) -1 else resultCode)
-//                    return@addActivityResultListener true
-//                }
                 else -> return@addActivityResultListener false
             }
         }
