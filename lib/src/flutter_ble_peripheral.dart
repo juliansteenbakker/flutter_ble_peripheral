@@ -5,6 +5,7 @@
  */
 
 import 'dart:async';
+import 'dart:io';
 // ignore: unnecessary_import
 import 'dart:typed_data';
 
@@ -62,6 +63,7 @@ class FlutterBlePeripheral {
   }) async {
 
     final parameters = advertiseData.toJson();
+    parameters["manufacturerDataBytes"] = advertiseData.manufacturerData;
     final settings = advertiseSettings ?? AdvertiseSettings();
     final jsonSettings = settings.toJson();
     for (final key in jsonSettings.keys) {
@@ -166,7 +168,8 @@ class FlutterBlePeripheral {
   /// Returns Stream of state.
   ///
   /// After listening to this Stream, you'll be notified about changes in peripheral state.
-  Stream<PeripheralState> get onPeripheralStateChanged {
+  Stream<PeripheralState>? get onPeripheralStateChanged {
+    if (Platform.isWindows) return null;
     _peripheralState ??= _stateChangedEventChannel
         .receiveBroadcastStream()
         .map((dynamic event) => PeripheralState.values[event as int]);

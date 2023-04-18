@@ -156,6 +156,33 @@ class FlutterBlePeripheralExampleState
                 ),
               ),
               MaterialButton(
+                onPressed: () async {
+                  await FlutterBlePeripheral().start(
+                    advertiseData: advertiseData,
+                    advertiseSetParameters: advertiseSetParameters,
+                  );
+                },
+                child: Text(
+                  'Start advertising',
+                  style: Theme.of(context)
+                      .primaryTextTheme
+                      .button!
+                      .copyWith(color: Colors.blue),
+                ),
+              ),
+              MaterialButton(
+                onPressed: () async {
+                  await FlutterBlePeripheral().stop();
+                },
+                child: Text(
+                  'Stop advertising',
+                  style: Theme.of(context)
+                      .primaryTextTheme
+                      .button!
+                      .copyWith(color: Colors.blue),
+                ),
+              ),
+              MaterialButton(
                 onPressed: _toggleAdvertiseSet,
                 child: Text(
                   'Toggle advertising set for 1 second',

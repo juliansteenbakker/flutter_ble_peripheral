@@ -28,6 +28,9 @@
 // For getPlatformVersion; remove unless needed for your plugin implementation.
 #include <VersionHelpers.h>
 
+#pragma warning( push )
+#pragma warning( disable : 4101)
+
 namespace flutter_ble_peripheral {
 
     // static
@@ -36,6 +39,11 @@ namespace flutter_ble_peripheral {
         auto channel =
             std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
                 registrar->messenger(), "dev.steenbakker.flutter_ble_peripheral/ble_state",
+                &flutter::StandardMethodCodec::GetInstance());
+
+        auto channelState =
+            std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+                registrar->messenger(), "dev.steenbakker.flutter_ble_peripheral/ble_state_changed",
                 &flutter::StandardMethodCodec::GetInstance());
 
         auto event_scan_result =
@@ -64,6 +72,8 @@ namespace flutter_ble_peripheral {
                 });
         event_scan_result->SetStreamHandler(std::move(handler));
 
+
+
         registrar->AddPlugin(std::move(plugin));
     }
 
@@ -81,56 +91,41 @@ namespace flutter_ble_peripheral {
     void FlutterBlePeripheralPlugin::HandleMethodCall(
         const flutter::MethodCall<flutter::EncodableValue>& method_call,
         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
-        if (method_call.method_name().compare("getPlatformVersion") == 0) {
-            std::ostringstream version_stream;
-            version_stream << "Windows ";
-            if (IsWindows10OrGreater()) {
-                version_stream << "10+";
-            }
-            else if (IsWindows8OrGreater()) {
-                version_stream << "8";
-            }
-            else if (IsWindows7OrGreater()) {
-                version_stream << "7";
-            }
-            result->Success(flutter::EncodableValue(version_stream.str()));
-
-        }
-        else if (method_call.method_name().compare("start") == 0) {
+        if (method_call.method_name().compare("start") == 0) {
             if (!bluetoothLEPublisher) {
                 bluetoothLEPublisher = BluetoothLEAdvertisementPublisher();
-                //(arguments["manufacturerData"] as ByteArray ? ) ? .let{ advertiseData.addManufacturerData((arguments["manufacturerId"] as Int), it) }
-            }
-            std::string manuData;
-            std::uint16_t manuId = 0x01;
+            } 
+
             const auto* arguments = std::get_if<EncodableMap>(method_call.arguments());
+            Advertisement::BluetoothLEManufacturerData manufacturerData = Advertisement::BluetoothLEManufacturerData();
             if (arguments) {
-                auto manuDataIt = arguments->find(EncodableValue("manufacturerData"));
+                auto manuDataIt = arguments->find(EncodableValue("manufacturerDataBytes"));
                 if (manuDataIt != arguments->end()) {
-                    manuData = std::get<std::string>(manuDataIt->second);
+                    auto dataWriter = DataWriter();
+                    auto& vector = std::get<std::vector<uint8_t>>(manuDataIt->second);
+                    dataWriter.WriteBytes(vector);
+                    manufacturerData.Data(dataWriter.DetachBuffer());
                 }
                 auto manuIdIt = arguments->find(EncodableValue("manufacturerId"));
                 if (manuIdIt != arguments->end()) {
-                    //manuId = std::get<std::uint16_t>(manuIdIt->second);
+                    auto test = std::get<std::int32_t>(manuIdIt->second);
+                    printf("%ld", test);
+                    //dataWriter2.WriteUInt16(std::get<std::uint16_t>(manuIdIt->second));
+                    manufacturerData.CompanyId(test);
                 }
             }
 
-            auto dataWriter = DataWriter();
-            dataWriter.WriteString(winrt::to_hstring(manuData));
-            Advertisement::BluetoothLEManufacturerData manufacturerData = Advertisement::BluetoothLEManufacturerData();
-            manufacturerData.CompanyId(manuId);
-            manufacturerData.Data(dataWriter.DetachBuffer());
             bluetoothLEPublisher.Advertisement().ManufacturerData().Append(manufacturerData);
             bluetoothLEPublisher.Start();
-            //std::cout << "Start";
 
-            result->Success(nullptr);
+            result->Success(8);
         }
         else if (method_call.method_name().compare("stop") == 0) {
             if (bluetoothLEPublisher) {
+                bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
                 bluetoothLEPublisher.Stop();
             }
-            result->Success(nullptr);
+            result->Success(8);
         } else if (method_call.method_name().compare("isAdvertising") == 0) {
             result->Success(true);
         }
