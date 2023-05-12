@@ -23,12 +23,14 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
      * @param status Status of the operation.
      */
 
+    private val TAG : String = "PeripheralAdvertisingSetCallback"
+
     override fun onAdvertisingSetStarted(
             advertisingSet: AdvertisingSet?,
             txPower: Int,
             status: Int
     ) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingSetStarted() status: $advertisingSet, txPOWER $txPower, status $status")
+        Log.i(TAG, "onAdvertisingSetStarted() status: $advertisingSet, txPOWER $txPower, status $status")
         super.onAdvertisingSetStarted(advertisingSet, txPower, status)
         var statusText = ""
         when (status) {
@@ -75,7 +77,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
      * @param advertisingSet The advertising set.
      */
     override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingSetStopped() status: $advertisingSet")
+        Log.i(TAG, "onAdvertisingSetStopped() status: $advertisingSet")
         super.onAdvertisingSetStopped(advertisingSet)
         stateChangedHandler.publishPeripheralState(PeripheralState.idle)
     }
@@ -93,7 +95,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
             enable: Boolean,
             status: Int
     ) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
+        Log.i(TAG, "onAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
         super.onAdvertisingEnabled(advertisingSet, enable, status)
         stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
     }
@@ -106,9 +108,9 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
      * @param status Status of the operation.
      */
     override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingDataSet() status: $advertisingSet, status $status")
+        Log.i(TAG, "onAdvertisingDataSet() status: $advertisingSet, status $status")
         super.onAdvertisingDataSet(advertisingSet, status)
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        //stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
     }
 
     /**
@@ -119,9 +121,9 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
      * @param status Status of the operation.
      */
     override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
-        Log.i("FlutterBlePeripheral", "onScanResponseDataSet() status: $advertisingSet, status $status")
+        Log.i(TAG, "onScanResponseDataSet() status: $advertisingSet, status $status")
         super.onAdvertisingDataSet(advertisingSet, status)
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        //stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
     }
 
     /**
@@ -136,7 +138,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
             advertisingSet: AdvertisingSet?,
             txPower: Int, status: Int
     ) {
-        Log.i("FlutterBlePeripheral", "onAdvertisingParametersUpdated() status: $advertisingSet, txPOWER $txPower, status $status")
+        Log.i(TAG, "onAdvertisingParametersUpdated() status: $advertisingSet, txPOWER $txPower, status $status")
     }
 
     /**
@@ -150,7 +152,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
             advertisingSet: AdvertisingSet?,
             status: Int
     ) {
-        Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingParametersUpdated() status: $advertisingSet, status $status")
+        Log.i(TAG, "onPeriodicAdvertisingParametersUpdated() status: $advertisingSet, status $status")
     }
 
     /**
@@ -164,7 +166,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
             advertisingSet: AdvertisingSet?,
             status: Int
     ) {
-        Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingDataSet() status: $advertisingSet, status $status")
+        Log.i(TAG, "onPeriodicAdvertisingDataSet() status: $advertisingSet, status $status")
     }
 
     /**
@@ -178,6 +180,6 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
             advertisingSet: AdvertisingSet?, enable: Boolean,
             status: Int
     ) {
-        Log.i("FlutterBlePeripheral", "onPeriodicAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
+        Log.i(TAG, "onPeriodicAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
     }
 }

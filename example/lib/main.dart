@@ -74,29 +74,26 @@ class FlutterBlePeripheralExampleState
 
   Future<void> _requestPermissions() async {
     final hasPermission = await FlutterBlePeripheral().hasPermission();
-    switch (hasPermission) {
-      case BluetoothPeripheralState.denied:
-        _messangerKey.currentState?.showSnackBar(
-          const SnackBar(
-            backgroundColor: Colors.red,
-            content: Text(
-              "We don't have permissions, requesting now!",
-            ),
+    if (hasPermission == PermissionState.granted) {
+      _messangerKey.currentState?.showSnackBar(
+        SnackBar(
+          backgroundColor: Colors.green,
+          content: Text(
+            'State: $hasPermission!',
           ),
-        );
+        ),
+      );
+    } else {
+      _messangerKey.currentState?.showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(
+            "We don't have permissions, requesting now!",
+          ),
+        ),
+      );
 
-        await _requestPermissions();
-        break;
-      default:
-        _messangerKey.currentState?.showSnackBar(
-          SnackBar(
-            backgroundColor: Colors.green,
-            content: Text(
-              'State: $hasPermission!',
-            ),
-          ),
-        );
-        break;
+      await _requestPermissions();
     }
   }
 
@@ -105,7 +102,7 @@ class FlutterBlePeripheralExampleState
     _messangerKey.currentState?.showSnackBar(
       SnackBar(
         content: Text('Has permission: $hasPermissions'),
-        backgroundColor: hasPermissions == BluetoothPeripheralState.granted
+        backgroundColor: hasPermissions == PermissionState.granted
             ? Colors.green
             : Colors.red,
       ),

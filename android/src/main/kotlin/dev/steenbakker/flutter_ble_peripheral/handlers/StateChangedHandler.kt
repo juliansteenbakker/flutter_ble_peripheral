@@ -8,11 +8,11 @@ import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 
 class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) : EventChannel.StreamHandler {
-    private val tag: String = "BLE Peripheral state "
+    private val TAG: String = "StateChangedHandler"
 
     private var eventSink: EventChannel.EventSink? = null
 
-    var state = PeripheralState.idle
+    private var state = PeripheralState.idle
 
     private val eventChannel = EventChannel(
         flutterPluginBinding.binaryMessenger,
@@ -21,27 +21,28 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
 
     init {
         eventChannel.setStreamHandler(this)
+        //publishPeripheralState(PeripheralState.poweredOff)
     }
 
-//    fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
-//        val eventChannel = EventChannel(
-//            flutterPluginBinding.binaryMessenger,
-//            "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
-//        )
-//        eventChannel.setStreamHandler(this)
-//    }
+    fun getState() : PeripheralState {
+        return state
+    }
 
     fun publishPeripheralState(state: PeripheralState) {
-        Log.i(tag, state.name)
-        this.state = state
-        Handler(Looper.getMainLooper()).post {
-            eventSink?.success(state.ordinal)
+        if (this.state != state) {
+            Log.i(TAG, state.name)
+            this.state = state
+            Handler(Looper.getMainLooper()).post {
+                eventSink!!.success(state.ordinal)
+            }
+        } else {
+            Log.i(TAG, "O estado nao mudou, publish repetido") //TODO: tirar. tirar if tmb??
         }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
         this.eventSink = eventSink
-        publishPeripheralState(state)
+        //publishPeripheralState(state)
     }
 
     override fun onCancel(event: Any?) {

@@ -16,6 +16,7 @@ import 'package:flutter_ble_peripheral/src/models/advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/enums/bluetooth_peripheral_state.dart';
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
+import 'package:flutter_ble_peripheral/src/models/permission_state.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -93,11 +94,8 @@ class FlutterBlePeripheral {
   }
 
   /// Stop advertising
-  Future<BluetoothPeripheralState> stop() async {
-    final response = await _methodChannel.invokeMethod<int>('stop');
-    return response == null
-        ? BluetoothPeripheralState.unknown
-        : BluetoothPeripheralState.values[response];
+  Future<void> stop() async {
+    await _methodChannel.invokeMethod<int>('stop');
   }
 
   /// Returns `true` if advertising or false if not advertising
@@ -130,19 +128,19 @@ class FlutterBlePeripheral {
         false;
   }
 
-  Future<BluetoothPeripheralState> requestPermission() async {
+  Future<PermissionState> requestPermission() async {
     final response =
         await _methodChannel.invokeMethod<int>('requestPermissions');
     return response == null
-        ? BluetoothPeripheralState.unknown
-        : BluetoothPeripheralState.values[response];
+        ? PermissionState.unknown
+        : PermissionState.values[response];
   }
 
-  Future<BluetoothPeripheralState> hasPermission() async {
+  Future<PermissionState> hasPermission() async {
     final response = await _methodChannel.invokeMethod<int>('hasPermission');
     return response == null
-        ? BluetoothPeripheralState.unknown
-        : BluetoothPeripheralState.values[response];
+        ? PermissionState.unknown
+        : PermissionState.values[response];
   }
 
   Future<void> openBluetoothSettings() async {

@@ -6,23 +6,22 @@ import dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralManager
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 
-class DataReceivedHandler : EventChannel.StreamHandler {
+class DataReceivedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) : EventChannel.StreamHandler {
     private var eventSink: EventChannel.EventSink? = null
 
-    fun register(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, flutterBlePeripheralManager: FlutterBlePeripheralManager) {
-        val eventChannel = EventChannel(
+    private val eventChannel = EventChannel(
             flutterPluginBinding.binaryMessenger,
-            "dev.steenbakker.flutter_ble_peripheral/ble_data_received"
-        )
+            "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
+    )
 
+    init {
         eventChannel.setStreamHandler(this)
+    }
 
-//        flutterBlePeripheralManager.onDataReceived = {
-//
-//            Handler(Looper.getMainLooper()).post {
-//                eventSink?.success(it)
-//            }
-//        }
+    fun publishData(data: ByteArray) {
+        Handler(Looper.getMainLooper()).post {
+            eventSink!!.success(data)
+        }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
