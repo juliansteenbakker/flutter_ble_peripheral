@@ -96,7 +96,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         if (call.method == "start" || call.method == "stop") {
             startStopCall = call
             val state = checkBluetoothState(result)
-            if (state != Ready) {
+            if (state != Ready && state != Granted) {
                 return
             }
         }
@@ -339,14 +339,18 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             }
 
             if (shouldShowRationale) {
-                flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(State.Denied.ordinal)
+                flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(Denied.ordinal)
             } else if (!flutterBlePeripheralManager!!.mBluetoothManager!!.adapter.isEnabled && startStopCall != null && hasAllPermissions) {
                 flutterBlePeripheralManager!!.enableBluetooth(true, flutterBlePeripheralManager?.pendingResultForPermissionResult, activityBinding!!, true)
             } else {
                 if (hasAllPermissions) {
-                    flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(State.Granted.ordinal)
+                    if (startStopCall != null) {
+                        onMethodCall(startStopCall!!, flutterBlePeripheralManager!!.pendingResultForPermissionResult!!)
+                        startStopCall = null
+                        flutterBlePeripheralManager?.pendingResultForPermissionResult = null
+                    }
                 } else {
-                    flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(State.PermanentlyDenied.ordinal)
+                    flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(PermanentlyDenied.ordinal)
                 }
                 flutterBlePeripheralManager?.pendingResultForPermissionResult = null
             }

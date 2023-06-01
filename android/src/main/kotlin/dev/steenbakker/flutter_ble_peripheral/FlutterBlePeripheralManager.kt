@@ -175,8 +175,8 @@ class FlutterBlePeripheralManager(context: Context) {
      * Start advertising using the startAdvertising() method.
      */
     fun start(peripheralData: AdvertiseData, peripheralSettings: AdvertiseSettings, peripheralResponse: AdvertiseData?, mAdvertiseCallback: PeripheralAdvertisingCallback) {
-        Log.w("TEST", "MODE ${peripheralSettings.mode}")
-        Log.w("TEST", "POWER ${peripheralSettings.txPowerLevel}")
+        Log.d("flutter_ble_peripheral", "MODE ${peripheralSettings.mode}")
+        Log.d("flutter_ble_peripheral", "POWER ${peripheralSettings.txPowerLevel}")
         mBluetoothLeAdvertiser!!.startAdvertising(
                 peripheralSettings,
                 peripheralData,
@@ -193,8 +193,8 @@ class FlutterBlePeripheralManager(context: Context) {
     @RequiresApi(Build.VERSION_CODES.O)
     fun startSet(advertiseData: AdvertiseData, advertiseSettingsSet: AdvertisingSetParameters, peripheralResponse: AdvertiseData?,
                  periodicResponse: AdvertiseData?, periodicResponseSettings: PeriodicAdvertisingParameters?, maxExtendedAdvertisingEvents: Int = 0, duration: Int = 0, mAdvertiseSetCallback: PeripheralAdvertisingSetCallback) {
-        Log.w("TEST", "INTERVAL ${advertiseSettingsSet.interval}")
-        Log.w("TEST", "POWER ${advertiseSettingsSet.txPowerLevel}")
+        Log.d("flutter_ble_peripheral", "INTERVAL ${advertiseSettingsSet.interval}")
+        Log.d("flutter_ble_peripheral", "POWER ${advertiseSettingsSet.txPowerLevel}")
         mBluetoothLeAdvertiser!!.startAdvertisingSet(
                 advertiseSettingsSet,
                 advertiseData,
