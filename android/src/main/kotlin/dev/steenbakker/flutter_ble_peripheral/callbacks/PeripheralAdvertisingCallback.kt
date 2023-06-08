@@ -6,13 +6,35 @@ import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
+import java.time.Duration
+import java.util.Timer
+import kotlin.concurrent.timerTask
 
-class PeripheralAdvertisingCallback(private val result: MethodChannel.Result, private val stateChangedHandler: StateChangedHandler): AdvertiseCallback() {
+class PeripheralAdvertisingCallback(
+    private val result: MethodChannel.Result,
+    private val stateChangedHandler: StateChangedHandler,
+    private val duration: Long //in milliseconds
+): AdvertiseCallback() {
+
+    private var timer : Timer? = Timer()
+
     override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
         super.onStartSuccess(settingsInEffect)
         Log.i("FlutterBlePeripheral", "onStartSuccess() mode: ${settingsInEffect.mode}, txPOWER ${settingsInEffect.txPowerLevel}")
         result.success(null)
         stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+
+        timer?.schedule(timerTask {
+            dispose()
+        }, duration)
+    }
+
+    fun dispose() {
+        if (timer != null) {
+            stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+            timer!!.cancel()
+            timer = null
+        }
     }
 
     override fun onStartFailure(errorCode: Int) {

@@ -11,21 +11,15 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
     private val TAG: String = "StateChangedHandler"
 
     private var eventSink: EventChannel.EventSink? = null
-
-    private var state = PeripheralState.idle
-
     private val eventChannel = EventChannel(
         flutterPluginBinding.binaryMessenger,
         "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
     )
 
+    private var state = PeripheralState.unknown
+
     init {
         eventChannel.setStreamHandler(this)
-        //publishPeripheralState(PeripheralState.poweredOff)
-    }
-
-    fun getState() : PeripheralState {
-        return state
     }
 
     fun publishPeripheralState(state: PeripheralState) {
@@ -33,16 +27,17 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
             Log.i(TAG, state.name)
             this.state = state
             Handler(Looper.getMainLooper()).post {
-                eventSink!!.success(state.ordinal)
+                eventSink?.success(state.ordinal)
             }
         } else {
-            Log.i(TAG, "O estado nao mudou, publish repetido") //TODO: tirar. tirar if tmb??
+            Log.i(TAG, "O estado nao mudou, publish repetido") //TODO: tirar
         }
     }
 
-    override fun onListen(event: Any?, eventSink: EventChannel.EventSink?) {
+    override fun onListen(event: Any?, eventSink: EventChannel.EventSink) {
         this.eventSink = eventSink
-        //publishPeripheralState(state)
+        Log.i(TAG, "ONLISTEN")
+        eventSink.success(state.ordinal)
     }
 
     override fun onCancel(event: Any?) {

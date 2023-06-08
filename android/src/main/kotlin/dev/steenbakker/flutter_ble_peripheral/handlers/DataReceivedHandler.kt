@@ -3,6 +3,7 @@ package dev.steenbakker.flutter_ble_peripheral.handlers
 import android.os.Handler
 import android.os.Looper
 import dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralManager
+import dev.steenbakker.flutter_ble_peripheral.models.MessagePacket
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 
@@ -11,16 +12,16 @@ class DataReceivedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
 
     private val eventChannel = EventChannel(
             flutterPluginBinding.binaryMessenger,
-            "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
+            "dev.steenbakker.flutter_ble_peripheral/ble_data_received"
     )
 
     init {
         eventChannel.setStreamHandler(this)
     }
 
-    fun publishData(data: ByteArray) {
+    fun publishData(data: MessagePacket) {
         Handler(Looper.getMainLooper()).post {
-            eventSink!!.success(data)
+            eventSink?.success(data.toMap())
         }
     }
 

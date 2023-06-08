@@ -14,9 +14,12 @@ import 'package:flutter_ble_peripheral/src/models/advertise_data.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_set_parameters.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/enums/bluetooth_peripheral_state.dart';
+import 'package:flutter_ble_peripheral/src/models/message_packet.dart';
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 import 'package:flutter_ble_peripheral/src/models/permission_state.dart';
+
+import 'package:flutter_ble_peripheral/src/models/service_description.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -28,8 +31,6 @@ class FlutterBlePeripheral {
     return _instance;
   }
 
-  /// Singleton constructor
-  FlutterBlePeripheral._internal();
 
   /// Method Channel used to communicate state with
   static const MethodChannel _methodChannel =
@@ -45,12 +46,48 @@ class FlutterBlePeripheral {
     'dev.steenbakker.flutter_ble_peripheral/ble_state_changed',
   );
 
-  Stream<int>? _mtuState;
-  Stream<PeripheralState>? _peripheralState;
+  /// Event Channel for received data
+  final EventChannel _dataReceivedEventChannel = const EventChannel(
+    'dev.steenbakker.flutter_ble_peripheral/ble_data_received',
+  );
 
-  //TODO Event Channel used to received data
-  // final EventChannel _dataReceivedEventChannel = const EventChannel(
-  //     'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
+  late final Stream<int> _mtuState;
+  late final Stream<PeripheralState>? _peripheralState;
+  late final Stream<MessagePacket> _dataReceived;
+
+  PeripheralState? _state;
+  int? _mtu;
+
+  /// Singleton constructor
+  FlutterBlePeripheral._internal() {
+    _dataReceived = _dataReceivedEventChannel.receiveBroadcastStream()
+        .cast<Map<dynamic,dynamic>>()
+        .map((event) => MessagePacket.fromMap(Map<String,dynamic>.from(event)));
+
+    _mtuState = _mtuChangedEventChannel.receiveBroadcastStream()
+        .cast<int>()
+        .distinct()
+        .map((dynamic event) => (event as int) - 3); // Subtract 3 bytes taken up by the header
+    _mtuState.listen((mtu) => _mtu = mtu);
+
+    if (Platform.isWindows) {
+      _peripheralState = null;
+    } else {
+      _peripheralState = _stateChangedEventChannel.receiveBroadcastStream()
+          .map((dynamic event) => PeripheralState.values[event as int]);
+      _peripheralState!.listen((s) => _state = s);
+    }
+  }
+
+
+
+  Future<void> addService(ServiceDescription service) async {
+    return _methodChannel.invokeMethod('addService', service.toMap());
+  }
+
+  Future<void> removeService(String serviceUUID) async {
+    return _methodChannel.invokeMethod('removeService', serviceUUID);
+  }
 
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<BluetoothPeripheralState> start({
@@ -98,26 +135,44 @@ class FlutterBlePeripheral {
     await _methodChannel.invokeMethod<int>('stop');
   }
 
-  /// Returns `true` if advertising or false if not advertising
-  Future<bool> get isAdvertising async {
-    return await _methodChannel.invokeMethod<bool>('isAdvertising') ?? false;
+  PeripheralState get state {
+    return _state ?? PeripheralState.unknown;
   }
+
+  /// Returns `true` if advertising or false if not advertising
+  bool get isAdvertising  =>
+    state == PeripheralState.advertising;
 
   /// Returns `true` if advertising over BLE is supported
-  Future<bool> get isSupported async =>
-      await _methodChannel.invokeMethod<bool>('isSupported') ?? false;
+  bool get isSupported =>
+      state != PeripheralState.unsupported;
 
   /// Returns `true` if device is connected
-  Future<bool> get isConnected async =>
-      await _methodChannel.invokeMethod<bool>('isConnected') ?? false;
+  bool get isConnected =>
+      state == PeripheralState.connected;
 
-  /// Start advertising. Takes [AdvertiseData] as an input.
-  Future<void> sendData(Uint8List data) async {
-    await _methodChannel.invokeMethod('sendData', data);
+  /// Returns the current Minimum Transmission Unit of the connection
+  /// This corresponds to the ATT MTU minus 3, since the header of an ATT package takes up 3 bytes
+  /// Default (if the client doesn't negotiate another) is 20
+  int get mtu {
+    return _mtu ?? -1;
   }
 
-  /// Stop advertising
-  ///
+  /// Reads the current value of a descriptor. Returns null if no such descriptor exists
+  Future<Uint8List?> read(String characteristicUUID) {
+    return _methodChannel.invokeMethod<Uint8List>('read', characteristicUUID);
+  }
+
+  /// Writes the value of a descriptor and notifies subscribed devices
+  Future<void> write(String characteristicUUID, Uint8List data) async {
+    final Map<String, dynamic> parameters = {
+      "characteristic": characteristicUUID,
+      "data": data
+    };
+    await _methodChannel.invokeMethod('write', parameters);
+  }
+
+
   /// [askUser] ONLY AVAILABLE ON ANDROID SDK < 33
   /// If set to false, it will enable bluetooth without asking user.
   Future<bool> enableBluetooth({bool askUser = true}) async {
@@ -152,30 +207,15 @@ class FlutterBlePeripheral {
   }
 
   /// Returns Stream of MTU updates.
-  Stream<int> get onMtuChanged {
-    _mtuState ??= _mtuChangedEventChannel
-        .receiveBroadcastStream()
-        .cast<int>()
-        .distinct()
-        .map((dynamic event) => event as int);
-    return _mtuState!;
-  }
+  Stream<int> get onMtuChanged => _mtuState;
 
   /// Returns Stream of state.
   ///
   /// After listening to this Stream, you'll be notified about changes in peripheral state.
-  Stream<PeripheralState>? get onPeripheralStateChanged {
-    if (Platform.isWindows) return null;
-    _peripheralState ??= _stateChangedEventChannel
-        .receiveBroadcastStream()
-        .map((dynamic event) => PeripheralState.values[event as int]);
-    return _peripheralState!;
-  }
+  Stream<PeripheralState>? get onPeripheralStateChanged => _peripheralState;
 
-  // /// Returns Stream of data.
-  // ///
-  // ///
-  // Stream<Uint8List> getDataReceived() {
-  //   return _dataReceivedEventChannel.receiveBroadcastStream().cast<Uint8List>();
-  // }
+  /// Returns Stream of data.
+  ///
+  ///
+  Stream<MessagePacket> get getDataReceived => _dataReceived;
 }
