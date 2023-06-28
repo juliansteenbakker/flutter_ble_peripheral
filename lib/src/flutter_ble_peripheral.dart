@@ -67,7 +67,7 @@ class FlutterBlePeripheral {
     final settings = advertiseSettings ?? AdvertiseSettings();
     final jsonSettings = settings.toJson();
     for (final key in jsonSettings.keys) {
-      parameters['$key'] = jsonSettings[key];
+      parameters[key] = jsonSettings[key];
     }
     parameters.addAll(advertiseData.toJson());
 
