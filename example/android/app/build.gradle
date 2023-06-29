@@ -32,7 +32,6 @@ android {
         main.java.srcDirs += 'src/main/kotlin'
     }
 
-
     defaultConfig {
         applicationId "dev.steenbakker.flutter_ble_peripheral_example"
         minSdkVersion 21
@@ -51,6 +50,7 @@ android {
     lint {
         disable 'InvalidPackage'
     }
+    namespace 'dev.steenbakker.flutter_ble_peripheral_example'
 }
 
 flutter {
