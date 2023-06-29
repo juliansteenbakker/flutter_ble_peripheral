@@ -28,4 +28,6 @@ enum PeripheralState {
 
   /// BLE is connected to a device.
   connected,
+
+  shouldShowRequestPermissionRationale,
 }

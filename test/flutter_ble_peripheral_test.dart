@@ -11,7 +11,8 @@ void main() {
 
   setUp(() {
     blePeripheral = FlutterBlePeripheral();
-    methodChannel.setMockMethodCallHandler((methodCall) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(methodChannel, (methodCall) async {
       if (methodCall.method == 'start' || methodCall.method == 'stop') {
         return null;
       } else if (methodCall.method == 'isAdvertising') {
@@ -22,7 +23,8 @@ void main() {
   });
 
   tearDown(() {
-    methodChannel.setMockMethodCallHandler(null);
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(methodChannel, null);
   });
 
   test('checking if is advertising returns true', () async {

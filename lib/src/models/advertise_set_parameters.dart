@@ -1,6 +1,10 @@
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:json_annotation/json_annotation.dart';
+
+part 'advertise_set_parameters.g.dart';
 
 /// Model of the data to be advertised.
+@JsonSerializable()
 class AdvertiseSetParameters {
   final int? anonymous;
 
@@ -45,4 +49,9 @@ class AdvertiseSetParameters {
     this.duration,
     this.maxExtendedAdvertisingEvents,
   });
+
+  factory AdvertiseSetParameters.fromJson(Map<String, dynamic> json) =>
+      _$AdvertiseSetParametersFromJson(json);
+
+  Map<String, dynamic> toJson() => _$AdvertiseSetParametersToJson(this);
 }
