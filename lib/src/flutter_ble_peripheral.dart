@@ -16,7 +16,6 @@ import 'package:flutter_ble_peripheral/src/models/advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/enums/bluetooth_peripheral_state.dart';
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
-import 'package:flutter_ble_peripheral/src/models/permission_state.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -61,7 +60,6 @@ class FlutterBlePeripheral {
     AdvertiseData? advertisePeriodicData,
     PeriodicAdvertiseSettings? periodicAdvertiseSettings,
   }) async {
-
     final parameters = advertiseData.toJson();
     parameters["manufacturerDataBytes"] = advertiseData.manufacturerData;
     final settings = advertiseSettings ?? AdvertiseSettings();

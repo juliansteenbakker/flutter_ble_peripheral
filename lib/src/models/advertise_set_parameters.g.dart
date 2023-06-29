@@ -7,7 +7,8 @@ part of 'advertise_set_parameters.dart';
 // **************************************************************************
 
 AdvertiseSetParameters _$AdvertiseSetParametersFromJson(
-        Map<String, dynamic> json) =>
+  Map<String, dynamic> json,
+) =>
     AdvertiseSetParameters(
       connectable: json['connectable'] as bool? ?? false,
       txPowerLevel: json['txPowerLevel'] as int? ?? txPowerHigh,
@@ -24,7 +25,8 @@ AdvertiseSetParameters _$AdvertiseSetParametersFromJson(
     );
 
 Map<String, dynamic> _$AdvertiseSetParametersToJson(
-        AdvertiseSetParameters instance) =>
+  AdvertiseSetParameters instance,
+) =>
     <String, dynamic>{
       'anonymous': instance.anonymous,
       'connectable': instance.connectable,

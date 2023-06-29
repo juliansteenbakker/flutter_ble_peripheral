@@ -21,7 +21,6 @@ enum BluetoothPeripheralState {
   @JsonValue(2)
   permanentlyDenied,
 
-
   /// The OS denied access to the requested feature.
   /// The user cannot change this app's status, possibly due to active restrictions such as parental controls being in place.
   ///
@@ -40,6 +39,7 @@ enum BluetoothPeripheralState {
   turnedOff,
   @JsonValue(6)
   unsupported,
+
   /// The status is unknown
   @JsonValue(7)
   unknown,

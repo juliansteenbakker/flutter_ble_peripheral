@@ -14,16 +14,18 @@ AdvertiseSettings _$AdvertiseSettingsFromJson(Map<String, dynamic> json) =>
           $enumDecodeNullable(_$AdvertiseModeEnumMap, json['advertiseMode']) ??
               AdvertiseMode.advertiseModeLowLatency,
       txPowerLevel: $enumDecodeNullable(
-              _$AdvertiseTxPowerEnumMap, json['txPowerLevel']) ??
+            _$AdvertiseTxPowerEnumMap,
+            json['txPowerLevel'],
+          ) ??
           AdvertiseTxPower.advertiseTxPowerLow,
     );
 
 Map<String, dynamic> _$AdvertiseSettingsToJson(AdvertiseSettings instance) =>
     <String, dynamic>{
-      'advertiseMode': _$AdvertiseModeEnumMap[instance.advertiseMode]!,
+      'advertiseMode': _$AdvertiseModeEnumMap[instance.advertiseMode],
       'connectable': instance.connectable,
       'timeout': instance.timeout,
-      'txPowerLevel': _$AdvertiseTxPowerEnumMap[instance.txPowerLevel]!,
+      'txPowerLevel': _$AdvertiseTxPowerEnumMap[instance.txPowerLevel],
     };
 
 const _$AdvertiseModeEnumMap = {

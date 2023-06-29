@@ -5,7 +5,6 @@
  */
 
 enum PermissionState {
-
   /// The user granted access to the requested feature.
   granted,
 

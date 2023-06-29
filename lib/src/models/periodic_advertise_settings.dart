@@ -1,6 +1,7 @@
 import 'package:json_annotation/json_annotation.dart';
 
 part 'periodic_advertise_settings.g.dart';
+
 /// Model of the data to be advertised.
 @JsonSerializable()
 class PeriodicAdvertiseSettings {

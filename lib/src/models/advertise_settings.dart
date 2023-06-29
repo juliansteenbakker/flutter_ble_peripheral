@@ -3,6 +3,7 @@ import 'package:flutter_ble_peripheral/src/models/enums/advertise_tx_power.dart'
 import 'package:json_annotation/json_annotation.dart';
 
 part 'advertise_settings.g.dart';
+
 /// Model of the data to be advertised.
 @JsonSerializable()
 class AdvertiseSettings {
