@@ -2,7 +2,7 @@ group 'dev.steenbakker.flutter_ble_peripheral'
 version '1.0-SNAPSHOT'
 
 buildscript {
-    ext.kotlin_version = '1.8.20'
+    ext.kotlin_version = '1.8.22'
     repositories {
         google()
         mavenCentral()
