@@ -1,3 +1,9 @@
+## 1.2.0
+Improvements:
+- Added support for windows
+- Updated bluetooth permissions system for Android, no need for permission handler anymore.
+- Updated dependencies and several other small improvements.
+
 ## 1.1.1
 Bugs fixed:
 - Fixed an issue which caused the enableBluetooth function to reply twice.
