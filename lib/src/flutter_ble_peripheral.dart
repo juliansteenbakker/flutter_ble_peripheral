@@ -5,6 +5,7 @@
  */
 
 import 'dart:async';
+import 'dart:io';
 // ignore: unnecessary_import
 import 'dart:typed_data';
 
@@ -12,6 +13,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_data.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_set_parameters.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_settings.dart';
+import 'package:flutter_ble_peripheral/src/models/enums/bluetooth_peripheral_state.dart';
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 
@@ -50,7 +52,7 @@ class FlutterBlePeripheral {
   //     'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
 
   /// Start advertising. Takes [AdvertiseData] as an input.
-  Future<void> start({
+  Future<BluetoothPeripheralState> start({
     required AdvertiseData advertiseData,
     AdvertiseSettings? advertiseSettings,
     AdvertiseSetParameters? advertiseSetParameters,
@@ -58,76 +60,44 @@ class FlutterBlePeripheral {
     AdvertiseData? advertisePeriodicData,
     PeriodicAdvertiseSettings? periodicAdvertiseSettings,
   }) async {
-    final Map<String, dynamic> parameters = {
-      'uuid': advertiseData.serviceUuid,
-      'manufacturerId': advertiseData.manufacturerId,
-      'manufacturerData': advertiseData.manufacturerData,
-      'serviceDataUuid': advertiseData.serviceDataUuid,
-      'serviceData': advertiseData.serviceData,
-      'includeDeviceName': advertiseData.includeDeviceName,
-      'localName': advertiseData.localName,
-      'transmissionPowerIncluded': advertiseData.includePowerLevel,
-      'serviceSolicitationUuid': advertiseData.serviceSolicitationUuid,
-    };
+    final parameters = advertiseData.toJson();
+    parameters["manufacturerDataBytes"] = advertiseData.manufacturerData;
+    final settings = advertiseSettings ?? AdvertiseSettings();
+    final jsonSettings = settings.toJson();
+    for (final key in jsonSettings.keys) {
+      parameters[key] = jsonSettings[key];
+    }
+    parameters.addAll(advertiseData.toJson());
 
-    if (advertiseSettings != null && advertiseSetParameters != null) {
-      throw Exception(
-        "You can't define both advertiseSettings & setAdvertiseSettings",
-      );
-    } else if (advertiseSettings != null) {
-      parameters.addAll({
-        'advertiseMode': advertiseSettings.advertiseMode.index,
-        'connectable': advertiseSettings.connectable,
-        'timeout': advertiseSettings.timeout,
-        'txPowerLevel': advertiseSettings.txPowerLevel.index,
-      });
-    } else if (advertiseSetParameters != null) {
-      parameters.addAll({
-        'advertiseSet': true,
-        'connectable': advertiseSetParameters.connectable,
-        'txPowerLevel': advertiseSetParameters.txPowerLevel,
-        'interval': advertiseSetParameters.interval,
-        'legacyMode': advertiseSetParameters.legacyMode,
-        'primaryPhy': advertiseSetParameters.primaryPhy,
-        'scannable': advertiseSetParameters.scannable,
-        'secondaryPhy': advertiseSetParameters.secondaryPhy,
-        'anonymous': advertiseSetParameters.anonymous,
-        'includeTxPowerLevel': advertiseSetParameters.includeTxPowerLevel,
-        'duration': advertiseSetParameters.duration,
-        'maxExtendedAdvertisingEvents':
-            advertiseSetParameters.maxExtendedAdvertisingEvents
-      });
-    } else {
-      advertiseSettings ??= AdvertiseSettings();
-      parameters.addAll({
-        'advertiseMode': advertiseSettings.advertiseMode.index,
-        'connectable': advertiseSettings.connectable,
-        'timeout': advertiseSettings.timeout,
-        'txPowerLevel': advertiseSettings.txPowerLevel.index,
-      });
+    if (advertiseSetParameters != null) {
+      final json = advertiseSetParameters.toJson();
+      for (final key in json.keys) {
+        parameters['set$key'] = json[key];
+      }
+      parameters.addAll(advertiseData.toJson());
     }
 
     if (advertiseResponseData != null) {
-      parameters.addAll({
-        'periodicServiceUuid': advertiseData.serviceUuid,
-        'periodicManufacturerId': advertiseData.manufacturerId,
-        'periodicManufacturerData': advertiseData.manufacturerData,
-        'periodicServiceDataUuid': advertiseData.serviceDataUuid,
-        'periodicServiceData': advertiseData.serviceData,
-        'periodicIncludeDeviceName': advertiseData.includeDeviceName,
-        'periodicTransmissionPowerIncluded': advertiseData.includePowerLevel,
-        'periodicServiceSolicitationUuid':
-            advertiseData.serviceSolicitationUuid,
-        // 'periodicServiceSolicitationUuid': da, TODO: interval
-      });
+      final json = advertiseData.toJson();
+      for (final key in json.keys) {
+        parameters['response$key'] = json[key];
+      }
+      parameters.addAll(advertiseData.toJson());
     }
 
-    return _methodChannel.invokeMethod('start', parameters);
+    final response =
+        await _methodChannel.invokeMethod<int>('start', parameters);
+    return response == null
+        ? BluetoothPeripheralState.unknown
+        : BluetoothPeripheralState.values[response];
   }
 
   /// Stop advertising
-  Future<void> stop() async {
-    return _methodChannel.invokeMethod('stop');
+  Future<BluetoothPeripheralState> stop() async {
+    final response = await _methodChannel.invokeMethod<int>('stop');
+    return response == null
+        ? BluetoothPeripheralState.unknown
+        : BluetoothPeripheralState.values[response];
   }
 
   /// Returns `true` if advertising or false if not advertising
@@ -160,6 +130,29 @@ class FlutterBlePeripheral {
         false;
   }
 
+  Future<BluetoothPeripheralState> requestPermission() async {
+    final response =
+        await _methodChannel.invokeMethod<int>('requestPermissions');
+    return response == null
+        ? BluetoothPeripheralState.unknown
+        : BluetoothPeripheralState.values[response];
+  }
+
+  Future<BluetoothPeripheralState> hasPermission() async {
+    final response = await _methodChannel.invokeMethod<int>('hasPermission');
+    return response == null
+        ? BluetoothPeripheralState.unknown
+        : BluetoothPeripheralState.values[response];
+  }
+
+  Future<void> openBluetoothSettings() async {
+    await _methodChannel.invokeMethod('openBluetoothSettings');
+  }
+
+  Future<void> openAppSettings() async {
+    await _methodChannel.invokeMethod('openAppSettings');
+  }
+
   /// Returns Stream of MTU updates.
   Stream<int> get onMtuChanged {
     _mtuState ??= _mtuChangedEventChannel
@@ -173,7 +166,8 @@ class FlutterBlePeripheral {
   /// Returns Stream of state.
   ///
   /// After listening to this Stream, you'll be notified about changes in peripheral state.
-  Stream<PeripheralState> get onPeripheralStateChanged {
+  Stream<PeripheralState>? get onPeripheralStateChanged {
+    if (Platform.isWindows) return null;
     _peripheralState ??= _stateChangedEventChannel
         .receiveBroadcastStream()
         .map((dynamic event) => PeripheralState.values[event as int]);

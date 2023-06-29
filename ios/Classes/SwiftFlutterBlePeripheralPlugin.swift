@@ -45,6 +45,9 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             isSupported(result)
         case "isConnected":
             result(stateChangedHandler.state == PeripheralState.connected)
+        case "openBluetoothSettings":
+            openAppSettings()
+            result(nil)
 //        case "sendData":
 //            sendData(call, result)
         default:
@@ -55,7 +58,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     private func startPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let map = call.arguments as? Dictionary<String, Any>
         let advertiseData = PeripheralData(
-            uuid: map?["uuid"] as? String ,
+            uuid: map?["serviceUuid"] as? String ,
             localName: map?["localName"] as? String
         )
         flutterBlePeripheralManager.start(advertiseData: advertiseData)
@@ -74,6 +77,14 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             result(true)
         } else {
             result(false)
+        }
+    }
+    
+    private func openAppSettings() {
+        if let url = URL(string: UIApplication.openSettingsURLString) {
+            if UIApplication.shared.canOpenURL(url) {
+                UIApplication.shared.open(url, options: [:], completionHandler: nil)
+            }
         }
     }
     
