@@ -30,6 +30,7 @@
 
 #pragma warning( push )
 #pragma warning( disable : 4101)
+#pragma warning( disable : 4244)
 
 namespace flutter_ble_peripheral {
 
@@ -112,6 +113,10 @@ namespace flutter_ble_peripheral {
                     printf("%ld", test);
                     //dataWriter2.WriteUInt16(std::get<std::uint16_t>(manuIdIt->second));
                     manufacturerData.CompanyId(test);
+
+//                    int32_t manuIdInt = std::get<std::int32_t>(manuIdIt->second);
+ //                  uint16_t manuId = manuIdInt & 0xFFFF;
+//                    manufacturerData.CompanyId(manuId);
                 }
             }
 
