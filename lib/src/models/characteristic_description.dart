@@ -9,13 +9,16 @@ class CharacteristicDescription {
   final bool indicate;
 
   CharacteristicDescription({
-    required this.uuid,
+    required String uuid,
     Uint8List? value,
     this.read = false,
     this.write = false,
     this.notify = false,
     this.indicate = false,
-  }) : value = value ?? Uint8List(0);
+  }) :
+    uuid = uuid.toLowerCase(),
+    value = value ?? Uint8List(0)
+  ;
 
   Map<String, dynamic> toMap() {
     return {

@@ -1,4 +1,4 @@
-package dev.steenbakker.flutter_ble_peripheral.handlers
+package dev.steenbakker.flutter_ble_peripheral.callbacks
 
 import android.os.Build
 import android.Manifest
@@ -8,12 +8,10 @@ import android.content.pm.PackageManager
 import androidx.annotation.RequiresApi
 import androidx.core.app.ActivityCompat
 import dev.steenbakker.flutter_ble_peripheral.models.State
-import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 import io.flutter.plugin.common.PluginRegistry
 import io.flutter.Log
-import io.flutter.plugin.common.MethodChannel
 
-class RequestPermissionsHandler(private val activity : Activity) : PluginRegistry.RequestPermissionsResultListener {
+class PermissionCallback(private val activity : Activity) : PluginRegistry.RequestPermissionsResultListener {
     companion object {
         const val REQUEST_PERMISSION_BT = 8
         const val TAG: String = "RequestPermissionsHandler"

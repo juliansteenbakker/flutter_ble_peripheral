@@ -5,9 +5,12 @@ class ServiceDescription {
   final List<CharacteristicDescription> characteristics;
 
   ServiceDescription({
-    required this.uuid,
+    required String uuid,
     List<CharacteristicDescription>? characteristics,
-  }) : characteristics = characteristics ?? [];
+  }) :
+    uuid = uuid.toLowerCase(),
+    characteristics = characteristics ?? []
+  ;
 
   Map<String,dynamic> toMap() {
     return {

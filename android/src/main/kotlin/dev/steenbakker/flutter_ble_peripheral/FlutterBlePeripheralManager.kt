@@ -8,7 +8,9 @@ package dev.steenbakker.flutter_ble_peripheral
 
 import android.bluetooth.*
 import android.bluetooth.le.*
+import android.content.BroadcastReceiver
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import androidx.annotation.RequiresApi
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingCallback
@@ -18,40 +20,64 @@ import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.plugin.common.MethodChannel
 
+//TODO: BUG FIX
+// Call startAdvertising with 20 seconds of advertising, then stopAdvertising, then startAdvertising again before the 20 seconds pass.
+// Expected behaviour would be for the new advertising to last for another 20 seconds.
+// However, it stops when the original 20 seconds are up (tested in API30. in API33 seems to work properly)
+// I'm not sure whether the currently implemented Timer logic should reflect this behaviour, since it is most likely a bug in the underlying BLE API
 
-class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler, context: Context) {
-
+class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler, context: Context) : BroadcastReceiver() {
     companion object {
         const val TAG: String = "FlutterBlePeripheralManager"
     }
 
-    private var mBluetoothManager: BluetoothManager? = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
-    private var mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
+    private val _mBluetoothManager: BluetoothManager? = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+    private val mBluetoothManager: BluetoothManager get() {
+        return _mBluetoothManager ?: throw PeripheralException(PeripheralState.unsupported)
+    }
+
+    private var _mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
+    private val mBluetoothLeAdvertiser: BluetoothLeAdvertiser get() {
+        // Can't check whether ble is turned off or not supported, see https://stackoverflow.com/questions/32092902/why-ismultipleadvertisementsupported-returns-false-when-getbluetoothleadverti
+        // !bluetoothAdapter.isMultipleAdvertisementSupported
+        _mBluetoothLeAdvertiser = mBluetoothManager.adapter.bluetoothLeAdvertiser
+            ?: throw PeripheralException(PeripheralState.poweredOff)
+
+        return _mBluetoothLeAdvertiser!!
+    }
 
     private var advertisingSetCallback: PeripheralAdvertisingSetCallback? = null
     private var advertiseCallback: PeripheralAdvertisingCallback? = null
 
-    fun isEnabled() : Boolean {
-        if (mBluetoothManager == null) throw PeripheralException(PeripheralState.unsupported)
-        return mBluetoothManager!!.adapter.isEnabled
-    }
+    override fun onReceive(context: Context?, intent: Intent) {
+        val action = intent.action
 
-    fun enableBluetooth(result: MethodChannel.Result) {
-        if (mBluetoothManager == null) throw PeripheralException(PeripheralState.unsupported)
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            result.success(mBluetoothManager!!.adapter.enable())
-        } else {
-            result.error("Deprecated operation", "Enabling bluetooth automatically is deprecated from API33 onwards", null)
+        if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+            //if (btAdapter.getState() == BluetoothAdapter.STATE_TURNING_OFF) {
+            //    // The user bluetooth is turning off yet, but it is not disabled yet.
+            //    TODO?
+            //}
+            stateHandler.publishPeripheralState()
+            if (!stateHandler.bluetoothPowered) {
+                //turning off bluetooth automatically stops all advertising
+                advertiseCallback?.dispose()
+                advertiseCallback = null
+                advertisingSetCallback = null
+            }
         }
     }
 
-    private fun checkBluetoothState() {
-        if (mBluetoothManager == null) throw PeripheralException(PeripheralState.unsupported)
-
-        // Can't check whether ble is turned off or not supported, see https://stackoverflow.com/questions/32092902/why-ismultipleadvertisementsupported-returns-false-when-getbluetoothleadverti
-        // !bluetoothAdapter.isMultipleAdvertisementSupported
-        mBluetoothLeAdvertiser = mBluetoothManager!!.adapter.bluetoothLeAdvertiser
-                ?: throw PeripheralException(PeripheralState.poweredOff)
+    /**
+     * Automatically enable bluetooth (without asking for user's consent)
+     * Only available before API 33
+     */
+    fun enableBluetooth(result: MethodChannel.Result) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(mBluetoothManager.adapter.enable())
+            stateHandler.publishPeripheralState()
+        } else {
+            result.error("UnsupportedOperation", "Enabling bluetooth automatically is deprecated from API33 onwards", null)
+        }
     }
 
     /**
@@ -59,10 +85,9 @@ class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler
      */
     fun start(peripheralData: AdvertiseData, peripheralSettings: AdvertiseSettings, peripheralResponse: AdvertiseData?, result : MethodChannel.Result) {
 
-        checkBluetoothState()
         advertiseCallback = PeripheralAdvertisingCallback(result, stateHandler, peripheralSettings.timeout.toLong())
 
-        mBluetoothLeAdvertiser!!.startAdvertising(
+        mBluetoothLeAdvertiser.startAdvertising(
                 peripheralSettings,
                 peripheralData,
                 peripheralResponse,
@@ -71,16 +96,15 @@ class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler
     }
 
     /**
-     * Start advertising using the startAdvertisingSet method.
+     * Start advertising using the startAdvertisingSet() method.
      */
     @RequiresApi(Build.VERSION_CODES.O)
     fun startSet(advertiseData: AdvertiseData, advertiseSettingsSet: AdvertisingSetParameters, peripheralResponse: AdvertiseData?,
                  periodicResponse: AdvertiseData?, periodicResponseSettings: PeriodicAdvertisingParameters?, maxExtendedAdvertisingEvents: Int = 0, duration: Int = 0, result : MethodChannel.Result) {
 
-        checkBluetoothState()
         advertisingSetCallback = PeripheralAdvertisingSetCallback(result, stateHandler)
 
-        mBluetoothLeAdvertiser!!.startAdvertisingSet(
+        mBluetoothLeAdvertiser.startAdvertisingSet(
                 advertiseSettingsSet,
                 advertiseData,
                 peripheralResponse,
@@ -92,14 +116,16 @@ class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler
         )
     }
 
+    /**
+     * Stop advertising
+     * Since only one advertising is active at a time, this method effectively stops all advertising
+     */
     fun stop(result: MethodChannel.Result? = null) {
-        checkBluetoothState()
-
         if (advertisingSetCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            mBluetoothLeAdvertiser!!.stopAdvertisingSet(advertisingSetCallback!!)
+            mBluetoothLeAdvertiser.stopAdvertisingSet(advertisingSetCallback!!)
             advertisingSetCallback = null
-        } else {
-            mBluetoothLeAdvertiser!!.stopAdvertising(advertiseCallback!!)
+        } else if (advertiseCallback != null) {
+            mBluetoothLeAdvertiser.stopAdvertising(advertiseCallback!!)
             advertiseCallback!!.dispose()
             advertiseCallback = null
         }

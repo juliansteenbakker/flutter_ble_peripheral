@@ -12,6 +12,8 @@ import io.flutter.plugin.common.MethodChannel
 
 @RequiresApi(Build.VERSION_CODES.O)
 class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result, private val stateChangedHandler: StateChangedHandler): AdvertisingSetCallback() {
+        private val TAG : String = "PeripheralAdvertisingSetCallback"
+
     /**
      * Callback triggered in response to {@link BluetoothLeAdvertiser#startAdvertisingSet}
      * indicating result of the operation. If status is ADVERTISE_SUCCESS, then advertisingSet
@@ -22,9 +24,6 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
      * @param txPower tx power that will be used for this set.
      * @param status Status of the operation.
      */
-
-    private val TAG : String = "PeripheralAdvertisingSetCallback"
-
     override fun onAdvertisingSetStarted(
             advertisingSet: AdvertisingSet?,
             txPower: Int,
@@ -32,42 +31,38 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
     ) {
         Log.i(TAG, "onAdvertisingSetStarted() status: $advertisingSet, txPOWER $txPower, status $status")
         super.onAdvertisingSetStarted(advertisingSet, txPower, status)
-        var statusText = ""
+        val statusText : String
         when (status) {
             ADVERTISE_SUCCESS -> {
-                result.success(txPower)
-                stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+                stateChangedHandler.advertising = true
+                return result.success(txPower)
             }
             ADVERTISE_FAILED_ALREADY_STARTED -> {
-                statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+                stateChangedHandler.advertising = true
+                return result.error("DuplicatedOperation", "Already advertising", "startAdvertisingSet")
             }
             ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
-                statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
+                return result.error("UnsupportedOperation", "Advertising is not supported on this platform", "startAdvertisingSet")
             }
             ADVERTISE_FAILED_INTERNAL_ERROR -> {
                 statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                stateChangedHandler.advertising = false
             }
             ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
                 statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                stateChangedHandler.advertising = false
             }
             ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                 statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                stateChangedHandler.advertising = false
             }
             else -> {
                 statusText = "UNDOCUMENTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
+                //stateChangedHandler.errorPeripheralState(PeripheralState.unknown) //TODO
             }
-
-        }
-        if (status != ADVERTISE_SUCCESS) {
-            result.error(status.toString(), statusText, "startAdvertisingSet")
         }
 
+        result.error(status.toString(), statusText, "startAdvertisingSet")
     }
 
     /**
@@ -79,7 +74,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
     override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
         Log.i(TAG, "onAdvertisingSetStopped() status: $advertisingSet")
         super.onAdvertisingSetStopped(advertisingSet)
-        stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+        stateChangedHandler.advertising = false //TODO: multiple advertising
     }
 
     /**
@@ -97,6 +92,6 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
     ) {
         Log.i(TAG, "onAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
         super.onAdvertisingEnabled(advertisingSet, enable, status)
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        stateChangedHandler.advertising = true
     }
 }

@@ -47,14 +47,14 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<void> initPlatformState() async {
-    final isSupported = await FlutterBlePeripheral().isSupported;
+    final isSupported = FlutterBlePeripheral().isSupported;
     setState(() {
       _isSupported = isSupported;
     });
   }
 
   Future<void> _toggleAdvertise() async {
-    if (await FlutterBlePeripheral().isAdvertising) {
+    if (FlutterBlePeripheral().isAdvertising) {
       await FlutterBlePeripheral().stop();
     } else {
       await FlutterBlePeripheral().start(advertiseData: advertiseData);
@@ -62,7 +62,7 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<void> _toggleAdvertiseSet() async {
-    if (await FlutterBlePeripheral().isAdvertising) {
+    if (FlutterBlePeripheral().isAdvertising) {
       await FlutterBlePeripheral().stop();
     } else {
       await FlutterBlePeripheral().start(

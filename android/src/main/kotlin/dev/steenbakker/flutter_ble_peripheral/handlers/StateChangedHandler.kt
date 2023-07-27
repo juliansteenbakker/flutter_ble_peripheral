@@ -1,13 +1,20 @@
 package dev.steenbakker.flutter_ble_peripheral.handlers
 
+import android.app.Activity
+import android.bluetooth.BluetoothManager
+import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Handler
 import android.os.Looper
+import dev.steenbakker.flutter_ble_peripheral.callbacks.PermissionCallback
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
+import dev.steenbakker.flutter_ble_peripheral.models.State
 import io.flutter.Log
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
 
-class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) : EventChannel.StreamHandler {
+
+class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding, private val activity: Activity) : EventChannel.StreamHandler {
     private val TAG: String = "StateChangedHandler"
 
     private var eventSink: EventChannel.EventSink? = null
@@ -16,28 +23,66 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
         "dev.steenbakker.flutter_ble_peripheral/ble_state_changed"
     )
 
-    private var state = PeripheralState.unknown
+    private val mBluetoothManager: BluetoothManager? = activity.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+
+    val bluetoothSupported : Boolean = activity.packageManager!!.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
+    val bluetoothAuthorized : Boolean //TODO: detect updates
+        get() {
+            return PermissionCallback.hasPermissions(activity) == State.Granted
+        }
+    val bluetoothPowered : Boolean = mBluetoothManager?.adapter?.isEnabled == true
+    var advertising : Boolean = false
+        set(value) {
+            field = value
+            if (value)
+                connected = false
+            publishPeripheralState()
+        }
+    var connected : Boolean = false
+        set(value) {
+            field = value
+            if (value)
+                advertising = false
+            publishPeripheralState()
+        }
+
+    var state : PeripheralState = PeripheralState.unknown
+        private set
 
     init {
         eventChannel.setStreamHandler(this)
     }
 
-    fun publishPeripheralState(state: PeripheralState) {
+    private fun calculateState(): PeripheralState {
+        return if (!bluetoothSupported)
+            PeripheralState.unsupported
+        else if (!bluetoothAuthorized)
+            PeripheralState.unauthorized
+        else if (!bluetoothPowered)
+            PeripheralState.poweredOff
+        else if (connected)
+            PeripheralState.connected
+        else if (advertising)
+            PeripheralState.advertising
+        else
+            PeripheralState.idle
+    }
+
+    fun publishPeripheralState() {
+        val state = calculateState()
         if (this.state != state) {
-            Log.i(TAG, state.name)
             this.state = state
+            Log.i(TAG, state.name)
             Handler(Looper.getMainLooper()).post {
                 eventSink?.success(state.ordinal)
             }
-        } else {
-            Log.i(TAG, "O estado nao mudou, publish repetido") //TODO: tirar
         }
     }
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink) {
         this.eventSink = eventSink
-        Log.i(TAG, "ONLISTEN")
-        eventSink.success(state.ordinal)
+        this.state = calculateState()
+        eventSink.success(this.state.ordinal)
     }
 
     override fun onCancel(event: Any?) {

@@ -15,14 +15,17 @@ class PeripheralAdvertisingCallback(
     private val stateChangedHandler: StateChangedHandler,
     private val duration: Long //in milliseconds
 ): AdvertiseCallback() {
+    companion object {
+        const val TAG: String = "PeripheralAdvertisingCallback"
+    }
 
     private var timer : Timer? = Timer()
 
     override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
         super.onStartSuccess(settingsInEffect)
-        Log.i("FlutterBlePeripheral", "onStartSuccess() mode: ${settingsInEffect.mode}, txPOWER ${settingsInEffect.txPowerLevel}")
+        Log.i(TAG, "onStartSuccess() mode: ${settingsInEffect.mode}, txPOWER ${settingsInEffect.txPowerLevel}")
+        stateChangedHandler.advertising = true
         result.success(null)
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
 
         timer?.schedule(timerTask {
             dispose()
@@ -31,7 +34,8 @@ class PeripheralAdvertisingCallback(
 
     fun dispose() {
         if (timer != null) {
-            stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+            Log.i(TAG, "dispose()")
+            stateChangedHandler.advertising = false //TODO: multiple advertising
             timer!!.cancel()
             timer = null
         }
@@ -39,33 +43,38 @@ class PeripheralAdvertisingCallback(
 
     override fun onStartFailure(errorCode: Int) {
         super.onStartFailure(errorCode)
+        timer!!.cancel()
+        timer = null
+
         val statusText: String
         when (errorCode) {
             ADVERTISE_FAILED_ALREADY_STARTED -> {
-                statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+                stateChangedHandler.advertising = true
+                result.error("DuplicatedOperation", "Already advertising", "startAdvertising")
+                return
             }
             ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
-                statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
+                result.error("UnsupportedOperation", "Advertising is not supported on this platform", "startAdvertising")
+                return
             }
             ADVERTISE_FAILED_INTERNAL_ERROR -> {
                 statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                stateChangedHandler.advertising = false
             }
             ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
                 statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                stateChangedHandler.advertising = false
             }
             ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                 statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                stateChangedHandler.advertising = false
             }
             else -> {
                 statusText = "UNDOCUMENTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
+                //TODO?
             }
         }
+
         result.error(errorCode.toString(), statusText, "startAdvertising")
     }
 }

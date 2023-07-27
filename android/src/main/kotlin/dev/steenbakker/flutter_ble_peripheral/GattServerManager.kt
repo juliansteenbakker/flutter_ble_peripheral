@@ -15,12 +15,12 @@ import dev.steenbakker.flutter_ble_peripheral.handlers.DataReceivedHandler
 import dev.steenbakker.flutter_ble_peripheral.handlers.MtuChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.MessagePacket
-import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
 import kotlinx.coroutines.CompletableJob
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
-import kotlinx.coroutines.runBlocking
 import java.security.InvalidParameterException
 import java.util.UUID
 
@@ -29,7 +29,7 @@ class GattServerManager(
     private val stateHandler : StateChangedHandler,
     private val dataHandler : DataReceivedHandler,
     private val mtuHandler : MtuChangedHandler,
-    context: Context
+    context : Context
 ) : BluetoothGattServerCallback() {
     companion object {
         const val TAG = "BluetoothGattServerCallback"
@@ -38,39 +38,21 @@ class GattServerManager(
 
 
     private val mBluetoothGattServer: BluetoothGattServer
-    private val fragmentManager : BleFragmentManager = BleFragmentManager()
     private val devices: HashSet<BluetoothDevice> = HashSet()
-    //private val services: HashMap<UUID, BluetoothGattService> = HashMap()
     private val characteristics: HashMap<UUID, ByteArray> = HashMap()
     private val subscriptionManager : SubscriptionManager = SubscriptionManager()
+    private val fragmentManager : BleFragmentManager = BleFragmentManager()
+    private val notificationQueue : JobQueue = JobQueue()
 
     private var pendingAddServiceResult: MethodChannel.Result? = null
     private var pendingNotification: CompletableJob? = null
 
+
+    private val scope = CoroutineScope(Dispatchers.Main)
+
     init {
-        //TODO: se não tiver permissões, isto falha. Consertar
+        //TODO: exception if fail
         mBluetoothGattServer = (context.getSystemService(Context.BLUETOOTH_SERVICE) as BluetoothManager).openGattServer(context, this)
-
-        /*
-        val service = BluetoothGattService(
-            UUID.fromString("bf27730d-860a-4e09-889c-2d8b6a9e0fe7"),
-            BluetoothGattService.SERVICE_TYPE_PRIMARY
-        )
-
-        val characteristic = BluetoothGattCharacteristic(
-            UUID.fromString("2edd3dbe-f1f9-49d6-a88f-e053e69aa5ed"),
-            BluetoothGattCharacteristic.PROPERTY_READ or BluetoothGattCharacteristic.PROPERTY_WRITE or BluetoothGattCharacteristic.PROPERTY_NOTIFY,
-            BluetoothGattCharacteristic.PERMISSION_READ or BluetoothGattCharacteristic.PERMISSION_WRITE
-        )
-
-        val descriptor = BluetoothGattDescriptor(
-            CLIENT_CHARACTERISTIC_CONFIG,
-            BluetoothGattDescriptor.PERMISSION_WRITE or BluetoothGattDescriptor.PERMISSION_READ)
-
-        characteristic.addDescriptor(descriptor)
-        service.addCharacteristic(characteristic)
-        mBluetoothGattServer.addService(service)
-        */
     }
 
     fun dispose() {
@@ -79,14 +61,28 @@ class GattServerManager(
 
 
     fun addService(serviceUUID: UUID, chars: Map<BluetoothGattCharacteristic,ByteArray>, result: MethodChannel.Result) {
+        if (mBluetoothGattServer.services.any{ it.uuid == serviceUUID }) {
+            //TODO: check if the existent characteristics match the requested characteristics?
+            return result.success(false)
+        }
+
         if (pendingAddServiceResult != null) {
-            result.error("Duplicate request", "Already creating a service", null)
-            return
+            //TODO: BUG FIX somehow, I was once able to set pendingAddServiceResult permanently. This prevented any services from being created
+            return result.error("DuplicatedOperation", "Already creating a service", "GattServerManager")
         }
 
         val service = BluetoothGattService(serviceUUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
 
         for ((char, value) in chars) {
+            if (characteristics.containsKey(char.uuid)) {
+                result.error("InvalidCharacteristicUUID", "Characteristic uuid already exists", char.uuid.toString())
+
+                for ((char2,_) in chars)
+                    characteristics.remove(char2.uuid)
+
+                return
+            }
+
             characteristics[char.uuid] = value
             service.addCharacteristic(char)
         }
@@ -96,12 +92,13 @@ class GattServerManager(
     }
 
     fun removeService(serviceUUID : UUID) : Boolean {
-        for (c in mBluetoothGattServer.getService(serviceUUID).characteristics) {
-            characteristics.remove(c.uuid)
-            subscriptionManager.removeCharacteristicData(c.uuid)
+        mBluetoothGattServer.getService(serviceUUID)?.characteristics?.forEach {
+            characteristics.remove(it.uuid)
+            subscriptionManager.removeCharacteristicData(it.uuid)
         }
 
-        return mBluetoothGattServer.removeService(mBluetoothGattServer.getService(serviceUUID))
+        val service = mBluetoothGattServer.getService(serviceUUID) ?: return false
+        return mBluetoothGattServer.removeService(service)
     }
 
     fun read(uuid : UUID) : ByteArray? {
@@ -118,7 +115,13 @@ class GattServerManager(
         throw InvalidParameterException("The characteristic with id '$uuid' doesn't exist")
     }
 
-    private fun notifyDevice(device : BluetoothDevice, characteristic: BluetoothGattCharacteristic, confirm : Boolean, data: ByteArray) {
+    private suspend fun notifyDevice(device : BluetoothDevice, characteristic: BluetoothGattCharacteristic, confirm : Boolean, data: ByteArray) {
+        if (pendingNotification != null) {
+            Log.wtf(TAG, "pendingNotification wasn't reset to null. This can indicate an error sending notifications")
+        }
+
+        pendingNotification = Job()
+
         //TODO: fragment when data.size() > mtu???
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             mBluetoothGattServer.notifyCharacteristicChanged(device, characteristic, confirm, data)
@@ -126,46 +129,66 @@ class GattServerManager(
             characteristic.setValue(data)
             mBluetoothGattServer.notifyCharacteristicChanged(device, characteristic, confirm)
         }
+
+        pendingNotification!!.join() //wait for onNotificationSent
+        pendingNotification = null
     }
 
+    //Stores the information immediately and sends notifications for any connected devices asynchronously
     fun write(characteristic : UUID, data : ByteArray, result : MethodChannel.Result? = null) {
         characteristics[characteristic] = data
         dataHandler.publishData(MessagePacket(characteristic, data))
+        result?.success(null)
 
         val c = getCharacteristic(characteristic)
 
-        runBlocking {
-            for ((device, confirm) in subscriptionManager.subscriptions(characteristic)) {
-                pendingNotification = Job()
+        for ((device, confirm) in subscriptionManager.subscriptions(characteristic)) {
+            notificationQueue.submit {
                 notifyDevice(device, c, confirm, data)
-                pendingNotification!!.join() //wait for onNotificationSent
-                pendingNotification = null
             }
-
-            result?.success(null)
         }
     }
 
+    fun disconnect() {
+        for (device in devices) {
+            mBluetoothGattServer.cancelConnection(device)
+        }
+    }
+
+
     override fun onServiceAdded(status: Int, service: BluetoothGattService?) {
         super.onServiceAdded(status, service)
-        pendingAddServiceResult!!.success(status == BluetoothGatt.GATT_SUCCESS)
+        if (status != BluetoothGatt.GATT_SUCCESS) { //TODO: decode status
+            pendingAddServiceResult!!.error(status.toString(),"addService failed", "GattServerManager")
+        } else {
+            pendingAddServiceResult!!.success(true)
+        }
+
         pendingAddServiceResult = null
     }
 
     override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
         super.onConnectionStateChange(device, status, newState)
-        if (newState == BluetoothProfile.STATE_CONNECTED) {
-            Log.i(TAG, "onConnectionStateChange $status CONNECTED")
-            devices.add(device)
-            blePeripheralManager.stop()
-            stateHandler.publishPeripheralState(PeripheralState.connected)
-        } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
-            Log.i(TAG, "onConnectionStateChange $status DISCONNECTED")
-            subscriptionManager.removeDeviceData(device)
-            devices.remove(device)
-            if (devices.size == 0)
-                stateHandler.publishPeripheralState(PeripheralState.idle) //TODO: or powered off (detect elsewhere?)
+
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            if (newState == BluetoothProfile.STATE_CONNECTED) {
+                Log.i(TAG, "onConnectionStateChange CONNECTED")
+                mBluetoothGattServer.connect(device, false)
+                devices.add(device)
+                stateHandler.connected = true
+                blePeripheralManager.stop()
+            } else if (newState == BluetoothProfile.STATE_DISCONNECTED) {
+                Log.i(TAG, "onConnectionStateChange DISCONNECTED")
+                subscriptionManager.removeDeviceData(device)
+                devices.remove(device)
+                if (devices.size == 0)
+                    stateHandler.connected = false
+            }
+        } else { //TODO: treat the error somehow?
+            Log.e(TAG, "onConnectionStateChange: status $status, newState $newState")
         }
+
+        //TODO: ao brincar com o BLEScanner (a app), é possivel desconectar sem mudar o PeripheralState. Corrigir
     }
 
     override fun onMtuChanged(device: BluetoothDevice, mtu: Int) {
@@ -216,14 +239,14 @@ class GattServerManager(
                 mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
             }
         } else {
+            if (responseNeeded) {
+                mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
+            }
+
             if (preparedWrite) {
                 fragmentManager.pushFragment(device, characteristic.uuid, value)
             } else {
                 write(characteristic.uuid, value)
-            }
-
-            if (responseNeeded) {
-                mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
             }
         }
     }
