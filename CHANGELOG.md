@@ -1,3 +1,7 @@
+## 1.2.1
+- Fix build errors & crash on Windows
+- Upgrade gradle to 8.1
+
 ## 1.2.0
 Improvements:
 - Added support for windows

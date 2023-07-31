@@ -17,11 +17,11 @@ If you want to contribute to this plugin, feel free to make issues and pull-requ
 
 Since this plugin is currently being developed, limited functionality will be available. Check the release page for the most recent release.
 
-| Functionality        | Android           | iOS  | Description |
-| -------------------- |:----------------:|:-----:| --------------|
-| Advertise UUID     | :white_check_mark: | :white_check_mark:  | Set and advertise a custom uuid. |
-| Advertise ManufacturerData     | :white_check_mark: | :x:  | Set and advertise custom data. *not possible on iOS* |
-| Advertise custom service    | :white_check_mark: | :x: | Advertise a custom service. *not possible on iOS* |
+| Functionality              |      Android       |        iOS         | Description                                          |
+|----------------------------|:------------------:|:------------------:|------------------------------------------------------|
+| Advertise UUID             | :white_check_mark: | :white_check_mark: | Set and advertise a custom uuid.                     |
+| Advertise ManufacturerData | :white_check_mark: |        :x:         | Set and advertise custom data. *not possible on iOS* |
+| Advertise custom service   | :white_check_mark: |        :x:         | Advertise a custom service. *not possible on iOS*    |
 
 ## How to use
 Please check the example app to see how to broadcast data.
