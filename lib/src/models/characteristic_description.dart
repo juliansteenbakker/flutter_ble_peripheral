@@ -5,6 +5,7 @@ class CharacteristicDescription {
   final Uint8List value;
   final bool read;
   final bool write;
+  final bool writeNR; //Write no response
   final bool notify;
   final bool indicate;
 
@@ -13,6 +14,7 @@ class CharacteristicDescription {
     Uint8List? value,
     this.read = false,
     this.write = false,
+    this.writeNR = false,
     this.notify = false,
     this.indicate = false,
   }) :
@@ -26,6 +28,7 @@ class CharacteristicDescription {
       "value": value,
       "read": read,
       "write": write,
+      "writeNR": writeNR,
       "notify": notify,
       "indicate": indicate
     };
