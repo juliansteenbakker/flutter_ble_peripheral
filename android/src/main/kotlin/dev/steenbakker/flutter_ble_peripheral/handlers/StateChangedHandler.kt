@@ -26,11 +26,14 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
     private val mBluetoothManager: BluetoothManager? = activity.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
 
     val bluetoothSupported : Boolean = activity.packageManager!!.hasSystemFeature(PackageManager.FEATURE_BLUETOOTH_LE)
-    val bluetoothAuthorized : Boolean //TODO: detect updates
+    val bluetoothAuthorized : Boolean
         get() {
             return PermissionCallback.hasPermissions(activity) == State.Granted
         }
-    val bluetoothPowered : Boolean = mBluetoothManager?.adapter?.isEnabled == true
+    val bluetoothPowered : Boolean
+        get() {
+            return mBluetoothManager?.adapter?.isEnabled == true
+        }
     var advertising : Boolean = false
         set(value) {
             field = value
@@ -46,7 +49,7 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
             publishPeripheralState()
         }
 
-    var state : PeripheralState = PeripheralState.unknown
+    var state : PeripheralState = calculateState()
         private set
 
     init {
@@ -81,8 +84,11 @@ class StateChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBindi
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink) {
         this.eventSink = eventSink
-        this.state = calculateState()
-        eventSink.success(this.state.ordinal)
+        val state = calculateState()
+        this.state = state
+        Handler(Looper.getMainLooper()).post {
+            eventSink.success(state.ordinal)
+        }
     }
 
     override fun onCancel(event: Any?) {

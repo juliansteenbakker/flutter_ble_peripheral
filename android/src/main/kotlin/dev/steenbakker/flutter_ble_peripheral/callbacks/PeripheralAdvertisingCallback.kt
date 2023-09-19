@@ -34,8 +34,7 @@ class PeripheralAdvertisingCallback(
 
     fun dispose() {
         if (timer != null) {
-            Log.i(TAG, "dispose()")
-            stateChangedHandler.advertising = false //TODO: multiple advertising
+            stateChangedHandler.advertising = false
             timer!!.cancel()
             timer = null
         }
@@ -54,27 +53,25 @@ class PeripheralAdvertisingCallback(
                 return
             }
             ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
+                stateChangedHandler.advertising = false
                 result.error("UnsupportedOperation", "Advertising is not supported on this platform", "startAdvertising")
                 return
             }
             ADVERTISE_FAILED_INTERNAL_ERROR -> {
                 statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
-                stateChangedHandler.advertising = false
             }
             ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
                 statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
-                stateChangedHandler.advertising = false
             }
             ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                 statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
-                stateChangedHandler.advertising = false
             }
             else -> {
                 statusText = "UNDOCUMENTED"
-                //TODO?
             }
         }
 
+        stateChangedHandler.advertising = false
         result.error(errorCode.toString(), statusText, "startAdvertising")
     }
 }

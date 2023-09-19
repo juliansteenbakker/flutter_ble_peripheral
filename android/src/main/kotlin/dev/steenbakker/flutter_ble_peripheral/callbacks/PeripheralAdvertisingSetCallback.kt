@@ -12,7 +12,9 @@ import io.flutter.plugin.common.MethodChannel
 
 @RequiresApi(Build.VERSION_CODES.O)
 class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result, private val stateChangedHandler: StateChangedHandler): AdvertisingSetCallback() {
-        private val TAG : String = "PeripheralAdvertisingSetCallback"
+    companion object {
+        const val TAG : String = "PeripheralAdvertisingSetCallback"
+    }
 
     /**
      * Callback triggered in response to {@link BluetoothLeAdvertiser#startAdvertisingSet}
@@ -35,34 +37,35 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
         when (status) {
             ADVERTISE_SUCCESS -> {
                 stateChangedHandler.advertising = true
-                return result.success(txPower)
+                result.success(txPower)
+                return
             }
             ADVERTISE_FAILED_ALREADY_STARTED -> {
                 stateChangedHandler.advertising = true
-                return result.error("DuplicatedOperation", "Already advertising", "startAdvertisingSet")
+                result.error("DuplicatedOperation", "Already advertising", "startAdvertisingSet")
+                return
             }
             ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
-                return result.error("UnsupportedOperation", "Advertising is not supported on this platform", "startAdvertisingSet")
+                stateChangedHandler.advertising = false
+                result.error("UnsupportedOperation", "Advertising is not supported on this platform", "startAdvertisingSet")
+                return
             }
             ADVERTISE_FAILED_INTERNAL_ERROR -> {
                 statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
-                stateChangedHandler.advertising = false
             }
             ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
                 statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
-                stateChangedHandler.advertising = false
             }
             ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                 statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
-                stateChangedHandler.advertising = false
             }
             else -> {
                 statusText = "UNDOCUMENTED"
-                //stateChangedHandler.errorPeripheralState(PeripheralState.unknown) //TODO
             }
         }
 
-        result.error(status.toString(), statusText, "startAdvertisingSet")
+        stateChangedHandler.advertising = false
+        result.error(status.toString(), statusText, TAG)
     }
 
     /**
@@ -74,7 +77,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
     override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
         Log.i(TAG, "onAdvertisingSetStopped() status: $advertisingSet")
         super.onAdvertisingSetStopped(advertisingSet)
-        stateChangedHandler.advertising = false //TODO: multiple advertising
+        stateChangedHandler.advertising = false
     }
 
     /**

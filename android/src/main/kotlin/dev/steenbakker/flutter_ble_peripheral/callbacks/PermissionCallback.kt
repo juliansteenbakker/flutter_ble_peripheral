@@ -10,8 +10,9 @@ import androidx.core.app.ActivityCompat
 import dev.steenbakker.flutter_ble_peripheral.models.State
 import io.flutter.plugin.common.PluginRegistry
 import io.flutter.Log
+import io.flutter.embedding.engine.plugins.activity.ActivityPluginBinding
 
-class PermissionCallback(private val activity : Activity) : PluginRegistry.RequestPermissionsResultListener {
+class PermissionCallback(binding : ActivityPluginBinding) : PluginRegistry.RequestPermissionsResultListener {
     companion object {
         const val REQUEST_PERMISSION_BT = 8
         const val TAG: String = "RequestPermissionsHandler"
@@ -72,7 +73,12 @@ class PermissionCallback(private val activity : Activity) : PluginRegistry.Reque
         }
     }
 
+    private val activity = binding.activity
     private var callback: ((State) -> Unit)? = null
+
+    init {
+        binding.addRequestPermissionsResultListener(this)
+    }
 
     fun requestPermission(callback: (State) -> Unit) {
         if (this.callback != null) {

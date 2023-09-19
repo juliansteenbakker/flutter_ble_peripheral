@@ -6,11 +6,13 @@
 
 package dev.steenbakker.flutter_ble_peripheral
 
+import android.app.Activity
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.os.Build
 import androidx.annotation.RequiresApi
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingCallback
@@ -18,15 +20,10 @@ import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingSet
 import dev.steenbakker.flutter_ble_peripheral.exceptions.PeripheralException
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
+import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
 
-//TODO: BUG FIX
-// Call startAdvertising with 20 seconds of advertising, then stopAdvertising, then startAdvertising again before the 20 seconds pass.
-// Expected behaviour would be for the new advertising to last for another 20 seconds.
-// However, it stops when the original 20 seconds are up (tested in API30. in API33 seems to work properly)
-// I'm not sure whether the currently implemented Timer logic should reflect this behaviour, since it is most likely a bug in the underlying BLE API
-
-class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler, context: Context) : BroadcastReceiver() {
+class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler, context: Activity) : BroadcastReceiver() {
     companion object {
         const val TAG: String = "FlutterBlePeripheralManager"
     }
@@ -49,14 +46,12 @@ class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler
     private var advertisingSetCallback: PeripheralAdvertisingSetCallback? = null
     private var advertiseCallback: PeripheralAdvertisingCallback? = null
 
-    override fun onReceive(context: Context?, intent: Intent) {
-        val action = intent.action
+    init {
+        context.registerReceiver(this, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+    }
 
-        if (action == BluetoothAdapter.ACTION_STATE_CHANGED) {
-            //if (btAdapter.getState() == BluetoothAdapter.STATE_TURNING_OFF) {
-            //    // The user bluetooth is turning off yet, but it is not disabled yet.
-            //    TODO?
-            //}
+    override fun onReceive(context: Context?, intent: Intent) {
+        if (intent.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
             stateHandler.publishPeripheralState()
             if (!stateHandler.bluetoothPowered) {
                 //turning off bluetooth automatically stops all advertising
@@ -76,9 +71,19 @@ class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler
             result.success(mBluetoothManager.adapter.enable())
             stateHandler.publishPeripheralState()
         } else {
-            result.error("UnsupportedOperation", "Enabling bluetooth automatically is deprecated from API33 onwards", null)
+            result.error(
+                "UnsupportedOperation",
+                "Enabling bluetooth automatically is deprecated from API33 onwards",
+                "enableBluetooth"
+            )
         }
     }
+
+    //TODO: BUG FIX
+    // Call startAdvertising with 20 seconds of advertising, then stopAdvertising, then startAdvertising again before the 20 seconds pass.
+    // Expected behaviour would be for the new advertising to last for another 20 seconds.
+    // However, it stops when the original 20 seconds are up (tested in API30. in API33 seems to work properly)
+    // I'm not sure whether the currently implemented Timer logic should reflect this behaviour, since it is most likely a bug in the underlying BLE API
 
     /**
      * Start advertising using the startAdvertising() method.

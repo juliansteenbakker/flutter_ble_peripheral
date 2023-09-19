@@ -35,7 +35,9 @@ class MtuChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding
 
     override fun onListen(event: Any?, eventSink: EventChannel.EventSink) {
         this.eventSink = eventSink
-        eventSink.success(mtu)
+        Handler(Looper.getMainLooper()).post {
+            eventSink.success(mtu)
+        }
     }
 
     override fun onCancel(event: Any?) {

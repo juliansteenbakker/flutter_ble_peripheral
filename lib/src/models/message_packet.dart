@@ -1,6 +1,7 @@
 
 import 'dart:typed_data';
 
+///Represents a write operation to a BLE characteristic
 class MessagePacket {
   final String characteristicUUID;
   final Uint8List value;
@@ -9,7 +10,7 @@ class MessagePacket {
   MessagePacket(this.characteristicUUID, this.value);
 
   MessagePacket.fromMap(Map<String,dynamic> map) :
-        characteristicUUID = map["characteristic"] as String,
+        characteristicUUID = (map["characteristic"] as String).toLowerCase(),
         value = map["value"] as Uint8List;
 
   @override

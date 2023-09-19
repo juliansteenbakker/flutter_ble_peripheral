@@ -61,7 +61,7 @@ class FlutterBlePeripheral {
   late final Stream<MessagePacket> _dataReceived;
 
   PeripheralState? _state;
-  int? _mtu;
+  int _mtu = 20;
 
   /// Singleton constructor
   FlutterBlePeripheral._internal() {
@@ -78,10 +78,12 @@ class FlutterBlePeripheral {
     if (Platform.isWindows) {
       _peripheralState = null;
     } else {
-    _peripheralState = _stateChangedEventChannel.receiveBroadcastStream()
+      _peripheralState = _stateChangedEventChannel.receiveBroadcastStream()
         .cast<int>()
         .distinct()
         .map((event) => PeripheralState.values[event]);
+
+      //_state is initialized asynchronously. This means immediate calls to .state return PeripheralState.unknown
       _peripheralState!.listen((s) => _state = s);
     }
   }
@@ -187,8 +189,17 @@ class FlutterBlePeripheral {
     state == PeripheralState.advertising;
 
   /// Returns `true` if advertising over BLE is supported
-  bool get isSupported =>
-      state != PeripheralState.unsupported;
+  Future<bool> get isSupported {
+    if (state != PeripheralState.unknown) {
+      return Future.value(state != PeripheralState.unsupported);
+    } else {
+      return onPeripheralStateChanged
+          ?.where((s) => s != PeripheralState.unknown)
+          .first
+          .then((s) => s != PeripheralState.unsupported)
+        ?? Future.value(false);
+    }
+  }
 
   /// Returns `true` if device is connected
   bool get isConnected =>
@@ -198,7 +209,7 @@ class FlutterBlePeripheral {
   /// This corresponds to the ATT MTU minus 3, since the header of an ATT package takes up 3 bytes
   /// Default (if the client doesn't negotiate another) is 20
   int get mtu {
-    return _mtu ?? -1;
+    return _mtu;
   }
 
   /// Reads the current value of a descriptor.
@@ -213,8 +224,6 @@ class FlutterBlePeripheral {
   }
 
   /// Writes the value of a descriptor and notifies subscribed devices
-  /// This operation may include sending notifications to other devices. However,
-  /// the future this method returns completes as soon as the write operation is completed.
   Future<void> write(String characteristicUUID, Uint8List data) async { //TODO: exception if no such characteristic
     final Map<String, dynamic> parameters = {
       "characteristic": characteristicUUID,
@@ -243,7 +252,7 @@ class FlutterBlePeripheral {
   /// [askUser] ONLY AVAILABLE ON ANDROID SDK < 33
   /// If set to false, it will enable bluetooth without asking user.
   /// Throws an UnsupportedOperation exception if not on android sdk < 33
-  /// Returns false if the bluetooth was already enabled, true otherwise
+  /// Returns true if the bluetooth is successfully enabled or was already enabled
   Future<bool> enableBluetooth({bool askUser = true}) async {
     try {
       return await _methodChannel.invokeMethod<bool>(
@@ -260,7 +269,7 @@ class FlutterBlePeripheral {
   Future<PermissionState> requestPermission() async {
     try {
       final response =
-      await _methodChannel.invokeMethod<int>('requestPermissions');
+      await _methodChannel.invokeMethod<int>('requestPermission');
       return response == null
           ? PermissionState.unknown
           : PermissionState.values[response];
@@ -308,8 +317,8 @@ class FlutterBlePeripheral {
   /// After listening to this Stream, you'll be notified about changes in peripheral state.
   Stream<PeripheralState>? get onPeripheralStateChanged => _peripheralState;
 
-  /// Returns Stream of data.
+  /// Returns Stream of written characteristics.
   ///
-  ///
+  /// These writes come from both remote devices and calls to the write() function
   Stream<MessagePacket> get getDataReceived => _dataReceived;
 }
