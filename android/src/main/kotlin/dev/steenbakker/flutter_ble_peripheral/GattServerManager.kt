@@ -282,7 +282,7 @@ class GattServerManager(
         }
 
         val ans = ByteArray(maxOf(0, data.size - offset))
-        for (i in offset..< data.size)
+        for (i in offset.. data.size - 1)
             ans[i - offset] = data[i]
 
         mBluetoothGattServer.sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, data)
