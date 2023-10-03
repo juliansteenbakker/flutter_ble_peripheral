@@ -29,11 +29,11 @@ class FlutterBlePeripheralExampleState
     manufacturerData: Uint8List.fromList([1, 2, 3, 4, 5, 6]),
   );
 
-  final AdvertiseSettings advertiseSettings = AdvertiseSettings(
-    advertiseMode: AdvertiseMode.advertiseModeBalanced,
-    txPowerLevel: AdvertiseTxPower.advertiseTxPowerMedium,
-    timeout: 3000,
-  );
+  // final advertiseSettings = AdvertiseSettings(
+  //   advertiseMode: AdvertiseMode.advertiseModeBalanced,
+  //   txPowerLevel: AdvertiseTxPower.advertiseTxPowerMedium,
+  //   timeout: 3000,
+  // );
 
   final AdvertiseSetParameters advertiseSetParameters =
       AdvertiseSetParameters();
