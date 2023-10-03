@@ -14,8 +14,17 @@ import 'package:flutter_ble_peripheral/src/models/advertise_data.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_set_parameters.dart';
 import 'package:flutter_ble_peripheral/src/models/advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/enums/bluetooth_peripheral_state.dart';
+import 'package:flutter_ble_peripheral/src/models/exceptions/duplicated_operation.dart';
+import 'package:flutter_ble_peripheral/src/models/exceptions/invalid_characteristic_uuid.dart';
+import 'package:flutter_ble_peripheral/src/models/exceptions/invalid_service_uuid.dart';
+import 'package:flutter_ble_peripheral/src/models/exceptions/invalid_state.dart';
+import 'package:flutter_ble_peripheral/src/models/exceptions/unsupported_operation.dart';
+import 'package:flutter_ble_peripheral/src/models/message_packet.dart';
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
+import 'package:flutter_ble_peripheral/src/models/permission_state.dart';
+
+import 'package:flutter_ble_peripheral/src/models/service_description.dart';
 
 class FlutterBlePeripheral {
   /// Singleton instance
@@ -27,10 +36,8 @@ class FlutterBlePeripheral {
     return _instance;
   }
 
-  /// Singleton constructor
-  FlutterBlePeripheral._internal();
 
-  /// Method Channel used to communicate state with
+  /// Method Channel used to make calls to native
   static const MethodChannel _methodChannel =
       MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
 
@@ -39,19 +46,84 @@ class FlutterBlePeripheral {
     'dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed',
   );
 
-  /// Event Channel used to changed state
+  /// Event Channel used to detect changes in peripheral state
   final EventChannel _stateChangedEventChannel = const EventChannel(
     'dev.steenbakker.flutter_ble_peripheral/ble_state_changed',
   );
 
-  Stream<int>? _mtuState;
-  Stream<PeripheralState>? _peripheralState;
+  /// Event Channel for received data
+  final EventChannel _dataReceivedEventChannel = const EventChannel(
+    'dev.steenbakker.flutter_ble_peripheral/ble_data_received',
+  );
 
-  //TODO Event Channel used to received data
-  // final EventChannel _dataReceivedEventChannel = const EventChannel(
-  //     'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
+  late final Stream<int> _mtuState;
+  late final Stream<PeripheralState>? _peripheralState;
+  late final Stream<MessagePacket> _dataReceived;
+
+  PeripheralState? _state;
+  int _mtu = 20;
+
+  /// Singleton constructor
+  FlutterBlePeripheral._internal() {
+    _dataReceived = _dataReceivedEventChannel.receiveBroadcastStream()
+        .cast<Map<dynamic,dynamic>>()
+        .map((event) => MessagePacket.fromMap(Map<String,dynamic>.from(event)));
+
+    _mtuState = _mtuChangedEventChannel.receiveBroadcastStream()
+        .cast<int>()
+        .distinct()
+        .map((event) => event - 3); // Subtract 3 bytes taken up by the header
+    _mtuState.listen((mtu) => _mtu = mtu);
+
+    if (Platform.isWindows) {
+      _peripheralState = null;
+    } else {
+      _peripheralState = _stateChangedEventChannel.receiveBroadcastStream()
+        .cast<int>()
+        .distinct()
+        .map((event) => PeripheralState.values[event]);
+
+      //_state is initialized asynchronously. This means immediate calls to .state return PeripheralState.unknown
+      _peripheralState!.listen((s) => _state = s);
+    }
+  }
+
+  void _handleError(PlatformException e, StackTrace s) {
+    switch (e.code) {
+      case "InvalidCharacteristicUUID": throw InvalidCharacteristicUUID(e.details as String, e.message!);
+      case "InvalidServiceUUID": throw InvalidServiceUUID(e.details as String, e.message!);
+      case "InvalidState": throw InvalidState(PeripheralState.values[e.details as int], e.message);
+      case "UnsupportedOperation": throw UnsupportedOperation(e.message!, s);
+      case "DuplicatedOperation": throw DuplicatedOperation(e.message, s);
+    }
+  }
+
+
+  /// Opens the gatt server if not opened already and adds a new service
+  Future<void> addService(ServiceDescription service) async {
+    try {
+      await _methodChannel.invokeMethod('addService', service.toMap());
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
+  }
+
+  /// Removes an existing service from the gatt server
+  Future<void> removeService(String serviceUUID) async {
+    try {
+      await _methodChannel.invokeMethod('removeService', serviceUUID);
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
+  }
 
   /// Start advertising. Takes [AdvertiseData] as an input.
+  /// Advertising allows client devices to connect. If they do, the advertising is stopped
+  ///
+  /// [advertiseSettings] and [setAdvertiseSettings] are mutually exclusive. If you define both,
+  /// the [advertiseSettings] will act as a fallback in case advertising sets aren't supported by the device.
   Future<BluetoothPeripheralState> start({
     required AdvertiseData advertiseData,
     AdvertiseSettings? advertiseSettings,
@@ -85,99 +157,168 @@ class FlutterBlePeripheral {
       parameters.addAll(advertiseData.toJson());
     }
 
-    final response =
-        await _methodChannel.invokeMethod<int>('start', parameters);
-    return response == null
-        ? BluetoothPeripheralState.unknown
-        : BluetoothPeripheralState.values[response];
+    try {
+      final response =
+          await _methodChannel.invokeMethod<int>('start', parameters);
+      return response == null
+          ? BluetoothPeripheralState.unknown
+          : BluetoothPeripheralState.values[response];
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
   }
 
   /// Stop advertising
-  Future<BluetoothPeripheralState> stop() async {
-    final response = await _methodChannel.invokeMethod<int>('stop');
-    return response == null
-        ? BluetoothPeripheralState.unknown
-        : BluetoothPeripheralState.values[response];
+  Future<void> stop() async {
+    try {
+      await _methodChannel.invokeMethod<int>('stop');
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
+  }
+
+  /// The current peripheral state of the device
+  PeripheralState get state {
+    return _state ?? PeripheralState.unknown;
   }
 
   /// Returns `true` if advertising or false if not advertising
-  Future<bool> get isAdvertising async {
-    return await _methodChannel.invokeMethod<bool>('isAdvertising') ?? false;
-  }
+  bool get isAdvertising  =>
+    state == PeripheralState.advertising;
 
   /// Returns `true` if advertising over BLE is supported
-  Future<bool> get isSupported async =>
-      await _methodChannel.invokeMethod<bool>('isSupported') ?? false;
+  Future<bool> get isSupported {
+    if (state != PeripheralState.unknown) {
+      return Future.value(state != PeripheralState.unsupported);
+    } else {
+      return onPeripheralStateChanged
+          ?.where((s) => s != PeripheralState.unknown)
+          .first
+          .then((s) => s != PeripheralState.unsupported)
+        ?? Future.value(false);
+    }
+  }
 
   /// Returns `true` if device is connected
-  Future<bool> get isConnected async =>
-      await _methodChannel.invokeMethod<bool>('isConnected') ?? false;
+  bool get isConnected =>
+      state == PeripheralState.connected;
 
-  /// Start advertising. Takes [AdvertiseData] as an input.
-  Future<void> sendData(Uint8List data) async {
-    await _methodChannel.invokeMethod('sendData', data);
+  /// Returns the current Minimum Transmission Unit of the connection
+  /// This corresponds to the ATT MTU minus 3, since the header of an ATT package takes up 3 bytes
+  /// Default (if the client doesn't negotiate another) is 20
+  int get mtu {
+    return _mtu;
   }
 
-  /// Stop advertising
-  ///
+  /// Reads the current value of a descriptor.
+  /// Returns null if no such descriptor exists
+  Future<Uint8List?> read(String characteristicUUID) async {
+    try {
+      return await _methodChannel.invokeMethod<Uint8List>('read', characteristicUUID);
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
+  }
+
+  /// Writes the value of a descriptor and notifies subscribed devices
+  Future<void> write(String characteristicUUID, Uint8List data) async { //TODO: exception if no such characteristic
+    final Map<String, dynamic> parameters = {
+      "characteristic": characteristicUUID,
+      "data": data
+    };
+
+    try {
+      await _methodChannel.invokeMethod('write', parameters);
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
+  }
+
+  ///Disconnects all ble clients
+  Future<void> disconnect() async {
+    try {
+      await _methodChannel.invokeMethod('disconnect');
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
+  }
+
+
   /// [askUser] ONLY AVAILABLE ON ANDROID SDK < 33
   /// If set to false, it will enable bluetooth without asking user.
+  /// Throws an UnsupportedOperation exception if not on android sdk < 33
+  /// Returns true if the bluetooth is successfully enabled or was already enabled
   Future<bool> enableBluetooth({bool askUser = true}) async {
-    return await _methodChannel.invokeMethod<bool>(
-          'enableBluetooth',
-          askUser,
-        ) ??
-        false;
+    try {
+      return await _methodChannel.invokeMethod<bool>(
+        'enableBluetooth',
+        askUser,
+      ) ??
+          false;
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
   }
 
-  Future<BluetoothPeripheralState> requestPermission() async {
-    final response =
-        await _methodChannel.invokeMethod<int>('requestPermissions');
-    return response == null
-        ? BluetoothPeripheralState.unknown
-        : BluetoothPeripheralState.values[response];
+  Future<PermissionState> requestPermission() async {
+    try {
+      final response =
+      await _methodChannel.invokeMethod<int>('requestPermission');
+      return response == null
+          ? PermissionState.unknown
+          : PermissionState.values[response];
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
   }
 
-  Future<BluetoothPeripheralState> hasPermission() async {
-    final response = await _methodChannel.invokeMethod<int>('hasPermission');
-    return response == null
-        ? BluetoothPeripheralState.unknown
-        : BluetoothPeripheralState.values[response];
+  Future<PermissionState> hasPermission() async {
+    try {
+      final response = await _methodChannel.invokeMethod<int>('hasPermission');
+      return response == null
+          ? PermissionState.unknown
+          : PermissionState.values[response];
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
   }
 
   Future<void> openBluetoothSettings() async {
-    await _methodChannel.invokeMethod('openBluetoothSettings');
+    try {
+      await _methodChannel.invokeMethod('openBluetoothSettings');
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
   }
 
   Future<void> openAppSettings() async {
-    await _methodChannel.invokeMethod('openAppSettings');
+    try {
+      await _methodChannel.invokeMethod('openAppSettings');
+    } on PlatformException catch (e, s) {
+      _handleError(e, s);
+      rethrow;
+    }
   }
 
   /// Returns Stream of MTU updates.
-  Stream<int> get onMtuChanged {
-    _mtuState ??= _mtuChangedEventChannel
-        .receiveBroadcastStream()
-        .cast<int>()
-        .distinct()
-        .map((dynamic event) => event as int);
-    return _mtuState!;
-  }
+  Stream<int> get onMtuChanged => _mtuState;
 
   /// Returns Stream of state.
   ///
   /// After listening to this Stream, you'll be notified about changes in peripheral state.
-  Stream<PeripheralState>? get onPeripheralStateChanged {
-    if (Platform.isWindows) return null;
-    _peripheralState ??= _stateChangedEventChannel
-        .receiveBroadcastStream()
-        .map((dynamic event) => PeripheralState.values[event as int]);
-    return _peripheralState!;
-  }
+  Stream<PeripheralState>? get onPeripheralStateChanged => _peripheralState;
 
-  // /// Returns Stream of data.
-  // ///
-  // ///
-  // Stream<Uint8List> getDataReceived() {
-  //   return _dataReceivedEventChannel.receiveBroadcastStream().cast<Uint8List>();
-  // }
+  /// Returns Stream of written characteristics.
+  ///
+  /// These writes come from both remote devices and calls to the write() function
+  Stream<MessagePacket> get getDataReceived => _dataReceived;
 }
