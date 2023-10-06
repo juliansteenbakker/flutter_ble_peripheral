@@ -26,7 +26,7 @@ class FlutterBlePeripheralExample extends StatefulWidget {
 class FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
   static const String serviceUuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
-  static final CharacteristicDescription characteristic1 = CharacteristicDescription(uuid: "0x0123", value: Uint8List.fromList("hello".codeUnits), read: true);
+  static final CharacteristicDescription characteristic1 = CharacteristicDescription(uuid: "00000001-A123-48CE-896B-4C76973373E6", value: Uint8List.fromList("hello".codeUnits), read: true);
   static final CharacteristicDescription characteristic2 = CharacteristicDescription(uuid: "00000002-A123-48CE-896B-4C76973373E6", value: Uint8List.fromList("world".codeUnits), write: true);
   static final CharacteristicDescription characteristic3 = CharacteristicDescription(uuid: "00000003-A123-48CE-896B-4C76973373E6", notify: true);
 
@@ -54,7 +54,7 @@ class FlutterBlePeripheralExampleState
   @override
   void initState() {
     super.initState();
-    FlutterBlePeripheral().addService(service);
+    FlutterBlePeripheral().requestPermission().then((_) => FlutterBlePeripheral().addService(service)); //TODO: do something if permission isn't granted
   }
 
   Future<void> _toggleAdvertise() async {

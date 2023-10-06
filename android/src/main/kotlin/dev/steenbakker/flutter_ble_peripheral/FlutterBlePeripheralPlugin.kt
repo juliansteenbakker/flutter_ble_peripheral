@@ -7,7 +7,6 @@
 package dev.steenbakker.flutter_ble_peripheral
 
 import android.app.Activity
-import android.bluetooth.BluetoothAdapter
 import android.bluetooth.BluetoothGattCharacteristic
 import android.bluetooth.BluetoothGattDescriptor
 import android.bluetooth.le.AdvertiseData
@@ -16,7 +15,6 @@ import android.bluetooth.le.AdvertisingSetParameters
 import android.bluetooth.le.PeriodicAdvertisingParameters
 import android.content.Intent
 import android.net.Uri
-import android.content.IntentFilter
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
@@ -48,7 +46,18 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     private var flutterPluginBinding: FlutterPlugin.FlutterPluginBinding? = null
     private var methodChannel: MethodChannel? = null
     private var flutterBlePeripheralManager: FlutterBlePeripheralManager? = null
-    private var gattServerManager: GattServerManager? = null
+
+    private var _gattServerManager: GattServerManager? = null
+    private val gattServerManager: GattServerManager get() {
+        if (_gattServerManager == null) {
+            try {
+                _gattServerManager = GattServerManager(flutterBlePeripheralManager!!, stateHandler, dataHandler, mtuHandler, activityBinding!!.activity)
+            } catch (e: SecurityException) {
+                throw PermissionNotFoundException("android.permission.BLUETOOTH_CONNECT")
+            }
+        }
+        return _gattServerManager!!
+    }
 
     private var permissionCallback: PermissionCallback? = null
     private var enableBluetoothCallback: ActivityResultCallback? = null
@@ -68,8 +77,8 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         methodChannel?.setMethodCallHandler(null)
         methodChannel = null
         flutterBlePeripheralManager = null
-        gattServerManager?.dispose()
-        gattServerManager = null
+        _gattServerManager?.dispose()
+        _gattServerManager = null
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -115,12 +124,12 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                     result.success(null)
                 }
                 "openBluetoothSettings" -> Handler(Looper.getMainLooper()).post {
-                    activityBinding!!.activity.startActivity( Intent(Settings.ACTION_BLUETOOTH_SETTINGS), null)
+                    activityBinding!!.activity.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS), null)
                     result.success(null)
                 }
                 "addService" -> addService(call, result)
                 "removeService" -> removeService(call, result)
-                "read" -> result.success(gattServerManager?.read(UUID.fromString(call.arguments as String)))
+                "read" -> result.success(_gattServerManager?.read(UUID.fromString(call.arguments as String)))
                 "write" -> write(call, result)
                 "disconnect" -> disconnect(result)
                 else -> Handler(Looper.getMainLooper()).post {
@@ -137,7 +146,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             result.error(
                 "No Permission",
                 "No permission for ${e.message} Please ask runtime permission.",
-                "Manifest.permission.${e.message}"
+                e.message
             )
         } catch (e: java.lang.IllegalArgumentException) {
             result.error("ArgumentError", e.message, null)
@@ -330,7 +339,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             ans
         }, { it.value })
 
-        gattServerManager!!.addService(service.uuid, chars, result)
+        gattServerManager.addService(service.uuid, chars, result)
     }
 
     /**
@@ -339,7 +348,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
      */
     private fun removeService(call: MethodCall, result: MethodChannel.Result) {
         val uuid = call.arguments as String
-        result.success(gattServerManager!!.removeService(UUID.fromString(uuid)))
+        result.success(_gattServerManager?.removeService(UUID.fromString(uuid)) ?: false)
     }
 
     /**
@@ -354,14 +363,17 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         val arguments = call.arguments as Map<String,Any>
         val uuid = arguments["characteristic"] as String
         val data = arguments["data"] as ByteArray
-        gattServerManager!!.write(UUID.fromString(uuid), data, result)
+        gattServerManager.write(UUID.fromString(uuid), data, result)
     }
 
     /**
      * Disconnects all connected devices
      */
     private fun disconnect(result: MethodChannel.Result) {
-        gattServerManager!!.disconnect(result)
+        if (_gattServerManager != null)
+            _gattServerManager!!.disconnect(result)
+        else
+            result.success(null)
     }
 
     override fun onAttachedToActivity(binding: ActivityPluginBinding) {
@@ -380,7 +392,6 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         mtuHandler = MtuChangedHandler(flutterPluginBinding!!)
 
         flutterBlePeripheralManager = FlutterBlePeripheralManager(stateHandler, binding.activity)
-        gattServerManager = GattServerManager(flutterBlePeripheralManager!!, stateHandler, dataHandler, mtuHandler, binding.activity)
     }
 
     override fun onDetachedFromActivityForConfigChanges() {

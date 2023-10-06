@@ -114,7 +114,10 @@ class PermissionCallback(binding : ActivityPluginBinding) : PluginRegistry.Reque
     ): Boolean {
         if (requestCode == REQUEST_PERMISSION_BT) {
             callback!!(hasPermissions(activity))
+            callback = null
+            return true
         }
-        return true
+
+        return false
     }
 }

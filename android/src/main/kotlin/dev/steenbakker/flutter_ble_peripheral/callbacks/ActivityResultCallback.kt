@@ -47,8 +47,6 @@ class ActivityResultCallback(binding : ActivityPluginBinding) : ActivityResultLi
             return true
         }
 
-        callback = null
-        this.requestCode = null
         return false
     }
 }
