@@ -47,8 +47,21 @@ class PermissionCallback(binding : ActivityPluginBinding) : PluginRegistry.Reque
                     == PackageManager.PERMISSION_GRANTED)
         }
 
-        fun hasPermissions(activity : Activity) : State
+        fun hasPermissions(activity : Context) : Boolean
         {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
+                return hasLocationCoarsePermission(activity) && hasLocationFinePermission(activity)
+            }
+
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                return hasBluetoothAdvertisePermission(activity) && hasBluetoothConnectPermission(activity)
+            }
+
+            Log.e(TAG, "Unknown build version: ${Build.VERSION.SDK_INT}")
+            return false
+        }
+
+        fun permissionState(activity : Activity) : State {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Build.VERSION.SDK_INT < Build.VERSION_CODES.S) {
                 return if (hasLocationCoarsePermission(activity) && hasLocationFinePermission(activity))
                     State.Granted
@@ -113,7 +126,7 @@ class PermissionCallback(binding : ActivityPluginBinding) : PluginRegistry.Reque
             grantResults: IntArray
     ): Boolean {
         if (requestCode == REQUEST_PERMISSION_BT) {
-            callback!!(hasPermissions(activity))
+            callback!!(permissionState(activity))
             callback = null
             return true
         }

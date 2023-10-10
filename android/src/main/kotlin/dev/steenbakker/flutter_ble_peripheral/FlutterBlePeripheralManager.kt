@@ -23,14 +23,17 @@ import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
 
-class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler, context: Activity) : BroadcastReceiver() {
+class FlutterBlePeripheralManager(
+    private val stateHandler : StateChangedHandler,
+    private val context: Context
+) : BroadcastReceiver(), AutoCloseable {
     companion object {
         const val TAG: String = "FlutterBlePeripheralManager"
     }
 
-    private val _mBluetoothManager: BluetoothManager? = context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
     private val mBluetoothManager: BluetoothManager get() {
-        return _mBluetoothManager ?: throw PeripheralException(PeripheralState.unsupported)
+        return context.getSystemService(Context.BLUETOOTH_SERVICE) as? BluetoothManager
+            ?: throw PeripheralException(PeripheralState.unsupported)
     }
 
     private var _mBluetoothLeAdvertiser: BluetoothLeAdvertiser? = null
@@ -48,6 +51,10 @@ class FlutterBlePeripheralManager(private val stateHandler : StateChangedHandler
 
     init {
         context.registerReceiver(this, IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED))
+    }
+
+    override fun close() {
+        context.unregisterReceiver(this)
     }
 
     override fun onReceive(context: Context?, intent: Intent) {

@@ -54,7 +54,19 @@ class FlutterBlePeripheralExampleState
   @override
   void initState() {
     super.initState();
-    FlutterBlePeripheral().requestPermission().then((_) => FlutterBlePeripheral().addService(service)); //TODO: do something if permission isn't granted
+    FlutterBlePeripheral().addService(service)
+      .then<void>((_) {})
+      .catchError((_) => WidgetsBinding.instance.addPostFrameCallback((_) =>
+        _messangerKey.currentState?.showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.red,
+            content: Text(
+              "Can't start gatt server. Request permission to try again",
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   Future<void> _toggleAdvertise() async {
@@ -90,17 +102,36 @@ class FlutterBlePeripheralExampleState
           ),
         ),
       );
+
+      if (await FlutterBlePeripheral().addService(service)) {
+        _messangerKey.currentState?.showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.green,
+            content: Text(
+              'Gatt server created successfully',
+            ),
+          ),
+        );
+      }
+
+    } else if (hasPermission == PermissionState.permanentlyDenied) {
+      _messangerKey.currentState?.showSnackBar(
+        const SnackBar(
+          backgroundColor: Colors.red,
+          content: Text(
+            "Permission permanently denied. Go to the app settings",
+          ),
+        ),
+      );
     } else {
       _messangerKey.currentState?.showSnackBar(
         const SnackBar(
           backgroundColor: Colors.red,
           content: Text(
-            "We don't have permissions, requesting now!",
+            "Permission denied. Click again to grant permissions",
           ),
         ),
       );
-
-      await _requestPermissions();
     }
   }
 
@@ -248,7 +279,7 @@ class FlutterBlePeripheralExampleState
                     .map((p) => p.value),
                 initialData: characteristic2.value,
                 builder: (BuildContext context, AsyncSnapshot<Uint8List> snapshot) {
-                  String data = String.fromCharCodes(snapshot.data!);
+                  final data = String.fromCharCodes(snapshot.data!);
                   return TextFormField(
                     key: Key(data),
                     initialValue: data,

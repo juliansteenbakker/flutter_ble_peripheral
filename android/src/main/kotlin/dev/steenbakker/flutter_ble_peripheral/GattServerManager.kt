@@ -30,7 +30,7 @@ class GattServerManager(
     private val dataHandler : DataReceivedHandler,
     private val mtuHandler : MtuChangedHandler,
     context : Context
-) : BluetoothGattServerCallback() {
+) : BluetoothGattServerCallback(), AutoCloseable {
     companion object {
         const val TAG = "GattServerManager"
         val CLIENT_CHARACTERISTIC_CONFIG : UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
@@ -59,7 +59,7 @@ class GattServerManager(
         mBluetoothGattServer = mBluetoothManager.openGattServer(context, this)
     }
 
-    fun dispose() {
+    override fun close() {
         mBluetoothGattServer.close()
         addServiceQueue.cancel()
         notificationQueue.cancel()

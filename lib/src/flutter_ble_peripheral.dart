@@ -100,9 +100,9 @@ class FlutterBlePeripheral {
 
 
   /// Opens the gatt server if not opened already and adds a new service
-  Future<void> addService(ServiceDescription service) async {
+  Future<bool> addService(ServiceDescription service) async {
     try {
-      await _methodChannel.invokeMethod('addService', service.toMap());
+      return await _methodChannel.invokeMethod<bool>('addService', service.toMap()) ?? false;
     } on PlatformException catch (e, s) {
       _handleError(e, s);
       rethrow;
