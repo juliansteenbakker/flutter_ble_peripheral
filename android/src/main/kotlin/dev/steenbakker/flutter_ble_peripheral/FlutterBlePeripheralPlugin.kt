@@ -156,7 +156,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             (arguments["serviceSolicitationUuid"] as String?)?.let { advertiseData.addServiceSolicitationUuid(
                     ParcelUuid(UUID.fromString(it))) }
 
-        (arguments["uuid"] as String?)?.let { advertiseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
+        (arguments["serviceUuid"] as String?)?.let { advertiseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
         //TODO: addTransportDiscoveryData
         (arguments["includeDeviceName"] as Boolean?)?.let { advertiseData.setIncludeDeviceName(it) }
         (arguments["transmissionPowerIncluded"] as Boolean?)?.let {
