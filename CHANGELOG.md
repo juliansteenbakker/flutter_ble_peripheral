@@ -1,3 +1,7 @@
+## 1.2.2
+- [Android] Fixed serviceUuid not working. (thanks @Shik1266 !)
+- [Android] Updated compileSdk to 34.
+
 ## 1.2.1
 - Fix build errors & crash on Windows
 - Upgrade gradle to 8.1
