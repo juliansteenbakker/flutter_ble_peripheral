@@ -123,6 +123,7 @@ class FlutterBlePeripheral {
   /// [askUser] ONLY AVAILABLE ON ANDROID SDK < 33
   /// If set to false, it will enable bluetooth without asking user.
   Future<bool> enableBluetooth({bool askUser = true}) async {
+    if (!Platform.isAndroid) return false;
     return await _methodChannel.invokeMethod<bool>(
           'enableBluetooth',
           askUser,
@@ -131,14 +132,16 @@ class FlutterBlePeripheral {
   }
 
   Future<BluetoothPeripheralState> requestPermission() async {
+    if (!Platform.isAndroid) return BluetoothPeripheralState.unknown;
     final response =
-        await _methodChannel.invokeMethod<int>('requestPermissions');
+        await _methodChannel.invokeMethod<int>('requestPermission');
     return response == null
         ? BluetoothPeripheralState.unknown
         : BluetoothPeripheralState.values[response];
   }
 
   Future<BluetoothPeripheralState> hasPermission() async {
+    if (!Platform.isAndroid) return BluetoothPeripheralState.unknown;
     final response = await _methodChannel.invokeMethod<int>('hasPermission');
     return response == null
         ? BluetoothPeripheralState.unknown
