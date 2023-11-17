@@ -93,7 +93,7 @@ class FlutterBlePeripheralManager(context: Context) {
             false
         }
     }
-    fun requestPermission(activity: Activity, result: MethodChannel.Result?): State {
+    fun requestPermission(activity: Activity, result: MethodChannel.Result?): State? {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!hasBluetoothAdvertisePermission(activity) || !hasBluetoothConnectPermission(activity)) {
                 if (result != null) {
@@ -106,6 +106,7 @@ class FlutterBlePeripheralManager(context: Context) {
                         ),
                         REQUEST_PERMISSION_BT
                     )
+                    return null
                 }
                 if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_ADVERTISE) ||
                     ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.BLUETOOTH_CONNECT)) {
@@ -125,6 +126,7 @@ class FlutterBlePeripheralManager(context: Context) {
                         ),
                         REQUEST_PERMISSION_BT
                     )
+                    return null
                 }
                 if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_FINE_LOCATION) ||
                     ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_COARSE_LOCATION)) {
@@ -141,6 +143,7 @@ class FlutterBlePeripheralManager(context: Context) {
                         arrayOf(Manifest.permission.ACCESS_COARSE_LOCATION),
                         REQUEST_PERMISSION_BT
                     )
+                    return null
                 }
                 if (ActivityCompat.shouldShowRequestPermissionRationale(activity, Manifest.permission.ACCESS_COARSE_LOCATION)) {
                     return State.Denied

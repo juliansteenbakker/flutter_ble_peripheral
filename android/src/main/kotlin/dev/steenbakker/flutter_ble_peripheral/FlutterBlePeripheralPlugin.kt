@@ -82,6 +82,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                     return Ready
                 }
             }
+            if (hasPermissions == null) return Denied
             return hasPermissions
         }
     }
@@ -111,10 +112,13 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             "isConnected" -> isConnected(result)
             "enableBluetooth" -> enableBluetooth(call, result)
             "requestPermission" -> Handler(Looper.getMainLooper()).post {
-                flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, result)
+                val response = flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, result)
+                if (response != null) {
+                    result.success(response.ordinal)
+                }
             }
             "hasPermission" -> Handler(Looper.getMainLooper()).post {
-                result.success(flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, null).ordinal)
+                result.success(flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, null)!!.ordinal)
             }
             "openAppSettings" -> Handler(Looper.getMainLooper()).post {
                 activityBinding!!.activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context!!.packageName, null)))
@@ -340,6 +344,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
             if (shouldShowRationale) {
                 flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(Denied.ordinal)
+                flutterBlePeripheralManager?.pendingResultForPermissionResult = null
             } else if (!flutterBlePeripheralManager!!.mBluetoothManager!!.adapter.isEnabled && startStopCall != null && hasAllPermissions) {
                 flutterBlePeripheralManager!!.enableBluetooth(true, flutterBlePeripheralManager?.pendingResultForPermissionResult, activityBinding!!, true)
             } else {
@@ -348,7 +353,10 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                         onMethodCall(startStopCall!!, flutterBlePeripheralManager!!.pendingResultForPermissionResult!!)
                         startStopCall = null
                         flutterBlePeripheralManager?.pendingResultForPermissionResult = null
+                    } else {
+                        flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(Granted.ordinal)
                     }
+
                 } else {
                     flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(PermanentlyDenied.ordinal)
                 }
