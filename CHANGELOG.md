@@ -1,3 +1,6 @@
+## 1.2.3
+- [Android] Fixed requestPermission not working correctly.
+
 ## 1.2.2
 - [Android] Fixed serviceUuid not working. (thanks @Shik1266 !)
 - [Android] Updated compileSdk to 34.

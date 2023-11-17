@@ -133,7 +133,7 @@ class FlutterBlePeripheralExampleState
                 builder:
                     (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
                   return Text(
-                    'State: ${describeEnum(snapshot.data as PeripheralState)}',
+                    'State: ${(snapshot.data as PeripheralState).name}',
                   );
                 },
               ),
