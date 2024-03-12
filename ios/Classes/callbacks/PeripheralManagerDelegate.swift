@@ -33,7 +33,7 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
         stateChangedHandler.publishPeripheralState(state: state)
     }
     
-    func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
+    func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: (any Error)?) {
         print("[flutter_ble_peripheral] didStartAdvertising:", error ?? "success")
         
         guard error == nil else {
