@@ -56,7 +56,7 @@ class FlutterBlePeripheralManager : NSObject {
             dataToBeAdvertised[CBAdvertisementDataLocalNameKey] = advertiseData.localName
         }
         
-        print("[flutter_ble_peripheral] start advertising data: \(String(describing: dataToBeAdvertised))")
+//         print("[flutter_ble_peripheral] start advertising data: \(String(describing: dataToBeAdvertised))")
         
         peripheralManager.startAdvertising(dataToBeAdvertised)
         
