@@ -1,3 +1,6 @@
+## 1.2.4
+- [iOS & macOS] Fixed an isseu which caused the first advertisement not to be broadcast.
+
 ## 1.2.3
 - [Android] Fixed requestPermission not working correctly.
 
