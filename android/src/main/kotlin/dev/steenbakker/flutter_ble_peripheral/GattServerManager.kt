@@ -71,18 +71,18 @@ class GattServerManager(
             return result.success(false)
         }
 
-        val service = BluetoothGattService(serviceUUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
-
-        for ((char, value) in chars) {
+        for ((char, _) in chars) {
             if (characteristics.containsKey(char.uuid)) {
-                result.error("InvalidCharacteristicUUID", "Characteristic uuid already exists", char.uuid.toString())
-
-                for ((char2,_) in chars)
-                    characteristics.remove(char2.uuid)
-
-                return
+                return result.error(
+                    "InvalidCharacteristicUUID",
+                    "Characteristic uuid already exists",
+                    char.uuid.toString()
+                )
             }
+        }
 
+        val service = BluetoothGattService(serviceUUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
+        for ((char, value) in chars) {
             characteristics[char.uuid] = value
             service.addCharacteristic(char)
         }
@@ -162,14 +162,29 @@ class GattServerManager(
      *
      * The result, if specified, is resolved after all notifications are sent
      */
-    fun write(characteristic : UUID, data : ByteArray, result : MethodChannel.Result? = null) {
-        characteristics[characteristic] = data
-        dataHandler.publishData(MessagePacket(characteristic, data))
+    fun write(characteristic : UUID, data : ByteArray, offset : Int = 0, result : MethodChannel.Result? = null) {
+        if (result != null && !characteristics.containsKey(characteristic)) {
+            return result.error(
+                "InvalidCharacteristicUUID",
+                "Characteristic uuid doesn't exist",
+                characteristic.toString()
+            )
+        }
+
         val c = getCharacteristic(characteristic)
+        val currentSize = characteristics[characteristic]!!.size
+
+        if (offset < currentSize) {
+            characteristics[characteristic] = characteristics[characteristic]!!.sliceArray(IntRange(0, offset - 1)) + data
+        } else {
+            characteristics[characteristic] = characteristics[characteristic]!! + ByteArray(offset - currentSize) + data
+        }
+
+        dataHandler.publishData(MessagePacket(characteristic, characteristics[characteristic]!!))
 
         notificationQueue.submit {
             for ((device, confirm) in subscriptionManager.subscriptions(characteristic)) {
-                notifyDevice(device, c, confirm, data)
+                notifyDevice(device, c, confirm, characteristics[characteristic]!!)
             }
 
             result?.success(null)
@@ -310,9 +325,9 @@ class GattServerManager(
         if (!hasPermission) {
             Log.w(TAG, "Attempt to write a characteristic without writing permission: ${characteristic.uuid}")
         } else if (preparedWrite) {
-            fragmentManager.pushFragment(device, characteristic.uuid, value)
+            fragmentManager.pushFragment(device, characteristic.uuid, value, offset)
         } else {
-            write(characteristic.uuid, value)
+            write(characteristic.uuid, value, offset)
         }
     }
 

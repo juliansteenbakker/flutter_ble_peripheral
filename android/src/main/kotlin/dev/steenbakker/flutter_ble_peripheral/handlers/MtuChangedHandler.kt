@@ -17,7 +17,8 @@ class MtuChangedHandler(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding
             "dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed"
     )
 
-    private var mtu : Int = 23 //default (smallest possible value)
+    var mtu : Int = 23 //default (smallest possible value)
+        private set
 
     init {
         eventChannel.setStreamHandler(this)

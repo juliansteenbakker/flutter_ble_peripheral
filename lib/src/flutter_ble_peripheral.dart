@@ -252,7 +252,11 @@ class FlutterBlePeripheral {
   /// [askUser] ONLY AVAILABLE ON ANDROID SDK < 33
   /// If set to false, it will enable bluetooth without asking user.
   /// Throws an UnsupportedOperation exception if not on android sdk < 33
+  ///
   /// Returns true if the bluetooth is successfully enabled or was already enabled
+  ///
+  /// Calling this method on iOS will always return false, since
+  /// iOS doesn't support programmatically enabling Bluetooth
   Future<bool> enableBluetooth({bool askUser = true}) async {
     try {
       return await _methodChannel.invokeMethod<bool>(
@@ -291,6 +295,7 @@ class FlutterBlePeripheral {
     }
   }
 
+  /// Android only
   Future<void> openBluetoothSettings() async {
     try {
       await _methodChannel.invokeMethod('openBluetoothSettings');

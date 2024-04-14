@@ -8,7 +8,7 @@ enum PermissionState {
   /// The user granted access to the requested feature.
   granted,
 
-  /// The user denied access to the requested feature, permission needs to be asked first.
+  /// The user hasn't granted access to the requested feature, permission needs to be asked first.
   denied,
 
   /// Permission to the requested feature is permanently denied,

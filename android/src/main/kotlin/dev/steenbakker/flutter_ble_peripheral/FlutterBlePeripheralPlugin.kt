@@ -342,7 +342,6 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             }
             ans
         }, { it.value })
-
         gattServerManager.addService(service.uuid, chars, result)
     }
 
@@ -367,7 +366,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         val arguments = call.arguments as Map<String,Any>
         val uuid = arguments["characteristic"] as String
         val data = arguments["data"] as ByteArray
-        gattServerManager.write(UUID.fromString(uuid), data, result)
+        gattServerManager.write(UUID.fromString(uuid), data, 0, result)
     }
 
     /**

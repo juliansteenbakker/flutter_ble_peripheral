@@ -20,6 +20,10 @@ class PeripheralAdvertisingCallback(
     }
 
     private var timer : Timer? = Timer()
+    val isActive : Boolean
+        get() {
+            return timer != null
+        }
 
     override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
         super.onStartSuccess(settingsInEffect)
@@ -33,7 +37,7 @@ class PeripheralAdvertisingCallback(
     }
 
     fun dispose() {
-        if (timer != null) {
+        if (isActive) {
             stateChangedHandler.advertising = false
             timer!!.cancel()
             timer = null
