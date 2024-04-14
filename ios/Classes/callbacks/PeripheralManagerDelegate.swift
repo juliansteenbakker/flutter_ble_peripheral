@@ -12,124 +12,83 @@ import CoreLocation
 extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
     
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        var state: PeripheralState
-        switch peripheral.state {
-        case .poweredOn:
-            state = .idle
-//            addService() TODO: add service
-        case .poweredOff:
-            state = .poweredOff
-        case .resetting:
-            state = .idle
-        case .unsupported:
-            state = .unsupported
-        case .unauthorized:
-            state = .unauthorized
-        case .unknown:
-            state = .unknown
-        @unknown default:
-            state = .unknown
+        stateHandler.baseState = peripheral.state
+        stateHandler.publishPeripheralState()
+        
+        if peripheral.state == .poweredOff {
+            stop()
         }
-        stateChangedHandler.publishPeripheralState(state: state)
     }
     
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: Error?) {
         print("[flutter_ble_peripheral] didStartAdvertising:", error ?? "success")
-        
-        guard error == nil else {
-            return
-        }
-        
-        stateChangedHandler.publishPeripheralState(state: .advertising)
-        
-        // Immediately set to connected if the tx Characteristic is already subscribed
-//        if txSubscribed {
-//            state = .connected
-//        }
+        advertisingCallbacks.completeCallback(Unit.instance, error)
     }
     
-//    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
-//        print("[flutter_ble_peripheral] didReceiveRead:", request)
-//
-//        // Only answer to requests if not idle
-//        guard state != .idle else {
-//            print("[flutter_ble_peripheral] state = .idle -> not answering read request")
-//            return
-//        }
-//
-//        // Not supported
-//        peripheralManager.respond(to: request, withResult: .requestNotSupported)
-//    }
-//
-//    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
-//        print("[flutter_ble_peripheral] didReceiveWrite:", requests)
-//
-//        // Only answer to requests if not idle
-//        guard state != .idle else {
-//            print("[flutter_ble_peripheral] state = .idle -> not answering write request")
-//            return
-//        }
-//
-//        for request in requests {
-//
-//            print("[flutter_ble_peripheral] write request:", request);
-//
-//            let characteristic = request.characteristic
-//            guard let data = request.value else {
-//              print("[flutter_ble_peripheral] request.value is nil");
-//              return
-//            }
-//
-//            // Write only supported in rxCharacteristic
-//            guard characteristic == self.rxCharacteristic else {
-//                peripheralManager.respond(to: request, withResult: .requestNotSupported)
-//                print("[flutter_ble_peripheral] respond requestNotSupported (only supported in rxCharacteristic)")
-//                return
-//            }
-//
-//            print("[flutter_ble_peripheral] request.value:", request.value!)
-//            print("[flutter_ble_peripheral] characteristic.value:", characteristic.value!)
-//
-//            if data.count > 0 {
-//                print("[flutter_ble_peripheral] Receive data: \(data)")
-//                onDataReceived?(data)
-//            }
-//
-//            // Respond with success
-//            peripheralManager.respond(to: request, withResult: .success)
-//        }
-//    }
-//
-//    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
-//
-//        if characteristic == txCharacteristic {
-//
-//            print("[flutter_ble_peripheral] didSubscribeTo:", central, characteristic)
-//
-//            // Update MTU
-//            self.mtu = central.maximumUpdateValueLength;
-//
-//            // Add to subscriptions
-//            txSubscriptions.insert(central.identifier)
-//
-//            txSubscribed = !txSubscriptions.isEmpty
-//
-//            print("[flutter_ble_peripheral] txSubscriptions:", txSubscriptions)
-//        }
-//    }
-//
-//    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
-//
-//        if characteristic == txCharacteristic {
-//
-//            print("[flutter_ble_peripheral] didUnsubscribeFrom:", central, characteristic)
-//
-//            // Remove from txSubscriptions
-//            txSubscriptions.remove(central.identifier)
-//
-//            txSubscribed = !txSubscriptions.isEmpty
-//
-//            print("[flutter_ble_peripheral] txSubscriptions:", txSubscriptions)
-//        }
-//    }
+    func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
+        notificationManager.resume()
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveRead request: CBATTRequest) {
+        print("[flutter_ble_peripheral] didReceiveRead:", request)
+        
+        if let value = characteristics[request.characteristic.uuid]?.1 {
+            onInteraction(request.central)
+            
+            if request.offset > value.count {
+                peripheralManager.respond(to: request, withResult: .invalidOffset)
+            } else {
+                request.value = value.suffix(from: request.offset)
+                peripheral.respond(to: request, withResult: .success)
+            }
+        }
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, didReceiveWrite requests: [CBATTRequest]) {
+        print("[flutter_ble_peripheral] didReceiveWrite:", requests)
+        
+        for c in Set(requests.filter({ characteristics[$0.characteristic.uuid] != nil }).map({ $0.central })) {
+            onInteraction(c)
+        }
+        
+        for request in requests {
+            print("[flutter_ble_peripheral] write request:", request);
+            
+            let characteristic = request.characteristic
+            guard let data = request.value else {
+                print("[flutter_ble_peripheral] request.value is nil");
+                peripheral.respond(to: requests[0], withResult: .attributeNotLong)
+                return
+            }
+            
+            print("[flutter_ble_peripheral] Received data: \(data)")
+            print("[flutter_ble_peripheral] Offset: \(request.offset)")
+        }
+        
+        //TODO: write atomically if multiple requests are for the same characteristic
+        for request in requests {
+            write(characteristic: request.characteristic.uuid, data: request.value!, offset: request.offset)
+        }
+        
+        peripheral.respond(to: requests[0], withResult: .success)
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
+        print("[flutter_ble_peripheral] didSubscribeTo:", central.identifier.uuidString, characteristic.uuid)
+        
+        onInteraction(central)
+        subscriptionManager.subscribe(device: central, characteristic: characteristic.uuid)
+    }
+
+    func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
+        print("[flutter_ble_peripheral] didUnsubscribeFrom:", central.identifier.uuidString, characteristic.uuid)
+        
+        subscriptionManager.unsubscribe(device: central, characteristic: characteristic.uuid)
+        checkConnection(central)
+    }
+    
+    func peripheralManager(_ peripheral: CBPeripheralManager, didAdd service: CBService, error: Error?) {
+        print("[flutter_ble_peripheral] didAdd:", service.uuid)
+        addServiceCallbacks.completeCallback(service.uuid, error)
+    }
 }

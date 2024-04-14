@@ -6,31 +6,30 @@
 
 import Flutter
 import UIKit
-import CoreLocation
+import CoreBluetooth
 
 public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
     private let flutterBlePeripheralManager: FlutterBlePeripheralManager
+    private let stateHandler: StateChangedHandler
+    private let mtuHandler: MtuChangedHandler
+    private let dataHandler: DataReceivedHandler
     
-    private let stateChangedHandler: StateChangedHandler
-//    private let mtuChangedHandler = MtuChangedHandler()
-//    private let dataReceivedHandler = DataReceivedHandler()
-    init(stateChangedHandler: StateChangedHandler) {
-        self.stateChangedHandler = stateChangedHandler
-        flutterBlePeripheralManager = FlutterBlePeripheralManager(stateChangedHandler: stateChangedHandler)
+    init(registrar: FlutterPluginRegistrar) {
+        stateHandler = StateChangedHandler(registrar: registrar)
+        mtuHandler = MtuChangedHandler(registrar: registrar)
+        dataHandler = DataReceivedHandler(registrar: registrar)
+        
+        flutterBlePeripheralManager = FlutterBlePeripheralManager(stateHandler: stateHandler, mtuHandler: mtuHandler, dataHandler: dataHandler)
         super.init()
-    }
-    
-    public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = SwiftFlutterBlePeripheralPlugin(stateChangedHandler: StateChangedHandler(registrar: registrar))
         
         // Method channel
         let methodChannel = FlutterMethodChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state", binaryMessenger: registrar.messenger())
-        registrar.addMethodCallDelegate(instance, channel: methodChannel)
-
-        // Event channels
-//        instance.mtuChangedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
-//        instance.dataReceivedHandler.register(with: registrar, peripheral: instance.flutterBlePeripheralManager)
+        registrar.addMethodCallDelegate(self, channel: methodChannel)
+    }
+    
+    public static func register(with registrar: FlutterPluginRegistrar) {
+        let _ = SwiftFlutterBlePeripheralPlugin(registrar: registrar)
     }
     
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
@@ -38,45 +37,32 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         case "start":
             startPeripheral(call, result)
         case "stop":
-            stopPeripheral(result)
-        case "isAdvertising":
-            result(stateChangedHandler.state == PeripheralState.advertising)
-        case "isSupported":
-            isSupported(result)
-        case "isConnected":
-            result(stateChangedHandler.state == PeripheralState.connected)
-        case "openBluetoothSettings":
+            flutterBlePeripheralManager.stop(result: result)
+        case "enableBluetooth":
+            result(false)
+        case "requestPermission":
+            result(flutterBlePeripheralManager.hasPermission())
+        case "hasPermission":
+            result(flutterBlePeripheralManager.hasPermission())
+        case "openAppSettings":
             openAppSettings()
             result(nil)
-//        case "sendData":
-//            sendData(call, result)
+        case "openBluetoothSettings":
+            result(FlutterError(code: "UnsupportedOperation", message: "iOS doesn't allow redirecting to Bluetooth settings", details: nil))
+        case "addService":
+            addService(call, result)
+        case "removeService":
+            removeService(call, result)
+        case "read":
+            read(call, result)
+        case "write":
+            write(call, result)
+        case "disconnect":
+            flutterBlePeripheralManager.disconnect()
+            result(nil)
+            
         default:
             result(FlutterMethodNotImplemented)
-        }
-    }
-    
-    private func startPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
-        let map = call.arguments as? Dictionary<String, Any>
-        let advertiseData = PeripheralData(
-            uuid: map?["serviceUuid"] as? String ,
-            localName: map?["localName"] as? String
-        )
-        flutterBlePeripheralManager.start(advertiseData: advertiseData)
-        result(nil)
-    }
-    
-    private func stopPeripheral(_ result: @escaping FlutterResult) {
-        flutterBlePeripheralManager.peripheralManager.stopAdvertising()
-        stateChangedHandler.publishPeripheralState(state: PeripheralState.idle)
-        result(nil)
-    }
-    
-    // We can check if advertising is supported by checking if the ios device supports iBeacons since that uses BLE.
-    private func isSupported(_ result: @escaping FlutterResult) {
-        if (CLLocationManager.isMonitoringAvailable(for: CLBeaconRegion.self)){
-            result(true)
-        } else {
-            result(false)
         }
     }
     
@@ -88,12 +74,36 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         }
     }
     
-//    private func sendData(_ call: FlutterMethodCall,
-//                          _ result: @escaping FlutterResult) {
-//
-//        if let flutterData = call.arguments as? FlutterStandardTypedData {
-//          flutterBlePeripheralManager.send(data: flutterData.data)
-//        }
-//        result(nil)
-//    }
+    private func startPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+        if stateHandler.state != .idle {
+            result(FlutterError(code: "InvalidState", message: "Invalid state \(stateHandler.state)", details: stateHandler.state.rawValue))
+            return
+        }
+        
+        let map = call.arguments as! Dictionary<String, Any>
+        let advertiseData = PeripheralData(properties: map)
+        flutterBlePeripheralManager.start(advertiseData: advertiseData, result: result)
+    }
+    
+    private func addService(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+        let map = call.arguments as! Dictionary<String, Any>
+        let service = ServiceDescription(properties: map)
+        flutterBlePeripheralManager.addService(description: service, result: result)
+    }
+    
+    private func removeService(_ call: FlutterMethodCall, _ result: FlutterResult) {
+        let uuid = call.arguments as! String
+        result(flutterBlePeripheralManager.removeService(uuid: CBUUID(string: uuid)))
+    }
+    
+    private func read(_ call: FlutterMethodCall, _ result: FlutterResult) {
+        result(flutterBlePeripheralManager.read(characteristic: CBUUID(string: call.arguments as! String)))
+    }
+    
+    private func write(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+        let map = call.arguments as! Dictionary<String,Any>
+        let uuid = CBUUID(string: map["characteristic"] as! String)
+        let data = (map["data"] as! FlutterStandardTypedData).data
+        flutterBlePeripheralManager.write(characteristic: uuid, data: data, result: result)
+    }
 }

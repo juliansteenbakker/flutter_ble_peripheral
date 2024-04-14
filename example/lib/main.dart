@@ -6,7 +6,6 @@
 
 // ignore: unnecessary_import
 import 'dart:async';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -183,7 +182,7 @@ class FlutterBlePeripheralExampleState
                 stream: FlutterBlePeripheral().onPeripheralStateChanged,
                 initialData: FlutterBlePeripheral().state,
                 builder: (BuildContext context, AsyncSnapshot<PeripheralState> snapshot) {
-                  return Center(child: Text('State: ${describeEnum(snapshot.data!)}',));
+                  return Center(child: Text('State: ${describeEnum(FlutterBlePeripheral().state)}',));
                 },
               ),
               const Center(child: Text('UUID: $serviceUuid'),),
