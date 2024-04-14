@@ -97,8 +97,12 @@ class FlutterBlePeripheralManager(
      */
     fun start(peripheralData: AdvertiseData, peripheralSettings: AdvertiseSettings, peripheralResponse: AdvertiseData?, result : MethodChannel.Result) {
 
-        advertiseCallback = PeripheralAdvertisingCallback(result, stateHandler, peripheralSettings.timeout.toLong())
+        if (advertiseCallback != null && advertiseCallback!!.isActive) {
+            result.error("DuplicatedOperation", "Duplicated call to start without waiting for response", null)
+            return
+        }
 
+        advertiseCallback = PeripheralAdvertisingCallback(result, stateHandler, peripheralSettings.timeout.toLong())
         mBluetoothLeAdvertiser.startAdvertising(
                 peripheralSettings,
                 peripheralData,

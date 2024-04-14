@@ -24,7 +24,7 @@ class SubscriptionManager {
     }
 
     fun removeCharacteristicData(uuid: UUID) {
-        for ((device, sub) in subscriptions) {
+        for ((_, sub) in subscriptions) {
             sub.remove(uuid)
         }
     }
