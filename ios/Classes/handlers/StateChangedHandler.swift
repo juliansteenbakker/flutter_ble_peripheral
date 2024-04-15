@@ -20,7 +20,7 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
         willSet { if newValue { advertising = false } }
     }
     
-    private(set) var state: PeripheralState!
+    private(set) var state: PeripheralState = .unknown
     
     private func calculateState() -> PeripheralState {
         switch baseState {
@@ -76,7 +76,7 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
     public func onListen(withArguments arguments: Any?,
                          eventSink: @escaping FlutterEventSink) -> FlutterError? {
         self.eventSink = eventSink
-        print("onListen: ", state ?? "nil")
+        print("onListen: ", state)
         eventSink(state.rawValue)
         return nil
     }
