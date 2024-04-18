@@ -58,7 +58,8 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         case "write":
             write(call, result)
         case "disconnect":
-            flutterBlePeripheralManager.disconnect()
+            //Disconnect is kinda meaningless in iOS
+            //flutterBlePeripheralManager.disconnect()
             result(nil)
             
         default:

@@ -171,14 +171,15 @@ class FlutterBlePeripheralManager : NSObject {
     }
     
     
-    func disconnect() {
+    /*func disconnect() {
         for d in devices {
             onDisconnect(d)
         }
-    }
+    }*/
     
     ///Whenever a device interacts with the gatt server, its cooldown for disconnection is reset
     func onInteraction(_ device: CBCentral) {
+        devices.insert(device)
         mtuHandler.publishMtu(mtu: device.maximumUpdateValueLength)
         
         let timer = DispatchWorkItem(block: { [weak self] in
