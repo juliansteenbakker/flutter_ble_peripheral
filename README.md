@@ -16,11 +16,11 @@ If you want to contribute to this plugin, feel free to make issues and pull-requ
 
 Since this plugin is currently being developed, limited functionality will be available. Check the release page for the most recent release.
 
-| Functionality              |      Android       |        iOS         |     Windows      |       macOS        | Description                                          |
-|----------------------------|:------------------:|:------------------:|:----------------:|:------------------:|------------------------------------------------------|
-| Advertise UUID             | :white_check_mark: | :white_check_mark: |        :x:       | :white_check_mark: | Set and advertise a custom UUID.                     |
-| Advertise ManufacturerData | :white_check_mark: |        :x:         |        :x:       |        :x:         | Set and advertise custom data. *Not possible on iOS, Windows, or macOS.* |
-| Advertise custom service   | :white_check_mark: |        :x:         |        :x:       |        :x:         | Advertise a custom service. *Not possible on iOS, Windows, or macOS.*    |
+| Functionality              |      Android       |        iOS         |       Windows      |       macOS        | Description                                          |
+|----------------------------|:------------------:|:------------------:|:------------------:|:------------------:|------------------------------------------------------|
+| Advertise UUID             | :white_check_mark: | :white_check_mark: |         :x:        | :white_check_mark: | Set and advertise a custom UUID.                     |
+| Advertise ManufacturerData | :white_check_mark: |        :x:         | :white_check_mark: |        :x:         | Set and advertise custom data. *Not possible on iOS or macOS.* |
+| Advertise custom service   | :white_check_mark: |        :x:         |         :x:        |        :x:         | Advertise a custom service. *Not possible on iOS, Windows, or macOS.*    |
 
 ### Advertise UUID on Windows
 
