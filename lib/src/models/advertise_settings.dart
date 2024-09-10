@@ -9,6 +9,11 @@ part 'advertise_settings.g.dart';
 class AdvertiseSettings {
   /// Android only
   ///
+  /// Set the advertise mode to use when using android >= o
+  final bool advertiseSet;
+
+  /// Android only
+  ///
   /// Set advertise mode to control the advertising power and latency.
   /// Default: AdvertiseMode.ADVERTISE_MODE_LOW_LATENCY
   final AdvertiseMode advertiseMode;
@@ -33,6 +38,7 @@ class AdvertiseSettings {
   final AdvertiseTxPower txPowerLevel;
 
   AdvertiseSettings({
+    this.advertiseSet = true,
     this.connectable = false,
     this.timeout = 400,
     this.advertiseMode = AdvertiseMode.advertiseModeLowLatency,

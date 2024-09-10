@@ -7,16 +7,14 @@ part of 'periodic_advertise_settings.dart';
 // **************************************************************************
 
 PeriodicAdvertiseSettings _$PeriodicAdvertiseSettingsFromJson(
-  Map<String, dynamic> json,
-) =>
+        Map<String, dynamic> json) =>
     PeriodicAdvertiseSettings(
-      interval: json['interval'] as int? ?? 100,
+      interval: (json['interval'] as num?)?.toInt() ?? 100,
       includeTxPowerLevel: json['includeTxPowerLevel'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$PeriodicAdvertiseSettingsToJson(
-  PeriodicAdvertiseSettings instance,
-) =>
+        PeriodicAdvertiseSettings instance) =>
     <String, dynamic>{
       'interval': instance.interval,
       'includeTxPowerLevel': instance.includeTxPowerLevel,

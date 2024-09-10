@@ -33,7 +33,6 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
         var statusText = ""
         when (status) {
             ADVERTISE_SUCCESS -> {
-                result.success(txPower)
                 stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
             }
             ADVERTISE_FAILED_ALREADY_STARTED -> {
@@ -64,6 +63,8 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
         }
         if (status != ADVERTISE_SUCCESS) {
             result.error(status.toString(), statusText, "startAdvertisingSet")
+        } else {
+            result.success(0)
         }
 
     }

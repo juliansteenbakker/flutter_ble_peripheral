@@ -7,26 +7,24 @@ part of 'advertise_set_parameters.dart';
 // **************************************************************************
 
 AdvertiseSetParameters _$AdvertiseSetParametersFromJson(
-  Map<String, dynamic> json,
-) =>
+        Map<String, dynamic> json) =>
     AdvertiseSetParameters(
       connectable: json['connectable'] as bool? ?? false,
-      txPowerLevel: json['txPowerLevel'] as int? ?? txPowerHigh,
-      interval: json['interval'] as int? ?? intervalHigh,
+      txPowerLevel: (json['txPowerLevel'] as num?)?.toInt() ?? txPowerHigh,
+      interval: (json['interval'] as num?)?.toInt() ?? intervalHigh,
       legacyMode: json['legacyMode'] as bool? ?? false,
-      primaryPhy: json['primaryPhy'] as int?,
+      primaryPhy: (json['primaryPhy'] as num?)?.toInt(),
       scannable: json['scannable'] as bool?,
-      secondaryPhy: json['secondaryPhy'] as int?,
-      anonymous: json['anonymous'] as int?,
+      secondaryPhy: (json['secondaryPhy'] as num?)?.toInt(),
+      anonymous: (json['anonymous'] as num?)?.toInt(),
       includeTxPowerLevel: json['includeTxPowerLevel'] as bool? ?? false,
-      duration: json['duration'] as int?,
+      duration: (json['duration'] as num?)?.toInt(),
       maxExtendedAdvertisingEvents:
-          json['maxExtendedAdvertisingEvents'] as int?,
+          (json['maxExtendedAdvertisingEvents'] as num?)?.toInt(),
     );
 
 Map<String, dynamic> _$AdvertiseSetParametersToJson(
-  AdvertiseSetParameters instance,
-) =>
+        AdvertiseSetParameters instance) =>
     <String, dynamic>{
       'anonymous': instance.anonymous,
       'connectable': instance.connectable,

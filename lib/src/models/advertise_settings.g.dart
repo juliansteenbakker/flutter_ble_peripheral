@@ -8,24 +8,24 @@ part of 'advertise_settings.dart';
 
 AdvertiseSettings _$AdvertiseSettingsFromJson(Map<String, dynamic> json) =>
     AdvertiseSettings(
+      advertiseSet: json['advertiseSet'] as bool? ?? true,
       connectable: json['connectable'] as bool? ?? false,
-      timeout: json['timeout'] as int? ?? 400,
+      timeout: (json['timeout'] as num?)?.toInt() ?? 400,
       advertiseMode:
           $enumDecodeNullable(_$AdvertiseModeEnumMap, json['advertiseMode']) ??
               AdvertiseMode.advertiseModeLowLatency,
       txPowerLevel: $enumDecodeNullable(
-            _$AdvertiseTxPowerEnumMap,
-            json['txPowerLevel'],
-          ) ??
+              _$AdvertiseTxPowerEnumMap, json['txPowerLevel']) ??
           AdvertiseTxPower.advertiseTxPowerLow,
     );
 
 Map<String, dynamic> _$AdvertiseSettingsToJson(AdvertiseSettings instance) =>
     <String, dynamic>{
-      'advertiseMode': _$AdvertiseModeEnumMap[instance.advertiseMode],
+      'advertiseSet': instance.advertiseSet,
+      'advertiseMode': _$AdvertiseModeEnumMap[instance.advertiseMode]!,
       'connectable': instance.connectable,
       'timeout': instance.timeout,
-      'txPowerLevel': _$AdvertiseTxPowerEnumMap[instance.txPowerLevel],
+      'txPowerLevel': _$AdvertiseTxPowerEnumMap[instance.txPowerLevel]!,
     };
 
 const _$AdvertiseModeEnumMap = {

@@ -16,8 +16,17 @@ part 'advertise_data.g.dart';
 class AdvertiseData {
   /// Android & iOS
   ///
-  /// Specifies the service UUID to be advertised
+  /// Specifies a single service UUIDs to be advertised
+  // @Deprecated(
+  //   'Please use serviceUuids, where you can also define a single service uuid.',
+  // )
   final String? serviceUuid;
+
+  // /// Android & iOS
+  // ///
+  // /// Specifies multiple service UUIDs to be advertised
+  // /// Multiple serviceUuids is only supported on iOS for now.
+  // final List<String>? serviceUuids;
 
   /// Android only
   ///
@@ -64,7 +73,11 @@ class AdvertiseData {
   final String? serviceSolicitationUuid;
 
   AdvertiseData({
+    // @Deprecated(
+    //   'Please use serviceUuids, where you can also define a single service uuid.',
+    // )
     this.serviceUuid,
+    // this.serviceUuids,
     this.manufacturerId,
     this.manufacturerData,
     this.serviceDataUuid,

@@ -9,12 +9,12 @@ part of 'advertise_data.dart';
 AdvertiseData _$AdvertiseDataFromJson(Map<String, dynamic> json) =>
     AdvertiseData(
       serviceUuid: json['serviceUuid'] as String?,
-      manufacturerId: json['manufacturerId'] as int?,
+      manufacturerId: (json['manufacturerId'] as num?)?.toInt(),
       manufacturerData: const Uint8ListConverter()
           .fromJson(json['manufacturerData'] as List?),
       serviceDataUuid: json['serviceDataUuid'] as String?,
       serviceData: (json['serviceData'] as List<dynamic>?)
-          ?.map((e) => e as int)
+          ?.map((e) => (e as num).toInt())
           .toList(),
       includeDeviceName: json['includeDeviceName'] as bool? ?? false,
       localName: json['localName'] as String?,

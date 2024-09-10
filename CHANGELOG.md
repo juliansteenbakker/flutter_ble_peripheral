@@ -1,5 +1,11 @@
+## 1.2.6
+- [Android] Fixes error on start broadcasting
+
+## 1.2.5
+- [Android] Added advertiseSet parameter to AdvertiseSettings to enable advertiseSet on Android o and higher devices.
+
 ## 1.2.4
-- [iOS & macOS] Fixed an isseu which caused the first advertisement not to be broadcast.
+- [iOS & macOS] Fixed an issue which caused the first advertisement not to be broadcast.
 
 ## 1.2.3
 - [Android] Fixed requestPermission not working correctly.

@@ -25,6 +25,8 @@ class FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
   final AdvertiseData advertiseData = AdvertiseData(
     serviceUuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
+    // serviceUuids: ['ffffffff-ffff-ffff-ffff-ffffffffffff'],
+    localName: 'test',
     manufacturerId: 1234,
     manufacturerData: Uint8List.fromList([1, 2, 3, 4, 5, 6]),
   );
@@ -145,6 +147,7 @@ class FlutterBlePeripheralExampleState
               //       return Text('Data received: ${snapshot.data}');
               //     },),
               Text('Current UUID: ${advertiseData.serviceUuid}'),
+              // Text('Current UUID: ${advertiseData.serviceUuids ?? advertiseData.serviceUuid}'),
               MaterialButton(
                 onPressed: _toggleAdvertise,
                 child: Text(
