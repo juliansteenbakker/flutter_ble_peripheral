@@ -146,8 +146,9 @@ class FlutterBlePeripheralExampleState
               //         (BuildContext context, AsyncSnapshot<dynamic> snapshot) {
               //       return Text('Data received: ${snapshot.data}');
               //     },),
-              Text('Current UUID: ${advertiseData.serviceUuid}'),
-              // Text('Current UUID: ${advertiseData.serviceUuids ?? advertiseData.serviceUuid}'),
+              Text(
+                'Current UUIDs: ${advertiseData.serviceUuids ?? advertiseData.serviceUuid}',
+              ),
               MaterialButton(
                 onPressed: _toggleAdvertise,
                 child: Text(

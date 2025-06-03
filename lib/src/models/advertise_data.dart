@@ -22,11 +22,12 @@ class AdvertiseData {
   // )
   final String? serviceUuid;
 
-  // /// Android & iOS
-  // ///
-  // /// Specifies multiple service UUIDs to be advertised
-  // /// Multiple serviceUuids is only supported on iOS for now.
-  // final List<String>? serviceUuids;
+  /// Android & iOS
+  ///
+  /// Specifies multiple service UUIDs to be advertised
+  /// Multiple serviceUuids is only supported on iOS for now.
+  /// If specified, [serviceUuid] will not be used.
+  final List<String>? serviceUuids;
 
   /// Android only
   ///
@@ -77,7 +78,7 @@ class AdvertiseData {
     //   'Please use serviceUuids, where you can also define a single service uuid.',
     // )
     this.serviceUuid,
-    // this.serviceUuids,
+    this.serviceUuids,
     this.manufacturerId,
     this.manufacturerData,
     this.serviceDataUuid,

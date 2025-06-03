@@ -46,9 +46,10 @@ class FlutterBlePeripheralManager : NSObject {
 //    var txSubscriptions = Set<UUID>()
     
     func start(advertiseData: PeripheralData) {
-        
         var dataToBeAdvertised: [String: Any]! = [:]
-        if (advertiseData.uuid != nil) {
+        if (advertiseData.uuids != nil) {
+            dataToBeAdvertised[CBAdvertisementDataServiceUUIDsKey] = advertiseData.uuids!.map { CBUUID(string: $0) }
+        } else if (advertiseData.uuid != nil) {
             dataToBeAdvertised[CBAdvertisementDataServiceUUIDsKey] = [CBUUID(string: advertiseData.uuid!)]
         }
         

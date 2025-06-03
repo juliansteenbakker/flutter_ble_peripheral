@@ -11,6 +11,7 @@
 .svn/
 .last_build_id
 /.cxx/
+example/android/app/.cxx
 
 # IntelliJ related
 *.iml
