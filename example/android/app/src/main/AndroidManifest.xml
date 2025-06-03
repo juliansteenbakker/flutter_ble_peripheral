@@ -24,6 +24,7 @@
     <application
         android:label="flutter_ble_peripheral_example"
         android:icon="@mipmap/ic_launcher">
+
         <activity
             android:name="io.flutter.embedding.android.FlutterActivity"
             android:launchMode="singleTop"
