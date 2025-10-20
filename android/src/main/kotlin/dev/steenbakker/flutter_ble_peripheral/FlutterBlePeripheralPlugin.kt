@@ -67,7 +67,9 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
     private fun checkBluetoothState(result: MethodChannel.Result): State {
         if (flutterBlePeripheralManager!!.mBluetoothManager == null || flutterBlePeripheralManager!!.mBluetoothManager?.adapter == null) {
-            result.success(Unsupported.ordinal)
+            Handler(Looper.getMainLooper()).post {
+                result.success(Unsupported.ordinal)
+            }
             startStopCall = null
             return Unsupported
         } else {
@@ -92,9 +94,10 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
         if (flutterBlePeripheralManager == null || context == null) {
             result.error("Not initialized", "FlutterBlePeripheral is not correctly initialized", null)
+            return
         }
 
-        if (call.method == "start" || call.method == "stop") {
+        if (isStartOrStopMethod(call.method)) {
             startStopCall = call
             val state = checkBluetoothState(result)
             if (state != Ready && state != Granted) {
@@ -103,44 +106,94 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         }
 
         when (call.method) {
-            "start" -> startPeripheral(call, result)
-            "stop" -> stopPeripheral(result)
-            "isSupported" -> isSupported(result, context!!)
-            "isAdvertising" -> Handler(Looper.getMainLooper()).post {
-                result.success(stateChangedHandler.state == PeripheralState.advertising)
-            }
-            "isConnected" -> isConnected(result)
+            "start" -> handleStart(call, result)
+            "stop" -> handleStop(result)
+            "isSupported" -> handleIsSupported(result)
+            "isAdvertising" -> handleIsAdvertising(result)
+            "isConnected" -> handleIsConnected(result)
             "enableBluetooth" -> enableBluetooth(call, result)
-            "requestPermission" -> Handler(Looper.getMainLooper()).post {
-                val response = flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, result)
-                if (response != null) {
-                    result.success(response.ordinal)
-                }
-            }
-            "hasPermission" -> Handler(Looper.getMainLooper()).post {
-                result.success(flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, null)!!.ordinal)
-            }
-            "openAppSettings" -> Handler(Looper.getMainLooper()).post {
-                activityBinding!!.activity.startActivity(Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context!!.packageName, null)))
-                result.success(null)
-            }
-            "openBluetoothSettings" -> Handler(Looper.getMainLooper()).post {
-                activityBinding!!.activity.startActivity( Intent(Settings.ACTION_BLUETOOTH_SETTINGS), null)
-                result.success(null)
-            }
-//                  "sendData" -> sendData(call, result)
-            else -> Handler(Looper.getMainLooper()).post {
-                result.notImplemented()
+            "requestPermission" -> handleRequestPermission(result)
+            "hasPermission" -> handleHasPermission(result)
+            "openAppSettings" -> handleOpenAppSettings(result)
+            "openBluetoothSettings" -> handleOpenBluetoothSettings(result)
+            else -> handleNotImplemented(result)
+        }
+    }
+
+    private fun isStartOrStopMethod(method: String): Boolean {
+        return method == "start" || method == "stop"
+    }
+
+    private fun handleStart(call: MethodCall, result: MethodChannel.Result) {
+        startPeripheral(call, result)
+    }
+
+    private fun handleStop(result: MethodChannel.Result) {
+        stopPeripheral(result)
+    }
+
+    private fun handleIsSupported(result: MethodChannel.Result) {
+        isSupported(result, context!!)
+    }
+
+    private fun handleIsAdvertising(result: MethodChannel.Result) {
+        Handler(Looper.getMainLooper()).post {
+            result.success(stateChangedHandler.state == PeripheralState.advertising)
+        }
+    }
+
+    private fun handleIsConnected(result: MethodChannel.Result) {
+        isConnected(result)
+    }
+
+    private fun handleRequestPermission(result: MethodChannel.Result) {
+        Handler(Looper.getMainLooper()).post {
+            val response = flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, result)
+            if (response != null) {
+                result.success(response.ordinal)
             }
         }
     }
 
+    private fun handleHasPermission(result: MethodChannel.Result) {
+        Handler(Looper.getMainLooper()).post {
+            result.success(flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity, null)!!.ordinal)
+        }
+    }
+
+    private fun handleOpenAppSettings(result: MethodChannel.Result) {
+        Handler(Looper.getMainLooper()).post {
+            activityBinding!!.activity.startActivity(
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, Uri.fromParts("package", context!!.packageName, null))
+            )
+            result.success(null)
+        }
+    }
+
+    private fun handleOpenBluetoothSettings(result: MethodChannel.Result) {
+        Handler(Looper.getMainLooper()).post {
+            activityBinding!!.activity.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS), null)
+            result.success(null)
+        }
+    }
+
+    private fun handleNotImplemented(result: MethodChannel.Result) {
+        Handler(Looper.getMainLooper()).post {
+            result.notImplemented()
+        }
+    }
+
+
     private fun enableBluetooth(call: MethodCall, result: MethodChannel.Result) {
         if (activityBinding != null) {
             val isEnabled = flutterBlePeripheralManager!!.checkAndEnableBluetooth(call.arguments as Boolean, result, activityBinding!!)
-            result.success(isEnabled)
+            Handler(Looper.getMainLooper()).post {
+                result.success(isEnabled)
+            }
         } else {
-            result.error("No activity", "FlutterBlePeripheral is not correctly initialized", "null")
+            Handler(Looper.getMainLooper()).post {
+                result.error("No activity", "FlutterBlePeripheral is not correctly initialized", "null")
+            }
         }
     }
 
@@ -285,7 +338,9 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         if (advertisingSetCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ) {
             flutterBlePeripheralManager?.stopSet(advertisingSetCallback!!)
         }
-        result.success(Ready.ordinal)
+        Handler(Looper.getMainLooper()).post {
+            result.success(Ready.ordinal)
+        }
     }
 
     private fun isSupported(result: MethodChannel.Result, context: Context) {
