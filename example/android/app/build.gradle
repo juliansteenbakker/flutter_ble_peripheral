@@ -33,7 +33,7 @@ android {
 
     defaultConfig {
         applicationId "dev.steenbakker.flutter_ble_peripheral_example"
-        minSdkVersion 21
+        minSdkVersion flutter.minSdkVersion
         targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName

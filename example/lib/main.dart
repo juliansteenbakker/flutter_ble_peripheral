@@ -74,8 +74,8 @@ class FlutterBlePeripheralExampleState
     }
   }
 
-  Future<void> _requestPermissions() async {
-    final hasPermission = await FlutterBlePeripheral().hasPermission();
+  Future<void> _requestPermissions([BluetoothPeripheralState? state]) async {
+    final hasPermission = await FlutterBlePeripheral().requestPermission();
     switch (hasPermission) {
       case BluetoothPeripheralState.denied:
         _messangerKey.currentState?.showSnackBar(
@@ -87,8 +87,9 @@ class FlutterBlePeripheralExampleState
           ),
         );
 
-        await _requestPermissions();
-        break;
+        final status = await FlutterBlePeripheral().requestPermission();
+        _requestPermissions(status);
+        return;
       default:
         _messangerKey.currentState?.showSnackBar(
           SnackBar(
