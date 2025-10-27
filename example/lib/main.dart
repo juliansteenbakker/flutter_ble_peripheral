@@ -14,7 +14,7 @@ import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 void main() => runApp(const FlutterBlePeripheralExample());
 
 class FlutterBlePeripheralExample extends StatefulWidget {
-  const FlutterBlePeripheralExample({Key? key}) : super(key: key);
+  const FlutterBlePeripheralExample({super.key});
 
   @override
   FlutterBlePeripheralExampleState createState() =>
@@ -99,7 +99,6 @@ class FlutterBlePeripheralExampleState
             ),
           ),
         );
-        break;
     }
   }
 
