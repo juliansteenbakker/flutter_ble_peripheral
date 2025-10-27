@@ -200,7 +200,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 }
             } else {
                 if (shouldAsk) {
-                    pendingResultForActivityResult = result
+                    pendingResultForActivity = result
                     flutterBlePeripheralManager!!.enableBluetoothWithDialog(activityBinding!!.activity)
                 } else {
                     flutterBlePeripheralManager!!.enableBluetoothDirectly()
@@ -393,8 +393,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 //    }
 
     var pendingResultForPermission: MethodChannel.Result? = null
-    var pendingResultForActivityResult: MethodChannel.Result? = null
-    private var call: MethodCall? = null
+    var pendingResultForActivity: MethodChannel.Result? = null
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
@@ -449,41 +448,40 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 FlutterBlePeripheralManager.REQUEST_ENABLE_BT -> {
                     try {
                         // Handle direct Bluetooth activation request (priority 1)
-                        if (flutterBlePeripheralManager?.pendingResultForActivityResult != null) {
-                            flutterBlePeripheralManager!!.pendingResultForActivityResult!!.success(resultCode == Activity.RESULT_OK)
-                            flutterBlePeripheralManager!!.pendingResultForActivityResult = null
+                        if (pendingResultForActivity != null) {
+                            pendingResultForActivity!!.success(resultCode == Activity.RESULT_OK)
+                            pendingResultForActivity = null
                         }
                         // Handle Bluetooth activation request during permission check (priority 2)
-                        else if (flutterBlePeripheralManager?.pendingResultForPermissionResult != null) {
-                            val manager = flutterBlePeripheralManager!!
+                        else if (pendingResultForPermission != null) {
                             if (resultCode == Activity.RESULT_OK) {
                                 // Execute delayed method call when Bluetooth activation succeeds
                                 if (startStopCall != null) {
-                                    onMethodCall(startStopCall!!, manager.pendingResultForPermissionResult!!)
+                                    onMethodCall(startStopCall!!, pendingResultForPermission!!)
                                     startStopCall = null
                                 } else {
                                     // Success response for simple Bluetooth activation request
-                                    manager.pendingResultForPermissionResult!!.success(true)
+                                    pendingResultForPermission!!.success(true)
                                 }
                             } else {
                                 // When user denies Bluetooth activation
-                                manager.pendingResultForPermissionResult!!.success(false)
+                                pendingResultForPermission!!.success(false)
                             }
-                            manager.pendingResultForPermissionResult = null
+                            pendingResultForPermission = null
                         }
                     } catch (e: Exception) {
                         Log.e(tag, "Error handling Bluetooth enable result: ${e.message}")
                         // In case of any exception, ensure all pending results are handled.
                         try {
-                            flutterBlePeripheralManager?.pendingResultForActivityResult?.success(false)
-                        } catch (ignored: Exception) {}
+                            pendingResultForActivity?.success(false)
+                        } catch (_: Exception) {}
                         try {
-                            flutterBlePeripheralManager?.pendingResultForPermissionResult?.success(false)
-                        } catch (ignored: Exception) {}
+                            pendingResultForPermission?.success(false)
+                        } catch (_: Exception) {}
 
                         // Clear all pending results
-                        flutterBlePeripheralManager?.pendingResultForActivityResult = null
-                        flutterBlePeripheralManager?.pendingResultForPermissionResult = null
+                        pendingResultForActivity = null
+                        pendingResultForPermission = null
                         startStopCall = null
                     }
                     return@addActivityResultListener true
