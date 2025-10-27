@@ -5,8 +5,8 @@ version: 1.2.6
 homepage: https://github.com/juliansteenbakker/flutter_ble_peripheral
 
 environment:
-  sdk: '>=2.12.0 <4.0.0'
-  flutter: ">=1.10.0"
+  sdk: '>=3.0.0 <4.0.0'
+  flutter: ">=3.10.0"
 
 # Generating json:  flutter pub run build_runner build --delete-conflicting-outputs
 
