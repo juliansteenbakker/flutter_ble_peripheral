@@ -25,7 +25,7 @@ if (flutterVersionName == null) {
 
 
 android {
-    compileSdkVersion 35
+    compileSdk 36
 
     sourceSets {
         main.java.srcDirs += 'src/main/kotlin'
@@ -33,8 +33,8 @@ android {
 
     defaultConfig {
         applicationId "dev.steenbakker.flutter_ble_peripheral_example"
-        minSdkVersion 21
-        targetSdkVersion 35
+        minSdkVersion flutter.minSdkVersion
+        targetSdkVersion 36
         versionCode flutterVersionCode.toInteger()
         versionName flutterVersionName
     }

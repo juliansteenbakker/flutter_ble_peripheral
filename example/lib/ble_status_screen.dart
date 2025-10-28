@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 
 class BleStatusScreen extends StatelessWidget {
-  const BleStatusScreen({required this.status, Key? key}) : super(key: key);
+  const BleStatusScreen({required this.status, super.key});
 
   final PeripheralState status;
   // idle, advertising, connected, unsupported, unauthorized }
