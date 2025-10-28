@@ -7,7 +7,7 @@
 
 import Foundation
 
-enum PeripheralState : Int{
+enum FlutterBlePeripheralState : Int{
 //    case idle, unauthorized, unsupported, advertising, connected
     /// Status is not (yet) determined.
     case unknown
