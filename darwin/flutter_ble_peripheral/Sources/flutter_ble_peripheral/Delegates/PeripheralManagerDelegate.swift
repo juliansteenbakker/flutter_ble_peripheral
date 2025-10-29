@@ -12,7 +12,7 @@ import CoreLocation
 extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
     
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
-        var state: PeripheralState
+        var state: FlutterBlePeripheralState
         switch peripheral.state {
         case .poweredOn:
             state = .idle

@@ -30,7 +30,9 @@ flutter:
         pluginClass: FlutterBlePeripheralPlugin
       ios:
         pluginClass: FlutterBlePeripheralPlugin
+        sharedDarwinSource: true
       macos:
         pluginClass: FlutterBlePeripheralPlugin
+        sharedDarwinSource: true
       windows:
         pluginClass: FlutterBlePeripheralPluginCApi

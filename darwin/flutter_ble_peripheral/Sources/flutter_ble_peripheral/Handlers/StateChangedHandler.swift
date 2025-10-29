@@ -6,23 +6,33 @@
 //
 
 import Foundation
+#if os(iOS)
+import Flutter
+#else
+import FlutterMacOS
+#endif
 
 public class StateChangedHandler: NSObject, FlutterStreamHandler {
     
     private var eventSink: FlutterEventSink?
     
-    var state: PeripheralState = PeripheralState.idle
+    var state: FlutterBlePeripheralState = FlutterBlePeripheralState.idle
     
     private let eventChannel: FlutterEventChannel
     
     init(registrar: FlutterPluginRegistrar) {
+#if os(iOS)
+        let messenger = registrar.messenger()
+#else
+        let messenger = registrar.messenger
+#endif
         eventChannel = FlutterEventChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state_changed",
-                                               binaryMessenger: registrar.messenger)
+                                               binaryMessenger: messenger)
         super.init()
         eventChannel.setStreamHandler(self)
     }
     
-    func publishPeripheralState(state: PeripheralState) {
+    func publishPeripheralState(state: FlutterBlePeripheralState) {
         self.state = state
         if let eventSink = self.eventSink {
             eventSink(state.rawValue)
@@ -39,7 +49,7 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
     }
     
     public func onCancel(withArguments arguments: Any?) -> FlutterError? {
-        eventSink = nil
+        eventSink = nil 
         return nil
     }
 }

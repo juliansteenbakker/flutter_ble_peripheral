@@ -4,11 +4,16 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+#if os(iOS)
 import Flutter
 import UIKit
+#else
+import FlutterMacOS
+import AppKit
+#endif
 import CoreLocation
 
-public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
+public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
     private let flutterBlePeripheralManager: FlutterBlePeripheralManager
     
@@ -22,10 +27,16 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     }
     
     public static func register(with registrar: FlutterPluginRegistrar) {
-        let instance = SwiftFlutterBlePeripheralPlugin(stateChangedHandler: StateChangedHandler(registrar: registrar))
+        let instance = FlutterBlePeripheralPlugin(stateChangedHandler: StateChangedHandler(registrar: registrar))
+        
+#if os(iOS)
+        let messenger = registrar.messenger()
+#else
+        let messenger = registrar.messenger
+#endif
         
         // Method channel
-        let methodChannel = FlutterMethodChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state", binaryMessenger: registrar.messenger())
+        let methodChannel = FlutterMethodChannel(name: "dev.steenbakker.flutter_ble_peripheral/ble_state", binaryMessenger: messenger)
         registrar.addMethodCallDelegate(instance, channel: methodChannel)
 
         // Event channels
@@ -40,11 +51,11 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         case "stop":
             stopPeripheral(result)
         case "isAdvertising":
-            result(stateChangedHandler.state == PeripheralState.advertising)
+            result(stateChangedHandler.state == FlutterBlePeripheralState.advertising)
         case "isSupported":
             isSupported(result)
         case "isConnected":
-            result(stateChangedHandler.state == PeripheralState.connected)
+            result(stateChangedHandler.state == FlutterBlePeripheralState.connected)
         case "openBluetoothSettings":
             openAppSettings()
             result(nil)
@@ -57,7 +68,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
     private func startPeripheral(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
         let map = call.arguments as? Dictionary<String, Any>
-        let advertiseData = PeripheralData(
+        let advertiseData = FlutterBlePeripheralData(
             uuid: map?["serviceUuid"] as? String ,
             localName: map?["localName"] as? String,
             uuids: map?["serviceUuids"] as? [String] ,
@@ -68,7 +79,7 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
     private func stopPeripheral(_ result: @escaping FlutterResult) {
         flutterBlePeripheralManager.peripheralManager.stopAdvertising()
-        stateChangedHandler.publishPeripheralState(state: PeripheralState.idle)
+        stateChangedHandler.publishPeripheralState(state: FlutterBlePeripheralState.idle)
         result(nil)
     }
     
@@ -82,11 +93,13 @@ public class SwiftFlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     }
     
     private func openAppSettings() {
-        if let url = URL(string: UIApplication.openSettingsURLString) {
-            if UIApplication.shared.canOpenURL(url) {
-                UIApplication.shared.open(url, options: [:], completionHandler: nil)
+#if os(iOS)
+            if let settingsUrl = URL(string: UIApplication.openSettingsURLString) {
+                UIApplication.shared.open(settingsUrl)
             }
-        }
+#else
+            NSWorkspace.shared.open(URL(fileURLWithPath: "/System/Applications/System Settings.app"))
+#endif
     }
     
 //    private func sendData(_ call: FlutterMethodCall,
