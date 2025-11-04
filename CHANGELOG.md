@@ -1,3 +1,8 @@
+## 2.0.0
+- [Android] Update java and minsdk to latest
+- [Apple] Merge of ios and macos codebase
+- Complete rewrite of permission system
+
 ## 1.2.6
 - [Android] Fixes error on start broadcasting
 
