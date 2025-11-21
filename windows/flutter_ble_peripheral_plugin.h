@@ -1,5 +1,5 @@
-#ifndef FLUTTER_PLUGIN_FLUTTER_BLE_CENTRAL_PLUGIN_H_
-#define FLUTTER_PLUGIN_FLUTTER_BLE_CENTRAL_PLUGIN_H_
+#ifndef FLUTTER_PLUGIN_FLUTTER_BLE_PERIPHERAL_PLUGIN_H_
+#define FLUTTER_PLUGIN_FLUTTER_BLE_PERIPHERAL_PLUGIN_H_
 
 // This must be included before many other Windows headers.
 #include <windows.h>
@@ -85,4 +85,4 @@ namespace flutter_ble_peripheral {
 
 }  // namespace flutter_ble_peripheral
 
-#endif  // FLUTTER_PLUGIN_FLUTTER_BLE_CENTRAL_PLUGIN_H_
+#endif  // FLUTTER_PLUGIN_FLUTTER_BLE_PERIPHERAL_PLUGIN_H_
