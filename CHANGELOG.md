@@ -1,3 +1,6 @@
+## 2.0.1
+Fixes naming issues
+
 ## 2.0.0
 - [Android] Update java and minsdk to latest
 - [Apple] Merge of ios and macos codebase
