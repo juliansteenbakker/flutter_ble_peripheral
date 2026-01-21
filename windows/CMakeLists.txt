@@ -12,15 +12,30 @@ project(${PROJECT_NAME} LANGUAGES CXX)
 # not be changed
 set(PLUGIN_NAME "flutter_ble_peripheral_plugin")
 
-find_program(NUGET_EXE NAMES nuget)
-if(NOT NUGET_EXE)
-    message("NUGET.EXE not found.")
-    message(FATAL_ERROR "Please install this executable, and run CMake again.")
+include(FetchContent)
+set(CPPWINRT_VERSION "2.0.250303.1")
+
+################ NuGet intall begin ################
+FetchContent_Declare(nuget
+        URL "https://dist.nuget.org/win-x86-commandline/v6.8.0/nuget.exe"
+        DOWNLOAD_NO_EXTRACT true
+)
+
+find_program(NUGET nuget)
+if (NOT NUGET)
+    message("Nuget.exe not found, trying to download or use cached version.")
+    FetchContent_MakeAvailable(nuget)
+    set(NUGET ${nuget_SOURCE_DIR}/nuget.exe)
 endif()
 
-exec_program(${NUGET_EXE}
-        ARGS install "Microsoft.Windows.CppWinRT" -Version 2.0.201102.2 -ExcludeVersion -OutputDirectory ${CMAKE_BINARY_DIR}/packages)
-
+execute_process(COMMAND
+        ${NUGET} install "Microsoft.Windows.CppWinRT" -Version ${CPPWINRT_VERSION} -OutputDirectory packages
+        WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+        RESULT_VARIABLE ret)
+if (NOT ret EQUAL 0)
+    message(FATAL_ERROR "Failed to install nuget package Microsoft.Windows.CppWinRT.${CPPWINRT_VERSION}")
+endif()
+################ NuGet install end ################
 
 # Any new source files that you add to the plugin should be added here.
 list(APPEND PLUGIN_SOURCES
@@ -45,13 +60,14 @@ apply_standard_settings(${PLUGIN_NAME})
 # between plugins. This should not be removed; any symbols that should be
 # exported should be explicitly exported with the FLUTTER_PLUGIN_EXPORT macro.
 set_target_properties(${PLUGIN_NAME} PROPERTIES
-  CXX_VISIBILITY_PRESET hidden)
+        CXX_VISIBILITY_PRESET hidden)
 
 set_target_properties(${PLUGIN_NAME} PROPERTIES
-        VS_PROJECT_IMPORT ${CMAKE_BINARY_DIR}/packages/Microsoft.Windows.CppWinRT/build/native/Microsoft.Windows.CppWinRT.props
-        )
+        VS_PROJECT_IMPORT ${CMAKE_BINARY_DIR}/packages/Microsoft.Windows.CppWinRT.${CPPWINRT_VERSION}/build/native/Microsoft.Windows.CppWinRT.props
+)
 
-target_link_libraries(${PLUGIN_NAME} PRIVATE ${CMAKE_BINARY_DIR}/packages/Microsoft.Windows.CppWinRT/build/native/Microsoft.Windows.CppWinRT.targets)
+target_link_libraries(${PLUGIN_NAME} PRIVATE ${CMAKE_BINARY_DIR}/packages/Microsoft.Windows.CppWinRT.${CPPWINRT_VERSION}/build/native/Microsoft.Windows.CppWinRT.targets)
+
 
 
 target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
@@ -59,13 +75,13 @@ target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 # Source include directories and library dependencies. Add any plugin-specific
 # dependencies here.
 target_include_directories(${PLUGIN_NAME} INTERFACE
-  "${CMAKE_CURRENT_SOURCE_DIR}/include")
+        "${CMAKE_CURRENT_SOURCE_DIR}/include")
 target_link_libraries(${PLUGIN_NAME} PRIVATE flutter flutter_wrapper_plugin)
 
 # List of absolute paths to libraries that should be bundled with the plugin.
 # This list could contain prebuilt libraries, or libraries created by an
 # external build triggered from this build file.
 set(flutter_ble_peripheral_bundled_libraries
-  ""
-  PARENT_SCOPE
+        ""
+        PARENT_SCOPE
 )
