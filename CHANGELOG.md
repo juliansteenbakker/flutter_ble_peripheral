@@ -1,3 +1,14 @@
+## NEXT
+Features:
+- Detect bluetooth state on Windows
+- Detect location permission on Windows
+- Turn on bluetooth on Windows
+- Detect nearby sharing state on Windows
+
+Improvements:
+- Fix build warnings on Windows
+
+
 ## 2.0.1
 Fixes naming issues
 
