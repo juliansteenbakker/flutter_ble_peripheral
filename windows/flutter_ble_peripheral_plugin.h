@@ -11,6 +11,7 @@
 #include <winrt/Windows.Devices.Bluetooth.Advertisement.h>
 #include <winrt/Windows.Devices.Bluetooth.GenericAttributeProfile.h>
 #include <winrt/Windows.Devices.Enumeration.h>
+#include <winrt/Windows.Devices.Geolocation.h>
 
 #include <flutter/method_channel.h>
 #include <flutter/basic_message_channel.h>
@@ -37,6 +38,7 @@ namespace flutter_ble_peripheral {
     using namespace winrt::Windows::Devices::Bluetooth::Advertisement;
     using namespace winrt::Windows::Devices::Bluetooth::GenericAttributeProfile;
     using namespace winrt::Windows::Devices::Enumeration;
+    using namespace winrt::Windows::Devices::Geolocation;
 
     using flutter::EncodableMap;
     using flutter::EncodableValue;
@@ -70,6 +72,7 @@ namespace flutter_ble_peripheral {
             const flutter::EncodableValue* arguments) override;
 
         std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> scan_result_sink_;
+        std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> state_changed_sink_;
 
         Radio bluetoothRadio{ nullptr };
 
@@ -79,8 +82,21 @@ namespace flutter_ble_peripheral {
 
 
         BluetoothLEAdvertisementPublisher bluetoothLEPublisher{ nullptr };
+        winrt::event_token bluetoothLEPublisherStatusChangedToken;
+        winrt::fire_and_forget BluetoothLEPublisher_StatusChanged(BluetoothLEAdvertisementPublisher sender, BluetoothLEAdvertisementPublisherStatusChangedEventArgs args);
 
+        // For dispatching to platform thread
+        winrt::apartment_context ui_thread_;
 
+        // Send state to Flutter (must be called on UI thread)
+        void SendState(int state);
+
+        // Async helper for enabling Bluetooth
+        winrt::fire_and_forget EnableBluetoothAsync(std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
+
+        // Async helpers for location permission
+        winrt::fire_and_forget HasLocationPermissionAsync(std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
+        winrt::fire_and_forget RequestLocationPermissionAsync(std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
     };
 
 }  // namespace flutter_ble_peripheral
