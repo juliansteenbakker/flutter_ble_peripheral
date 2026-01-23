@@ -141,10 +141,8 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     
     private func openBluetoothSettings() {
 #if os(iOS)
-        // Try to open Bluetooth settings directly, fall back to general settings
-        if let url = URL(string: "App-Prefs:root=Bluetooth") {
-            UIApplication.shared.open(url)
-        } else if let url = URL(string: UIApplication.openSettingsURLString) {
+        // Cannot open bluetooth settings
+        if let url = URL(string: UIApplication.openSettingsURLString) {
             UIApplication.shared.open(url)
         }
 #else

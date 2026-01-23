@@ -8,12 +8,17 @@ package dev.steenbakker.flutter_ble_peripheral
 
 import android.Manifest
 import android.app.Activity
+import android.app.Application
+import android.bluetooth.BluetoothAdapter
+import android.os.Bundle
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
 import android.bluetooth.le.AdvertisingSetParameters
 import android.bluetooth.le.PeriodicAdvertisingParameters
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
@@ -47,6 +52,33 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     private var flutterBlePeripheralManager: FlutterBlePeripheralManager? = null
     private var context: Context? = null
     private var activityBinding: ActivityPluginBinding? = null
+    private var lifecycleCallbacks: Application.ActivityLifecycleCallbacks? = null
+
+    private val bluetoothStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == BluetoothAdapter.ACTION_STATE_CHANGED) {
+                val state = intent.getIntExtra(BluetoothAdapter.EXTRA_STATE, BluetoothAdapter.ERROR)
+                onBluetoothStateChanged(state)
+            }
+        }
+    }
+
+    private fun onBluetoothStateChanged(state: Int) {
+        val peripheralState = when (state) {
+            BluetoothAdapter.STATE_OFF -> PeripheralState.poweredOff
+            BluetoothAdapter.STATE_TURNING_OFF -> PeripheralState.poweredOff
+            BluetoothAdapter.STATE_ON -> {
+                // Check if we have required permissions
+                val hasPermissions = context?.let {
+                    flutterBlePeripheralManager?.hasRequiredPermissions(it)
+                } ?: false
+                if (hasPermissions) PeripheralState.idle else PeripheralState.unauthorized
+            }
+            BluetoothAdapter.STATE_TURNING_ON -> return // Don't update during transition
+            else -> return
+        }
+        stateChangedHandler.publishPeripheralState(peripheralState)
+    }
 
     override fun onAttachedToEngine(flutterPluginBinding: FlutterPlugin.FlutterPluginBinding) {
         methodChannel = MethodChannel(flutterPluginBinding.binaryMessenger, "dev.steenbakker.flutter_ble_peripheral/ble_state")
@@ -55,9 +87,40 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         context = flutterPluginBinding.applicationContext
         stateChangedHandler = StateChangedHandler(flutterPluginBinding)
         flutterBlePeripheralManager = FlutterBlePeripheralManager(flutterPluginBinding.applicationContext)
+
+        // Register Bluetooth state change receiver
+        val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            context?.registerReceiver(bluetoothStateReceiver, filter, Context.RECEIVER_NOT_EXPORTED)
+        } else {
+            context?.registerReceiver(bluetoothStateReceiver, filter)
+        }
+
+        // Publish initial state
+        publishCurrentState()
+    }
+
+    private fun publishCurrentState() {
+        val isBluetoothEnabled = flutterBlePeripheralManager?.isBluetoothEnabled() ?: false
+        val peripheralState = if (!isBluetoothEnabled) {
+            PeripheralState.poweredOff
+        } else {
+            val hasPermissions = context?.let {
+                flutterBlePeripheralManager?.hasRequiredPermissions(it)
+            } ?: false
+            if (hasPermissions) PeripheralState.idle else PeripheralState.unauthorized
+        }
+        stateChangedHandler.publishPeripheralState(peripheralState)
     }
 
     override fun onDetachedFromEngine(binding: FlutterPlugin.FlutterPluginBinding) {
+        // Unregister Bluetooth state change receiver
+        try {
+            context?.unregisterReceiver(bluetoothStateReceiver)
+        } catch (_: IllegalArgumentException) {
+            // Receiver was not registered
+        }
+
         methodChannel?.setMethodCallHandler(null)
         methodChannel = null
         flutterBlePeripheralManager = null
@@ -163,7 +226,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 pendingResultForPermission = result
                 flutterBlePeripheralManager!!.requestPermission(activityBinding!!.activity)
             } else {
-                result.success(response.ordinal)
+                result.success(0)
             }
         }
     }
@@ -443,6 +506,9 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 }
                 pendingResultForPermission = null
             }
+
+            // Update state after permission change
+            publishCurrentState()
         }
 
         return true
@@ -497,6 +563,22 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             }
         }
         activityBinding = binding
+
+        // Register lifecycle callbacks to detect when app resumes from background
+        lifecycleCallbacks = object : Application.ActivityLifecycleCallbacks {
+            override fun onActivityResumed(activity: Activity) {
+                if (activity == binding.activity) {
+                    publishCurrentState()
+                }
+            }
+            override fun onActivityCreated(activity: Activity, savedInstanceState: Bundle?) {}
+            override fun onActivityStarted(activity: Activity) {}
+            override fun onActivityPaused(activity: Activity) {}
+            override fun onActivityStopped(activity: Activity) {}
+            override fun onActivitySaveInstanceState(activity: Activity, outState: Bundle) {}
+            override fun onActivityDestroyed(activity: Activity) {}
+        }
+        binding.activity.application.registerActivityLifecycleCallbacks(lifecycleCallbacks)
     }
 
     override fun onDetachedFromActivityForConfigChanges() {
@@ -508,6 +590,10 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
     }
 
     override fun onDetachedFromActivity() {
+        lifecycleCallbacks?.let {
+            activityBinding?.activity?.application?.unregisterActivityLifecycleCallbacks(it)
+        }
+        lifecycleCallbacks = null
         activityBinding = null
     }
 }

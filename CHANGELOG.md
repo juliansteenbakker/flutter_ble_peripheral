@@ -6,6 +6,7 @@
 - [iOS/macOS] Added `requestPermission` support (returns current state, as permissions are implicit on Apple)
 - [iOS/macOS] Added `openBluetoothSettings` that opens Bluetooth settings directly
 - [Android] Added `isBluetoothOn` to check Bluetooth power state
+- [Android] Added Bluetooth state change listener - UI now updates when Bluetooth is toggled while app is open
 - [Dart] `hasPermission()` and `requestPermission()` now work on iOS/macOS (previously returned `unknown`)
 
 ### Improvements
