@@ -23,9 +23,6 @@ class FlutterBlePeripheralExample extends StatefulWidget {
 
 class FlutterBlePeripheralExampleState
     extends State<FlutterBlePeripheralExample> {
-  final AdvertiseSetParameters advertiseSetParameters =
-      AdvertiseSetParameters();
-
   bool _isSupported = false;
 
   // Controllers for configurable fields
@@ -34,7 +31,8 @@ class FlutterBlePeripheralExampleState
   );
   final _localNameController = TextEditingController(text: 'Flutter BLE');
   final _manufacturerIdController = TextEditingController(text: '1234');
-  final _manufacturerDataController = TextEditingController(text: '01 02 03 04 05 06');
+  final _manufacturerDataController =
+      TextEditingController(text: '01 02 03 04 05 06');
 
   AdvertiseData get advertiseData => AdvertiseData(
         serviceUuid: _serviceUuidController.text.isNotEmpty
@@ -44,13 +42,19 @@ class FlutterBlePeripheralExampleState
             ? _localNameController.text
             : null,
         manufacturerId: int.tryParse(_manufacturerIdController.text),
-        manufacturerData: _parseManufacturerData(_manufacturerDataController.text),
+        manufacturerData:
+            _parseManufacturerData(_manufacturerDataController.text),
       );
+
+  // If you want to use advertiseSet on android, use these parameters
+  // final AdvertiseSetParameters advertiseSetParameters =
+  // AdvertiseSetParameters();
 
   Uint8List? _parseManufacturerData(String input) {
     if (input.trim().isEmpty) return null;
     try {
-      final hexValues = input.split(RegExp(r'[\s,]+')).where((s) => s.isNotEmpty);
+      final hexValues =
+          input.split(RegExp(r'[\s,]+')).where((s) => s.isNotEmpty);
       final bytes = hexValues.map((hex) => int.parse(hex, radix: 16)).toList();
       return Uint8List.fromList(bytes);
     } catch (e) {
@@ -79,7 +83,11 @@ class FlutterBlePeripheralExampleState
       _isSupported = isSupported;
     });
 
-    if ((Platform.isWindows || Platform.isAndroid || Platform.isIOS || Platform.isMacOS) && mounted) {
+    if ((Platform.isWindows ||
+            Platform.isAndroid ||
+            Platform.isIOS ||
+            Platform.isMacOS) &&
+        mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
         await _checkPermissions();
       });
@@ -128,7 +136,8 @@ class FlutterBlePeripheralExampleState
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          icon: const Icon(Icons.bluetooth_disabled, color: Colors.red, size: 48),
+          icon:
+              const Icon(Icons.bluetooth_disabled, color: Colors.red, size: 48),
           title: const Text('Bluetooth Not Supported'),
           content: const Text(
             'This device does not support Bluetooth Low Energy (BLE) peripheral mode.\n\n'
@@ -167,7 +176,8 @@ class FlutterBlePeripheralExampleState
     );
   }
 
-  Future<bool?> _showPermissionDialog(BluetoothPeripheralState initialState) async {
+  Future<bool?> _showPermissionDialog(
+      BluetoothPeripheralState initialState) async {
     final navigatorContext = _navigatorKey.currentContext;
     if (navigatorContext == null) return false;
 
@@ -199,7 +209,8 @@ class FlutterBlePeripheralExampleState
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return AlertDialog(
-          icon: const Icon(Icons.warning_amber_rounded, color: Colors.orange, size: 48),
+          icon: const Icon(Icons.warning_amber_rounded,
+              color: Colors.orange, size: 48),
           title: const Text('Nearby Sharing Detected'),
           content: const Text(
             'Windows Nearby Sharing is currently enabled. This may interfere '
@@ -213,7 +224,8 @@ class FlutterBlePeripheralExampleState
                 Navigator.of(dialogContext).pop();
                 _messangerKey.currentState?.showSnackBar(
                   const SnackBar(
-                    content: Text('Warning: BLE advertising may not work correctly'),
+                    content:
+                        Text('Warning: BLE advertising may not work correctly'),
                     backgroundColor: Colors.orange,
                     duration: Duration(seconds: 5),
                   ),
@@ -254,7 +266,6 @@ class FlutterBlePeripheralExampleState
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,
-          brightness: Brightness.light,
         ),
         useMaterial3: true,
       ),
@@ -297,12 +308,14 @@ class FlutterBlePeripheralExampleState
                     stream: FlutterBlePeripheral().onPeripheralStateChanged,
                     initialData: PeripheralState.unknown,
                     builder: (context, snapshot) {
-                      final isAdvertising = snapshot.data == PeripheralState.advertising;
+                      final isAdvertising =
+                          snapshot.data == PeripheralState.advertising;
                       return Row(
                         children: [
                           Expanded(
                             child: FilledButton.icon(
-                              onPressed: isAdvertising ? null : _startAdvertising,
+                              onPressed:
+                                  isAdvertising ? null : _startAdvertising,
                               icon: const Icon(Icons.play_arrow),
                               label: const Text('Start'),
                             ),
@@ -310,7 +323,8 @@ class FlutterBlePeripheralExampleState
                           const SizedBox(width: 12),
                           Expanded(
                             child: OutlinedButton.icon(
-                              onPressed: isAdvertising ? _stopAdvertising : null,
+                              onPressed:
+                                  isAdvertising ? _stopAdvertising : null,
                               icon: const Icon(Icons.stop),
                               label: const Text('Stop'),
                             ),
@@ -333,10 +347,13 @@ class FlutterBlePeripheralExampleState
                     title: 'Enable Bluetooth',
                     subtitle: 'Turn on Bluetooth radio',
                     onTap: () async {
-                      final enabled = await FlutterBlePeripheral().enableBluetooth();
+                      final enabled =
+                          await FlutterBlePeripheral().enableBluetooth();
                       _messangerKey.currentState?.showSnackBar(
                         SnackBar(
-                          content: Text(enabled ? 'Bluetooth enabled!' : 'Failed to enable Bluetooth'),
+                          content: Text(enabled
+                              ? 'Bluetooth enabled!'
+                              : 'Failed to enable Bluetooth'),
                           backgroundColor: enabled ? Colors.green : Colors.red,
                         ),
                       );
@@ -362,33 +379,38 @@ class FlutterBlePeripheralExampleState
                     title: 'Check Permission',
                     subtitle: 'Verify current permission status',
                     onTap: () async {
-                      final permission = await FlutterBlePeripheral().hasPermission();
+                      final permission =
+                          await FlutterBlePeripheral().hasPermission();
                       _messangerKey.currentState?.showSnackBar(
                         SnackBar(
                           content: Text('Permission: ${permission.name}'),
-                          backgroundColor: permission == BluetoothPeripheralState.granted
-                              ? Colors.green
-                              : Colors.red,
+                          backgroundColor:
+                              permission == BluetoothPeripheralState.granted
+                                  ? Colors.green
+                                  : Colors.red,
                         ),
                       );
                     },
                   ),
-                  if (!Platform.isIOS && !Platform.isMacOS) _ActionTile(
-                    icon: Icons.add_circle_outline,
-                    title: 'Request Permission',
-                    subtitle: 'Request required permissions',
-                    onTap: () async {
-                      final permission = await FlutterBlePeripheral().requestPermission();
-                      _messangerKey.currentState?.showSnackBar(
-                        SnackBar(
-                          content: Text('Permission: ${permission.name}'),
-                          backgroundColor: permission == BluetoothPeripheralState.granted
-                              ? Colors.green
-                              : Colors.orange,
-                        ),
-                      );
-                    },
-                  ),
+                  if (!Platform.isIOS && !Platform.isMacOS)
+                    _ActionTile(
+                      icon: Icons.add_circle_outline,
+                      title: 'Request Permission',
+                      subtitle: 'Request required permissions',
+                      onTap: () async {
+                        final permission =
+                            await FlutterBlePeripheral().requestPermission();
+                        _messangerKey.currentState?.showSnackBar(
+                          SnackBar(
+                            content: Text('Permission: ${permission.name}'),
+                            backgroundColor:
+                                permission == BluetoothPeripheralState.granted
+                                    ? Colors.green
+                                    : Colors.orange,
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
 
@@ -404,7 +426,8 @@ class FlutterBlePeripheralExampleState
                       title: 'Check Nearby Share',
                       subtitle: 'May interfere with BLE advertising',
                       onTap: () async {
-                        final enabled = await FlutterBlePeripheral().isNearbyShareEnabled();
+                        final enabled =
+                            await FlutterBlePeripheral().isNearbyShareEnabled();
                         _messangerKey.currentState?.showSnackBar(
                           SnackBar(
                             content: Text(
@@ -412,12 +435,14 @@ class FlutterBlePeripheralExampleState
                                   ? 'Nearby Share is ENABLED (may block BLE)'
                                   : 'Nearby Share is disabled',
                             ),
-                            backgroundColor: enabled ? Colors.orange : Colors.green,
+                            backgroundColor:
+                                enabled ? Colors.orange : Colors.green,
                             action: enabled
                                 ? SnackBarAction(
                                     label: 'Settings',
                                     textColor: Colors.white,
-                                    onPressed: () => FlutterBlePeripheral().openNearbyShareSettings(),
+                                    onPressed: () => FlutterBlePeripheral()
+                                        .openNearbyShareSettings(),
                                   )
                                 : null,
                           ),
@@ -428,13 +453,15 @@ class FlutterBlePeripheralExampleState
                       icon: Icons.settings,
                       title: 'Nearby Share Settings',
                       subtitle: 'Open Windows sharing settings',
-                      onTap: () => FlutterBlePeripheral().openNearbyShareSettings(),
+                      onTap: () =>
+                          FlutterBlePeripheral().openNearbyShareSettings(),
                     ),
                     _ActionTile(
                       icon: Icons.location_on,
                       title: 'Location Settings',
                       subtitle: 'Required for BLE on Windows',
-                      onTap: () => FlutterBlePeripheral().openLocationSettings(),
+                      onTap: () =>
+                          FlutterBlePeripheral().openLocationSettings(),
                     ),
                   ],
                 ),
@@ -483,9 +510,10 @@ class _StatusCard extends StatelessWidget {
                     const SizedBox(height: 12),
                     Text(
                       label,
-                      style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                            fontWeight: FontWeight.bold,
-                          ),
+                      style:
+                          Theme.of(context).textTheme.headlineSmall?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
                     ),
                     const SizedBox(height: 4),
                     Text(
@@ -511,7 +539,9 @@ class _StatusCard extends StatelessWidget {
                 ),
                 const SizedBox(width: 8),
                 Text(
-                  isSupported ? 'BLE Peripheral Supported' : 'BLE Peripheral Not Supported',
+                  isSupported
+                      ? 'BLE Peripheral Supported'
+                      : 'BLE Peripheral Not Supported',
                   style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
@@ -522,14 +552,31 @@ class _StatusCard extends StatelessWidget {
     );
   }
 
-  (IconData, Color, String) _getStateInfo(PeripheralState state, ColorScheme colorScheme) {
+  (IconData, Color, String) _getStateInfo(
+      PeripheralState state, ColorScheme colorScheme) {
     return switch (state) {
-      PeripheralState.advertising => (Icons.broadcast_on_personal, Colors.green, 'Broadcasting'),
+      PeripheralState.advertising => (
+          Icons.broadcast_on_personal,
+          Colors.green,
+          'Broadcasting'
+        ),
       PeripheralState.connected => (Icons.link, Colors.blue, 'Connected'),
       PeripheralState.idle => (Icons.bluetooth, colorScheme.primary, 'Ready'),
-      PeripheralState.poweredOff => (Icons.bluetooth_disabled, Colors.red, 'Bluetooth Off'),
-      PeripheralState.unsupported => (Icons.error_outline, Colors.red, 'Unsupported'),
-      PeripheralState.unauthorized => (Icons.lock, Colors.orange, 'Unauthorized'),
+      PeripheralState.poweredOff => (
+          Icons.bluetooth_disabled,
+          Colors.red,
+          'Bluetooth Off'
+        ),
+      PeripheralState.unsupported => (
+          Icons.error_outline,
+          Colors.red,
+          'Unsupported'
+        ),
+      PeripheralState.unauthorized => (
+          Icons.lock,
+          Colors.orange,
+          'Unauthorized'
+        ),
       _ => (Icons.help_outline, colorScheme.outline, 'Unknown'),
     };
   }
@@ -696,14 +743,16 @@ class _AdvertiseConfigCardState extends State<_AdvertiseConfigCard> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Icon(Icons.info_outline, size: 16, color: Colors.grey),
+                      const Icon(Icons.info_outline,
+                          size: 16, color: Colors.grey),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
                           'Changes take effect on next "Start"',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                color: Colors.grey,
-                              ),
+                          style:
+                              Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: Colors.grey,
+                                  ),
                         ),
                       ),
                     ],
@@ -711,8 +760,9 @@ class _AdvertiseConfigCardState extends State<_AdvertiseConfigCard> {
                 ],
               ),
             ),
-            crossFadeState:
-                _isExpanded ? CrossFadeState.showSecond : CrossFadeState.showFirst,
+            crossFadeState: _isExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
             duration: const Duration(milliseconds: 200),
           ),
         ],
@@ -812,13 +862,14 @@ class _PermissionDialogState extends State<_PermissionDialog>
         color: _isPermanentlyDenied ? Colors.red : Colors.blue,
         size: 48,
       ),
-      title: Text(_isPermanentlyDenied ? 'Permission Denied' : 'Permission Required'),
+      title: Text(
+          _isPermanentlyDenied ? 'Permission Denied' : 'Permission Required'),
       content: Text(
         _isPermanentlyDenied
             ? 'Bluetooth permission was denied. You can only grant permission through the app settings.\n\n'
-              'Please open Settings and enable Bluetooth permissions for this app.'
+                'Please open Settings and enable Bluetooth permissions for this app.'
             : 'BLE advertising requires Bluetooth permissions.\n\n'
-              'Please grant the required permissions to continue.',
+                'Please grant the required permissions to continue.',
       ),
       actions: <Widget>[
         TextButton(
@@ -1030,11 +1081,11 @@ class _BluetoothOffDialogState extends State<_BluetoothOffDialog>
       content: Text(
         _isApplePlatform
             ? 'Bluetooth is currently turned off. BLE advertising requires '
-              'Bluetooth to be enabled.\n\n'
-              'Please enable Bluetooth in Settings.'
+                'Bluetooth to be enabled.\n\n'
+                'Please enable Bluetooth in Settings.'
             : 'Bluetooth is currently turned off. BLE advertising requires '
-              'Bluetooth to be enabled.\n\n'
-              'Would you like to turn on Bluetooth?',
+                'Bluetooth to be enabled.\n\n'
+                'Would you like to turn on Bluetooth?',
       ),
       actions: <Widget>[
         TextButton(

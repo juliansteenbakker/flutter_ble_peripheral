@@ -148,7 +148,8 @@ class FlutterBlePeripheral {
   /// The [askUser] parameter is ignored on Windows.
   Future<bool> enableBluetooth({bool askUser = true}) async {
     if (Platform.isWindows) {
-      return await _methodChannel.invokeMethod<bool>('enableBluetooth') ?? false;
+      return await _methodChannel.invokeMethod<bool>('enableBluetooth') ??
+          false;
     }
     if (!Platform.isAndroid) return false;
     return await _methodChannel.invokeMethod<bool>(
