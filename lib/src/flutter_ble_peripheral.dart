@@ -161,6 +161,8 @@ class FlutterBlePeripheral {
   /// Requests the required permissions for BLE advertising.
   ///
   /// On Android, requests Bluetooth permissions.
+  /// On iOS/macOS, returns current authorization status (permissions are
+  /// requested implicitly when initializing the peripheral manager).
   /// On Windows, requests location permission (required for BLE).
   Future<BluetoothPeripheralState> requestPermission() async {
     if (Platform.isWindows) {
@@ -171,7 +173,6 @@ class FlutterBlePeripheral {
           ? BluetoothPeripheralState.granted
           : BluetoothPeripheralState.denied;
     }
-    if (!Platform.isAndroid) return BluetoothPeripheralState.unknown;
     final response =
         await _methodChannel.invokeMethod<int>('requestPermission');
     return response == null
@@ -182,6 +183,7 @@ class FlutterBlePeripheral {
   /// Checks if the required permissions for BLE advertising are granted.
   ///
   /// On Android, checks Bluetooth permissions.
+  /// On iOS/macOS, checks Bluetooth authorization status.
   /// On Windows, checks location permission (required for BLE).
   Future<BluetoothPeripheralState> hasPermission() async {
     if (Platform.isWindows) {
@@ -192,7 +194,6 @@ class FlutterBlePeripheral {
           ? BluetoothPeripheralState.granted
           : BluetoothPeripheralState.denied;
     }
-    if (!Platform.isAndroid) return BluetoothPeripheralState.unknown;
     final response = await _methodChannel.invokeMethod<int>('hasPermission');
     return response == null
         ? BluetoothPeripheralState.unknown

@@ -79,31 +79,70 @@ class FlutterBlePeripheralExampleState
       _isSupported = isSupported;
     });
 
-    if (Platform.isWindows && mounted) {
+    if ((Platform.isWindows || Platform.isAndroid || Platform.isIOS || Platform.isMacOS) && mounted) {
       WidgetsBinding.instance.addPostFrameCallback((_) async {
-        await _checkWindowsPermissions();
+        await _checkPermissions();
       });
     }
   }
 
-  Future<void> _checkWindowsPermissions() async {
+  Future<void> _checkPermissions() async {
+    // First check if BLE is supported
+    final isSupported = await FlutterBlePeripheral().isSupported;
+    if (!isSupported && mounted) {
+      _showUnsupportedDialog();
+      return;
+    }
+
+    // Check permissions first (on Apple, we can't determine Bluetooth power
+    // state until we have permission - state shows as .unauthorized)
+    final permission = await FlutterBlePeripheral().hasPermission();
+    if (permission != BluetoothPeripheralState.granted && mounted) {
+      final shouldContinue = await _showPermissionDialog(permission);
+      if (shouldContinue != true) return;
+    }
+
+    // Now check if Bluetooth is powered on (after permission is granted)
     final isBluetoothOn = await FlutterBlePeripheral().isBluetoothOn;
     if (!isBluetoothOn && mounted) {
       final shouldContinue = await _showBluetoothOffDialog();
       if (shouldContinue != true) return;
     }
 
-    final permission = await FlutterBlePeripheral().hasPermission();
-    if (permission != BluetoothPeripheralState.granted && mounted) {
-      final shouldContinue = await _showPermissionDialog();
-      if (shouldContinue != true) return;
+    // Windows-specific: check for Nearby Share interference
+    if (Platform.isWindows) {
+      final nearbyShareEnabled =
+          await FlutterBlePeripheral().isNearbyShareEnabled();
+      if (nearbyShareEnabled && mounted) {
+        _showNearbyShareWarningDialog();
+      }
     }
+  }
 
-    final nearbyShareEnabled =
-        await FlutterBlePeripheral().isNearbyShareEnabled();
-    if (nearbyShareEnabled && mounted) {
-      _showNearbyShareWarningDialog();
-    }
+  void _showUnsupportedDialog() {
+    final navigatorContext = _navigatorKey.currentContext;
+    if (navigatorContext == null) return;
+
+    showDialog<void>(
+      context: navigatorContext,
+      barrierDismissible: false,
+      builder: (BuildContext dialogContext) {
+        return AlertDialog(
+          icon: const Icon(Icons.bluetooth_disabled, color: Colors.red, size: 48),
+          title: const Text('Bluetooth Not Supported'),
+          content: const Text(
+            'This device does not support Bluetooth Low Energy (BLE) peripheral mode.\n\n'
+            'BLE advertising requires compatible hardware.',
+          ),
+          actions: <Widget>[
+            FilledButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   Future<bool?> _showBluetoothOffDialog() async {
@@ -128,7 +167,7 @@ class FlutterBlePeripheralExampleState
     );
   }
 
-  Future<bool?> _showPermissionDialog() async {
+  Future<bool?> _showPermissionDialog(BluetoothPeripheralState initialState) async {
     final navigatorContext = _navigatorKey.currentContext;
     if (navigatorContext == null) return false;
 
@@ -137,6 +176,7 @@ class FlutterBlePeripheralExampleState
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return _PermissionDialog(
+          initialState: initialState,
           onGranted: () {
             _messangerKey.currentState?.showSnackBar(
               const SnackBar(
@@ -333,7 +373,7 @@ class FlutterBlePeripheralExampleState
                       );
                     },
                   ),
-                  _ActionTile(
+                  if (!Platform.isIOS && !Platform.isMacOS) _ActionTile(
                     icon: Icons.add_circle_outline,
                     title: 'Request Permission',
                     subtitle: 'Request required permissions',
@@ -683,8 +723,12 @@ class _AdvertiseConfigCardState extends State<_AdvertiseConfigCard> {
 
 class _PermissionDialog extends StatefulWidget {
   final VoidCallback onGranted;
+  final BluetoothPeripheralState initialState;
 
-  const _PermissionDialog({required this.onGranted});
+  const _PermissionDialog({
+    required this.onGranted,
+    required this.initialState,
+  });
 
   @override
   State<_PermissionDialog> createState() => _PermissionDialogState();
@@ -693,10 +737,13 @@ class _PermissionDialog extends StatefulWidget {
 class _PermissionDialogState extends State<_PermissionDialog>
     with WidgetsBindingObserver {
   bool _checkingPermission = false;
+  bool _requesting = false;
+  late BluetoothPeripheralState _permissionState;
 
   @override
   void initState() {
     super.initState();
+    _permissionState = widget.initialState;
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -721,13 +768,114 @@ class _PermissionDialogState extends State<_PermissionDialog>
     if (result == BluetoothPeripheralState.granted && mounted) {
       widget.onGranted();
       Navigator.of(context).pop(true);
+    } else if (mounted) {
+      setState(() => _permissionState = result);
     }
 
     _checkingPermission = false;
   }
 
+  Future<void> _requestPermission() async {
+    if (_requesting) return;
+    setState(() => _requesting = true);
+
+    final result = await FlutterBlePeripheral().requestPermission();
+    if (result == BluetoothPeripheralState.granted && mounted) {
+      widget.onGranted();
+      Navigator.of(context).pop(true);
+    } else if (mounted) {
+      setState(() {
+        _requesting = false;
+        _permissionState = result;
+      });
+    }
+  }
+
+  bool get _isPermanentlyDenied =>
+      _permissionState == BluetoothPeripheralState.permanentlyDenied;
+
   @override
   Widget build(BuildContext context) {
+    if (Platform.isAndroid) {
+      return _buildAndroidDialog(context);
+    } else if (Platform.isIOS || Platform.isMacOS) {
+      return _buildAppleDialog(context);
+    } else {
+      return _buildWindowsDialog(context);
+    }
+  }
+
+  Widget _buildAndroidDialog(BuildContext context) {
+    return AlertDialog(
+      icon: Icon(
+        _isPermanentlyDenied ? Icons.block : Icons.bluetooth,
+        color: _isPermanentlyDenied ? Colors.red : Colors.blue,
+        size: 48,
+      ),
+      title: Text(_isPermanentlyDenied ? 'Permission Denied' : 'Permission Required'),
+      content: Text(
+        _isPermanentlyDenied
+            ? 'Bluetooth permission was denied. You can only grant permission through the app settings.\n\n'
+              'Please open Settings and enable Bluetooth permissions for this app.'
+            : 'BLE advertising requires Bluetooth permissions.\n\n'
+              'Please grant the required permissions to continue.',
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        if (_isPermanentlyDenied)
+          FilledButton.icon(
+            onPressed: () => FlutterBlePeripheral().openAppSettings(),
+            icon: const Icon(Icons.settings),
+            label: const Text('Open Settings'),
+          )
+        else ...[
+          OutlinedButton.icon(
+            onPressed: () => FlutterBlePeripheral().openBluetoothSettings(),
+            icon: const Icon(Icons.settings),
+            label: const Text('Settings'),
+          ),
+          FilledButton.icon(
+            onPressed: _requesting ? null : _requestPermission,
+            icon: _requesting
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.check),
+            label: const Text('Grant'),
+          ),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildAppleDialog(BuildContext context) {
+    return AlertDialog(
+      icon: const Icon(Icons.bluetooth, color: Colors.blue, size: 48),
+      title: const Text('Permission Required'),
+      content: const Text(
+        'BLE advertising requires Bluetooth permission.\n\n'
+        'Please enable Bluetooth access for this app in System Settings.',
+      ),
+      actions: <Widget>[
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: const Text('Cancel'),
+        ),
+        FilledButton.icon(
+          onPressed: () => FlutterBlePeripheral().openBluetoothSettings(),
+          icon: const Icon(Icons.settings),
+          label: const Text('Open Settings'),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWindowsDialog(BuildContext context) {
     return AlertDialog(
       icon: const Icon(Icons.location_on, color: Colors.blue, size: 48),
       title: const Text('Permission Required'),
@@ -872,37 +1020,51 @@ class _BluetoothOffDialogState extends State<_BluetoothOffDialog>
     }
   }
 
+  bool get _isApplePlatform => Platform.isIOS || Platform.isMacOS;
+
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
       icon: const Icon(Icons.bluetooth_disabled, color: Colors.red, size: 48),
       title: const Text('Bluetooth is Off'),
-      content: const Text(
-        'Bluetooth is currently turned off. BLE advertising requires '
-        'Bluetooth to be enabled.\n\n'
-        'Would you like to turn on Bluetooth?',
+      content: Text(
+        _isApplePlatform
+            ? 'Bluetooth is currently turned off. BLE advertising requires '
+              'Bluetooth to be enabled.\n\n'
+              'Please enable Bluetooth in Settings.'
+            : 'Bluetooth is currently turned off. BLE advertising requires '
+              'Bluetooth to be enabled.\n\n'
+              'Would you like to turn on Bluetooth?',
       ),
       actions: <Widget>[
         TextButton(
           onPressed: () => Navigator.of(context).pop(false),
           child: const Text('Cancel'),
         ),
-        OutlinedButton.icon(
-          onPressed: () => FlutterBlePeripheral().openBluetoothSettings(),
-          icon: const Icon(Icons.settings),
-          label: const Text('Settings'),
-        ),
-        FilledButton.icon(
-          onPressed: _enabling ? null : _enableBluetooth,
-          icon: _enabling
-              ? const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              : const Icon(Icons.bluetooth),
-          label: const Text('Turn On'),
-        ),
+        if (_isApplePlatform)
+          FilledButton.icon(
+            onPressed: () => FlutterBlePeripheral().openBluetoothSettings(),
+            icon: const Icon(Icons.settings),
+            label: const Text('Open Settings'),
+          )
+        else ...[
+          OutlinedButton.icon(
+            onPressed: () => FlutterBlePeripheral().openBluetoothSettings(),
+            icon: const Icon(Icons.settings),
+            label: const Text('Settings'),
+          ),
+          FilledButton.icon(
+            onPressed: _enabling ? null : _enableBluetooth,
+            icon: _enabling
+                ? const SizedBox(
+                    width: 16,
+                    height: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  )
+                : const Icon(Icons.bluetooth),
+            label: const Text('Turn On'),
+          ),
+        ],
       ],
     );
   }

@@ -114,6 +114,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             "isSupported" -> handleIsSupported(result)
             "isAdvertising" -> handleIsAdvertising(result)
             "isConnected" -> handleIsConnected(result)
+            "isBluetoothOn" -> handleIsBluetoothOn(result)
             "enableBluetooth" -> enableBluetooth(call, result)
             "requestPermission" -> handleRequestPermission(result)
             "hasPermission" -> handleHasPermission(result)
@@ -147,6 +148,12 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
     private fun handleIsConnected(result: MethodChannel.Result) {
         isConnected(result)
+    }
+
+    private fun handleIsBluetoothOn(result: MethodChannel.Result) {
+        Handler(Looper.getMainLooper()).post {
+            result.success(flutterBlePeripheralManager!!.isBluetoothEnabled())
+        }
     }
 
     private fun handleRequestPermission(result: MethodChannel.Result) {
