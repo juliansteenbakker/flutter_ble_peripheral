@@ -1,5 +1,4 @@
-## NEXT
-
+## 2.1.0
 ### New Features
 - [iOS/macOS] Added `isBluetoothOn` to check Bluetooth power state
 - [iOS/macOS] Added `hasPermission` using `CBPeripheralManager.authorization` API

@@ -1,12 +1,12 @@
 name: flutter_ble_peripheral
 description: This plugin enables a device to be set into peripheral mode, and advertise custom
   services and characteristics.
-version: 2.0.1
+version: 2.1.0
 homepage: https://github.com/juliansteenbakker/flutter_ble_peripheral
 
 environment:
   sdk: '>=3.0.0 <4.0.0'
-  flutter: "3.10.0"
+  flutter: ">=3.10.0"
 
 # Generating json:  flutter pub run build_runner build --delete-conflicting-outputs
 
