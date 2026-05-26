@@ -70,6 +70,8 @@ target_link_libraries(${PLUGIN_NAME} PRIVATE ${CMAKE_BINARY_DIR}/packages/Micros
 
 
 
+set_property(TARGET ${PLUGIN_NAME} PROPERTY CXX_STANDARD 20)
+
 target_compile_definitions(${PLUGIN_NAME} PRIVATE FLUTTER_PLUGIN_IMPL)
 
 # Source include directories and library dependencies. Add any plugin-specific
