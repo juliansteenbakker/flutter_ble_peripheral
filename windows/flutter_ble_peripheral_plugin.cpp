@@ -88,8 +88,11 @@ namespace flutter_ble_peripheral {
                     // Check if Bluetooth radio is available
                     if (plugin_pointer->bluetoothRadio) {
                         try {
-                            if (plugin_pointer->bluetoothRadio.State() == RadioState::On) {
+                            auto radioState = plugin_pointer->bluetoothRadio.State();
+                            if (radioState == RadioState::On) {
                                 initialState = 4; // idle - Bluetooth is on
+                            } else if (radioState == RadioState::Disabled) {
+                                initialState = 1; // unsupported - adapter disabled in Device Manager
                             } else {
                                 initialState = 3; // poweredOff
                             }
@@ -139,10 +142,19 @@ namespace flutter_ble_peripheral {
             auto bluetoothAdapter = co_await BluetoothAdapter::GetDefaultAsync();
             if (bluetoothAdapter) {
                 bluetoothRadio = co_await bluetoothAdapter.GetRadioAsync();
+            } else {
+                // Adapter unreachable via default path (e.g. disabled in Device Manager).
+                // Enumerate radios directly so we can distinguish disabled from unsupported.
+                auto radios = co_await Radio::GetRadiosAsync();
+                for (auto const& radio : radios) {
+                    if (radio.Kind() == RadioKind::Bluetooth) {
+                        bluetoothRadio = radio;
+                        break;
+                    }
+                }
             }
         }
         catch (...) {
-            // Bluetooth adapter not available or initialization failed
             bluetoothRadio = nullptr;
         }
     }
@@ -212,7 +224,9 @@ namespace flutter_ble_peripheral {
             result->Success(isAdvertising);
         }
         else if (method_call.method_name().compare("isSupported") == 0) {
-            result->Success(bluetoothRadio != nullptr);
+            bool supported = bluetoothRadio != nullptr &&
+                bluetoothRadio.State() != RadioState::Disabled;
+            result->Success(supported);
         }
         else if (method_call.method_name().compare("isBluetoothOn") == 0) {
             bool isOn = false;
@@ -297,7 +311,13 @@ namespace flutter_ble_peripheral {
                     // Map error to appropriate state
                     switch (args.Error()) {
                         case BluetoothError::RadioNotAvailable:
-                            peripheralState = 3; // poweredOff
+                            // Disabled adapter (Device Manager) reports the same error as soft-off;
+                            // check radio state to tell them apart.
+                            if (bluetoothRadio && bluetoothRadio.State() == RadioState::Disabled) {
+                                peripheralState = 1; // unsupported - adapter disabled
+                            } else {
+                                peripheralState = 3; // poweredOff
+                            }
                             break;
                         case BluetoothError::ResourceInUse:
                             // Resource conflict (e.g., Nearby Sharing is active)
