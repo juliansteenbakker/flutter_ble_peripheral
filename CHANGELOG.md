@@ -1,3 +1,10 @@
+## 2.1.1
+### Fixes
+- [Windows] Fixed crash when Bluetooth adapter is not present or Bluetooth is disabled
+- [Windows] Added comprehensive exception handling throughout the plugin to prevent crashes from WinRT API failures
+- [Windows] Fixed initial state reporting to correctly show `unsupported` when no Bluetooth adapter is available
+- [Windows] Fixed potential crash from type mismatches in method call arguments
+
 ## 2.1.0
 ### New Features
 - [iOS/macOS] Added `isBluetoothOn` to check Bluetooth power state

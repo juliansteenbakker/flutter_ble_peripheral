@@ -20,5 +20,5 @@ enum AdvertiseMode {
   /// Perform Bluetooth LE advertising in low latency, high power mode. This has the highest power
   /// consumption and should not be used for continuous background advertising.
   @JsonValue(2)
-  advertiseModeLowLatency
+  advertiseModeLowLatency,
 }
