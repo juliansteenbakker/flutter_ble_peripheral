@@ -153,6 +153,9 @@ namespace flutter_ble_peripheral {
                     }
                 }
             }
+            if (bluetoothRadio) {
+                radioStateChangedToken = bluetoothRadio.StateChanged({ this, &FlutterBlePeripheralPlugin::OnRadioStateChanged });
+            }
         }
         catch (...) {
             bluetoothRadio = nullptr;
@@ -311,10 +314,11 @@ namespace flutter_ble_peripheral {
                     // Map error to appropriate state
                     switch (args.Error()) {
                         case BluetoothError::RadioNotAvailable:
-                            // Disabled adapter (Device Manager) reports the same error as soft-off;
-                            // check radio state to tell them apart.
-                            if (bluetoothRadio && bluetoothRadio.State() == RadioState::Disabled) {
-                                peripheralState = 1; // unsupported - adapter disabled
+                            // No radio at all, or adapter disabled in Device Manager → unsupported.
+                            // Radio present but soft-off → poweredOff.
+                            if (!bluetoothRadio ||
+                                bluetoothRadio.State() == RadioState::Disabled) {
+                                peripheralState = 1; // unsupported
                             } else {
                                 peripheralState = 3; // poweredOff
                             }
@@ -465,36 +469,67 @@ namespace flutter_ble_peripheral {
         }
     }
 
-    void FlutterBlePeripheralPlugin::BluetoothLEWatcher_Received(
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::BluetoothLEWatcher_Received(
         BluetoothLEAdvertisementWatcher sender,
         BluetoothLEAdvertisementReceivedEventArgs args) {
         try {
-            //OutputDebugString((L"Received " + winrt::to_hstring(args.BluetoothAddress()) + L"\n").c_str());
+            // Extract all data on the callback thread first
             auto manufacturer_data = parseManufacturerData(args.Advertisement());
-            if (scan_result_sink_) {
-                auto bluetoothAddress = args.BluetoothAddress();
-                auto localName = args.Advertisement().LocalName();
-                auto name = winrt::to_string(localName);
-                if (localName.empty()) {
-                    // TODO
-                    // auto device = co_await BluetoothLEDevice::FromBluetoothAddressAsync(bluetoothAddress);
-                    // name = winrt::to_string(device.Name());
+            auto bluetoothAddress = args.BluetoothAddress();
+            auto localName = args.Advertisement().LocalName();
+            auto name = winrt::to_string(localName);
+            if (localName.empty()) {
+                std::stringstream sstream;
+                sstream << std::hex << bluetoothAddress;
+                name = sstream.str();
+            }
+            auto rssi = args.RawSignalStrengthInDBm();
+            auto address = std::to_string(bluetoothAddress);
 
-                    std::stringstream sstream;
-                    sstream << std::hex << bluetoothAddress;
-                    name = sstream.str();
-                }
+            // Switch to UI thread before sending to Flutter
+            co_await ui_thread_;
+
+            if (scan_result_sink_) {
                 scan_result_sink_->Success(flutter::EncodableMap{
-                  {"deviceName", name},
-                  {"address", std::to_string(bluetoothAddress)},
-                  {"manufacturerSpecificData", manufacturer_data},
-                  {"rssi", args.RawSignalStrengthInDBm()},
-                  //{"serviceUuids", args.Advertisement().ServiceUuids()},
-                    });
+                    {"deviceName", name},
+                    {"address", address},
+                    {"manufacturerSpecificData", manufacturer_data},
+                    {"rssi", rssi},
+                });
             }
         }
         catch (...) {
             // Silently ignore failed advertisement processing
+        }
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::OnRadioStateChanged(Radio sender, IInspectable args) {
+        try {
+            int state = 0;
+            try {
+                switch (sender.State()) {
+                    case RadioState::On:
+                        state = 4; // idle (advertising state is tracked via publisher events)
+                        break;
+                    case RadioState::Off:
+                        state = 3; // poweredOff
+                        break;
+                    case RadioState::Disabled:
+                        state = 1; // unsupported - adapter disabled in Device Manager
+                        break;
+                    default:
+                        state = 0; // unknown
+                        break;
+                }
+            }
+            catch (...) {
+                state = 1;
+            }
+            co_await ui_thread_;
+            SendState(state);
+        }
+        catch (...) {
+            // Ignore state change errors
         }
     }
 

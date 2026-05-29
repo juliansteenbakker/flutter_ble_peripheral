@@ -163,14 +163,7 @@ class FlutterBlePeripheralExampleState
       barrierDismissible: false,
       builder: (BuildContext dialogContext) {
         return _BluetoothOffDialog(
-          onEnabled: () {
-            _messangerKey.currentState?.showSnackBar(
-              const SnackBar(
-                content: Text('Bluetooth enabled!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          },
+          onEnabled: () => _showSnackBar('Bluetooth enabled!'),
         );
       },
     );
@@ -187,14 +180,7 @@ class FlutterBlePeripheralExampleState
       builder: (BuildContext dialogContext) {
         return _PermissionDialog(
           initialState: initialState,
-          onGranted: () {
-            _messangerKey.currentState?.showSnackBar(
-              const SnackBar(
-                content: Text('Permission granted!'),
-                backgroundColor: Colors.green,
-              ),
-            );
-          },
+          onGranted: () => _showSnackBar('Permission granted!'),
         );
       },
     );
@@ -222,7 +208,7 @@ class FlutterBlePeripheralExampleState
             TextButton(
               onPressed: () {
                 Navigator.of(dialogContext).pop();
-                _messangerKey.currentState?.showSnackBar(
+                _messengerKey.currentState?.showSnackBar(
                   const SnackBar(
                     content:
                         Text('Warning: BLE advertising may not work correctly'),
@@ -247,6 +233,17 @@ class FlutterBlePeripheralExampleState
     );
   }
 
+  void _showSnackBar(String message, {bool isError = false}) {
+    _messengerKey.currentState
+      ?..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text(message),
+          backgroundColor: isError ? Colors.red : Colors.green,
+        ),
+      );
+  }
+
   Future<void> _startAdvertising() async {
     await FlutterBlePeripheral().start(advertiseData: advertiseData);
   }
@@ -255,14 +252,15 @@ class FlutterBlePeripheralExampleState
     await FlutterBlePeripheral().stop();
   }
 
-  final _messangerKey = GlobalKey<ScaffoldMessengerState>();
+  final _messengerKey = GlobalKey<ScaffoldMessengerState>();
   final _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: _navigatorKey,
-      scaffoldMessengerKey: _messangerKey,
+      scaffoldMessengerKey: _messengerKey,
+      debugShowCheckedModeBanner: false,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,
@@ -349,13 +347,11 @@ class FlutterBlePeripheralExampleState
                     onTap: () async {
                       final enabled =
                           await FlutterBlePeripheral().enableBluetooth();
-                      _messangerKey.currentState?.showSnackBar(
-                        SnackBar(
-                          content: Text(enabled
-                              ? 'Bluetooth enabled!'
-                              : 'Failed to enable Bluetooth'),
-                          backgroundColor: enabled ? Colors.green : Colors.red,
-                        ),
+                      _showSnackBar(
+                        enabled
+                            ? 'Bluetooth enabled!'
+                            : 'Failed to enable Bluetooth',
+                        isError: !enabled,
                       );
                     },
                   ),
@@ -381,14 +377,9 @@ class FlutterBlePeripheralExampleState
                     onTap: () async {
                       final permission =
                           await FlutterBlePeripheral().hasPermission();
-                      _messangerKey.currentState?.showSnackBar(
-                        SnackBar(
-                          content: Text('Permission: ${permission.name}'),
-                          backgroundColor:
-                              permission == BluetoothPeripheralState.granted
-                                  ? Colors.green
-                                  : Colors.red,
-                        ),
+                      _showSnackBar(
+                        'Permission: ${permission.name}',
+                        isError: permission != BluetoothPeripheralState.granted,
                       );
                     },
                   ),
@@ -400,14 +391,10 @@ class FlutterBlePeripheralExampleState
                       onTap: () async {
                         final permission =
                             await FlutterBlePeripheral().requestPermission();
-                        _messangerKey.currentState?.showSnackBar(
-                          SnackBar(
-                            content: Text('Permission: ${permission.name}'),
-                            backgroundColor:
-                                permission == BluetoothPeripheralState.granted
-                                    ? Colors.green
-                                    : Colors.orange,
-                          ),
+                        _showSnackBar(
+                          'Permission: ${permission.name}',
+                          isError:
+                              permission != BluetoothPeripheralState.granted,
                         );
                       },
                     ),
@@ -428,7 +415,7 @@ class FlutterBlePeripheralExampleState
                       onTap: () async {
                         final enabled =
                             await FlutterBlePeripheral().isNearbyShareEnabled();
-                        _messangerKey.currentState?.showSnackBar(
+                        _messengerKey.currentState?.showSnackBar(
                           SnackBar(
                             content: Text(
                               enabled

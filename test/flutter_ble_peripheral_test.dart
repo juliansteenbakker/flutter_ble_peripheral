@@ -3,8 +3,9 @@ import 'package:flutter_ble_peripheral/src/flutter_ble_peripheral.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  const methodChannel =
-      MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+  const methodChannel = MethodChannel(
+    'dev.steenbakker.flutter_ble_peripheral/ble_state',
+  );
 
   TestWidgetsFlutterBinding.ensureInitialized();
   late FlutterBlePeripheral blePeripheral;
