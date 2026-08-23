@@ -73,16 +73,6 @@ class FlutterBlePeripheral {
       parameters['serviceUuids'] = advertiseData.serviceUuids;
     }
 
-    // ignore: deprecated_member_use_from_same_package
-    // if (advertiseData.serviceUuid == null &&
-    //     advertiseData.serviceUuids != null) {
-    //   try {
-    //     final firstUuid = advertiseData.serviceUuids!.first;
-    //     parameters['serviceUuid'] = firstUuid;
-    //   } catch (e) {
-    //     // no service uuid present
-    //   }
-    // }
     parameters.addAll(advertiseData.toJson());
 
     if (advertiseSetParameters != null) {

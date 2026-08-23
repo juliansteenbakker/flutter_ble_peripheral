@@ -50,12 +50,10 @@ void main() {
       expect(json['manufacturerData'], const [1, 2, 3]);
     });
 
-    // The committed .g.dart predates serviceUuids, so toJson drops it. start()
-    // works around this by adding the key to the payload by hand.
-    test('toJson does not carry serviceUuids', () {
+    test('encodes serviceUuids', () {
       final json = AdvertiseData(serviceUuids: const ['abcd']).toJson();
 
-      expect(json.containsKey('serviceUuids'), false);
+      expect(json['serviceUuids'], const ['abcd']);
     });
   });
 
