@@ -1,3 +1,5 @@
+# Changelog
+
 ## 2.1.1
 ### Fixes
 - [Windows] Fixed crash when Bluetooth adapter is not present or Bluetooth is disabled
