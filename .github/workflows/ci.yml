@@ -17,10 +17,13 @@ env:
   PUB_ENVIRONMENT: bot.github
 
 jobs:
+  # The dependency review API is only available on public repositories, or on
+  # private ones with GitHub Advanced Security. Without the guard this job fails
+  # outright on a private repo rather than being skipped.
   dependency_review:
     name: Dependency Review
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request'
+    if: github.event_name == 'pull_request' && !github.event.repository.private
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v7
