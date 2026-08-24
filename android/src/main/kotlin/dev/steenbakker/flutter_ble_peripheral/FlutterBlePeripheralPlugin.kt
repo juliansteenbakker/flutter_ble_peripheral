@@ -313,17 +313,17 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         var advertiseResponseData: AdvertiseData.Builder? = null
         if ((arguments["responsemanufacturerData"] as ByteArray?) != null || (arguments["responseserviceDataUuid"] as ByteArray?) != null || (arguments["responseserviceUuid"] as String?) != null) {
             advertiseResponseData = AdvertiseData.Builder()
-            (arguments["responsemanufacturerData"] as ByteArray?)?.let { advertiseData.addManufacturerData((arguments["responsemanufacturerId"] as Int), it) }
-            (arguments["responseserviceData"] as ByteArray?).let { advertiseData.addServiceData(ParcelUuid(UUID.fromString(arguments["responseserviceDataUuid"] as String)), it) }
+            (arguments["responsemanufacturerData"] as ByteArray?)?.let { advertiseResponseData.addManufacturerData((arguments["responsemanufacturerId"] as Int), it) }
+            (arguments["responseserviceData"] as ByteArray?)?.let { advertiseResponseData.addServiceData(ParcelUuid(UUID.fromString(arguments["responseserviceDataUuid"] as String)), it) }
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
-                (arguments["responseserviceSolicitationUuid"] as String?)?.let { advertiseData.addServiceSolicitationUuid(
+                (arguments["responseserviceSolicitationUuid"] as String?)?.let { advertiseResponseData.addServiceSolicitationUuid(
                         ParcelUuid(UUID.fromString(it))) }
 
-            (arguments["responseserviceUuid"] as String?)?.let { advertiseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
+            (arguments["responseserviceUuid"] as String?)?.let { advertiseResponseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
             //TODO: addTransportDiscoveryData
-            (arguments["responseincludeDeviceName"] as Boolean?)?.let { advertiseData.setIncludeDeviceName(it) }
+            (arguments["responseincludeDeviceName"] as Boolean?)?.let { advertiseResponseData.setIncludeDeviceName(it) }
             (arguments["responsetransmissionPowerIncluded"] as Boolean?)?.let {
-                advertiseData.setIncludeTxPowerLevel(it)
+                advertiseResponseData.setIncludeTxPowerLevel(it)
             }
         }
 
@@ -354,7 +354,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                             it
                     )
                 }
-                (arguments["periodicserviceData"] as ByteArray?).let {
+                (arguments["periodicserviceData"] as ByteArray?)?.let {
                     periodicAdvertiseData.addServiceData(
                             ParcelUuid(UUID.fromString(arguments["periodicserviceDataUuid"] as String)),
                             it
