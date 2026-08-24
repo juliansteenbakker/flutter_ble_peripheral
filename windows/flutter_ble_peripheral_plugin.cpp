@@ -83,20 +83,35 @@ namespace flutter_ble_peripheral {
                     plugin_pointer->state_changed_sink_ = std::move(events);
                     // Send initial state based on Bluetooth and publisher status
                     // PeripheralState: 0=unknown, 1=unsupported, 2=unauthorized, 3=poweredOff, 4=idle, 5=advertising
-                    int initialState = 4; // idle by default
+                    int initialState = 1; // unsupported by default (no radio)
 
-                    // Check if Bluetooth is off
+                    // Check if Bluetooth radio is available
                     if (plugin_pointer->bluetoothRadio) {
-                        if (plugin_pointer->bluetoothRadio.State() != RadioState::On) {
-                            initialState = 3; // poweredOff
+                        try {
+                            auto radioState = plugin_pointer->bluetoothRadio.State();
+                            if (radioState == RadioState::On) {
+                                initialState = 4; // idle - Bluetooth is on
+                            } else if (radioState == RadioState::Disabled) {
+                                initialState = 1; // unsupported - adapter disabled in Device Manager
+                            } else {
+                                initialState = 3; // poweredOff
+                            }
+                        }
+                        catch (...) {
+                            initialState = 1; // unsupported - radio no longer available
                         }
                     }
 
                     // Check if already advertising
                     if (initialState == 4 && plugin_pointer->bluetoothLEPublisher) {
-                        auto status = plugin_pointer->bluetoothLEPublisher.Status();
-                        if (status == BluetoothLEAdvertisementPublisherStatus::Started) {
-                            initialState = 5; // advertising
+                        try {
+                            auto status = plugin_pointer->bluetoothLEPublisher.Status();
+                            if (status == BluetoothLEAdvertisementPublisherStatus::Started) {
+                                initialState = 5; // advertising
+                            }
+                        }
+                        catch (...) {
+                            // Publisher status unavailable, keep as idle
                         }
                     }
                     plugin_pointer->state_changed_sink_->Success(flutter::EncodableValue(initialState));
@@ -123,67 +138,108 @@ namespace flutter_ble_peripheral {
     }
 
     winrt::fire_and_forget FlutterBlePeripheralPlugin::InitializeAsync() {
-        auto bluetoothAdapter = co_await BluetoothAdapter::GetDefaultAsync();
-        bluetoothRadio = co_await bluetoothAdapter.GetRadioAsync();
+        try {
+            auto bluetoothAdapter = co_await BluetoothAdapter::GetDefaultAsync();
+            if (bluetoothAdapter) {
+                bluetoothRadio = co_await bluetoothAdapter.GetRadioAsync();
+            } else {
+                // Adapter unreachable via default path (e.g. disabled in Device Manager).
+                // Enumerate radios directly so we can distinguish disabled from unsupported.
+                auto radios = co_await Radio::GetRadiosAsync();
+                for (auto const& radio : radios) {
+                    if (radio.Kind() == RadioKind::Bluetooth) {
+                        bluetoothRadio = radio;
+                        break;
+                    }
+                }
+            }
+            if (bluetoothRadio) {
+                radioStateChangedToken = bluetoothRadio.StateChanged({ this, &FlutterBlePeripheralPlugin::OnRadioStateChanged });
+            }
+        }
+        catch (...) {
+            bluetoothRadio = nullptr;
+        }
     }
 
     void FlutterBlePeripheralPlugin::HandleMethodCall(
         const flutter::MethodCall<flutter::EncodableValue>& method_call,
         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
         if (method_call.method_name().compare("start") == 0) {
-            if (!bluetoothLEPublisher) {
-                bluetoothLEPublisher = BluetoothLEAdvertisementPublisher();
-//                bluetoothLEPublisher.UseExtendedAdvertisement(true);
-                bluetoothLEPublisherStatusChangedToken = bluetoothLEPublisher.StatusChanged(
-                    { this, &FlutterBlePeripheralPlugin::BluetoothLEPublisher_StatusChanged });
-            } 
-
-            const auto* arguments = std::get_if<EncodableMap>(method_call.arguments());
-            Advertisement::BluetoothLEManufacturerData manufacturerData = Advertisement::BluetoothLEManufacturerData();
-            if (arguments) {
-                auto manuDataIt = arguments->find(EncodableValue("manufacturerDataBytes"));
-                if (manuDataIt != arguments->end()) {
-                    auto dataWriter = DataWriter();
-                    auto& vector = std::get<std::vector<uint8_t>>(manuDataIt->second);
-                    dataWriter.WriteBytes(vector);
-                    manufacturerData.Data(dataWriter.DetachBuffer());
+            try {
+                if (!bluetoothLEPublisher) {
+                    bluetoothLEPublisher = BluetoothLEAdvertisementPublisher();
+//                    bluetoothLEPublisher.UseExtendedAdvertisement(true);
+                    bluetoothLEPublisherStatusChangedToken = bluetoothLEPublisher.StatusChanged(
+                        { this, &FlutterBlePeripheralPlugin::BluetoothLEPublisher_StatusChanged });
                 }
-                auto manuIdIt = arguments->find(EncodableValue("manufacturerId"));
-                if (manuIdIt != arguments->end()) {
-                    auto test = std::get<std::int32_t>(manuIdIt->second);
-                    printf("%ld", test);
-                    //dataWriter2.WriteUInt16(std::get<std::uint16_t>(manuIdIt->second));
-                    manufacturerData.CompanyId(test);
 
-//                    int32_t manuIdInt = std::get<std::int32_t>(manuIdIt->second);
- //                  uint16_t manuId = manuIdInt & 0xFFFF;
-//                    manufacturerData.CompanyId(manuId);
+                const auto* arguments = std::get_if<EncodableMap>(method_call.arguments());
+                Advertisement::BluetoothLEManufacturerData manufacturerData = Advertisement::BluetoothLEManufacturerData();
+                if (arguments) {
+                    auto manuDataIt = arguments->find(EncodableValue("manufacturerDataBytes"));
+                    if (manuDataIt != arguments->end()) {
+                        auto dataWriter = DataWriter();
+                        auto* vector = std::get_if<std::vector<uint8_t>>(&manuDataIt->second);
+                        if (vector) {
+                            dataWriter.WriteBytes(*vector);
+                            manufacturerData.Data(dataWriter.DetachBuffer());
+                        }
+                    }
+                    auto manuIdIt = arguments->find(EncodableValue("manufacturerId"));
+                    if (manuIdIt != arguments->end()) {
+                        auto* manuId = std::get_if<std::int32_t>(&manuIdIt->second);
+                        if (manuId) {
+                            manufacturerData.CompanyId(*manuId);
+                        }
+                    }
                 }
+
+                bluetoothLEPublisher.Advertisement().ManufacturerData().Append(manufacturerData);
+                bluetoothLEPublisher.Start();
+
+                result->Success(8);
             }
-
-            bluetoothLEPublisher.Advertisement().ManufacturerData().Append(manufacturerData);
-            bluetoothLEPublisher.Start();
-
-            result->Success(8);
+            catch (...) {
+                result->Error("start_failed", "Failed to start advertising");
+            }
         }
         else if (method_call.method_name().compare("stop") == 0) {
-            if (bluetoothLEPublisher) {
-                bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
-                bluetoothLEPublisher.Stop();
+            try {
+                if (bluetoothLEPublisher) {
+                    bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
+                    bluetoothLEPublisher.Stop();
+                }
+                result->Success(8);
             }
-            result->Success(8);
+            catch (...) {
+                result->Error("stop_failed", "Failed to stop advertising");
+            }
         } else if (method_call.method_name().compare("isAdvertising") == 0) {
-            bool isAdvertising = bluetoothLEPublisher &&
-                bluetoothLEPublisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started;
+            bool isAdvertising = false;
+            try {
+                isAdvertising = bluetoothLEPublisher &&
+                    bluetoothLEPublisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started;
+            }
+            catch (...) {
+                isAdvertising = false;
+            }
             result->Success(isAdvertising);
         }
         else if (method_call.method_name().compare("isSupported") == 0) {
-            result->Success(bluetoothRadio != nullptr);
+            bool supported = bluetoothRadio != nullptr &&
+                bluetoothRadio.State() != RadioState::Disabled;
+            result->Success(supported);
         }
         else if (method_call.method_name().compare("isBluetoothOn") == 0) {
             bool isOn = false;
-            if (bluetoothRadio) {
-                isOn = (bluetoothRadio.State() == RadioState::On);
+            try {
+                if (bluetoothRadio) {
+                    isOn = (bluetoothRadio.State() == RadioState::On);
+                }
+            }
+            catch (...) {
+                isOn = false;
             }
             result->Success(isOn);
         }
@@ -243,43 +299,55 @@ namespace flutter_ble_peripheral {
     {
         int peripheralState = 0; // unknown
 
-        switch (args.Status()) {
-            case BluetoothLEAdvertisementPublisherStatus::Created:
-            case BluetoothLEAdvertisementPublisherStatus::Waiting:
-            case BluetoothLEAdvertisementPublisherStatus::Stopping:
-            case BluetoothLEAdvertisementPublisherStatus::Stopped:
-                peripheralState = 4; // idle
-                break;
-            case BluetoothLEAdvertisementPublisherStatus::Started:
-                peripheralState = 5; // advertising
-                break;
-            case BluetoothLEAdvertisementPublisherStatus::Aborted:
-                // Map error to appropriate state
-                switch (args.Error()) {
-                    case BluetoothError::RadioNotAvailable:
-                        peripheralState = 3; // poweredOff
-                        break;
-                    case BluetoothError::ResourceInUse:
-                        // Resource conflict (e.g., Nearby Sharing is active)
-                        peripheralState = 2; // unauthorized (blocked by another app)
-                        break;
-                    case BluetoothError::NotSupported:
-                    case BluetoothError::TransportNotSupported:
-                        peripheralState = 1; // unsupported
-                        break;
-                    case BluetoothError::DisabledByPolicy:
-                    case BluetoothError::DisabledByUser:
-                    case BluetoothError::ConsentRequired:
-                        peripheralState = 2; // unauthorized
-                        break;
-                    default:
-                        peripheralState = 0; // unknown
-                        break;
-                }
-                break;
-            default:
-                peripheralState = 0; // unknown
-                break;
+        try {
+            switch (args.Status()) {
+                case BluetoothLEAdvertisementPublisherStatus::Created:
+                case BluetoothLEAdvertisementPublisherStatus::Waiting:
+                case BluetoothLEAdvertisementPublisherStatus::Stopping:
+                case BluetoothLEAdvertisementPublisherStatus::Stopped:
+                    peripheralState = 4; // idle
+                    break;
+                case BluetoothLEAdvertisementPublisherStatus::Started:
+                    peripheralState = 5; // advertising
+                    break;
+                case BluetoothLEAdvertisementPublisherStatus::Aborted:
+                    // Map error to appropriate state
+                    switch (args.Error()) {
+                        case BluetoothError::RadioNotAvailable:
+                            // No radio at all, or adapter disabled in Device Manager → unsupported.
+                            // Radio present but soft-off → poweredOff.
+                            if (!bluetoothRadio ||
+                                bluetoothRadio.State() == RadioState::Disabled) {
+                                peripheralState = 1; // unsupported
+                            } else {
+                                peripheralState = 3; // poweredOff
+                            }
+                            break;
+                        case BluetoothError::ResourceInUse:
+                            // Resource conflict (e.g., Nearby Sharing is active)
+                            peripheralState = 2; // unauthorized (blocked by another app)
+                            break;
+                        case BluetoothError::NotSupported:
+                        case BluetoothError::TransportNotSupported:
+                            peripheralState = 1; // unsupported
+                            break;
+                        case BluetoothError::DisabledByPolicy:
+                        case BluetoothError::DisabledByUser:
+                        case BluetoothError::ConsentRequired:
+                            peripheralState = 2; // unauthorized
+                            break;
+                        default:
+                            peripheralState = 0; // unknown
+                            break;
+                    }
+                    break;
+                default:
+                    peripheralState = 0; // unknown
+                    break;
+            }
+        }
+        catch (...) {
+            peripheralState = 0; // unknown on error
         }
 
         // Switch back to UI thread before sending to Flutter
@@ -368,51 +436,100 @@ namespace flutter_ble_peripheral {
     };
 
     std::vector<uint8_t> to_bytevc(IBuffer buffer) {
-        auto reader = DataReader::FromBuffer(buffer);
-        auto result = std::vector<uint8_t>(reader.UnconsumedBufferLength());
-        reader.ReadBytes(result);
-        return result;
+        try {
+            if (!buffer) {
+                return std::vector<uint8_t>();
+            }
+            auto reader = DataReader::FromBuffer(buffer);
+            auto result = std::vector<uint8_t>(reader.UnconsumedBufferLength());
+            reader.ReadBytes(result);
+            return result;
+        }
+        catch (...) {
+            return std::vector<uint8_t>();
+        }
     }
 
     std::vector<uint8_t> parseManufacturerData(BluetoothLEAdvertisement advertisement) {
-        if (advertisement.ManufacturerData().Size() == 0)
+        try {
+            if (advertisement.ManufacturerData().Size() == 0)
+                return std::vector<uint8_t>();
+
+            auto manufacturerData = advertisement.ManufacturerData().GetAt(0);
+            // FIXME Compat with REG_DWORD_BIG_ENDIAN
+            uint8_t* prefix = uint16_t_union{ manufacturerData.CompanyId() }.bytes;
+            auto result = std::vector<uint8_t>{ prefix, prefix + sizeof(uint16_t_union) };
+
+            auto data = to_bytevc(manufacturerData.Data());
+            result.insert(result.end(), data.begin(), data.end());
+            return result;
+        }
+        catch (...) {
             return std::vector<uint8_t>();
-
-        auto manufacturerData = advertisement.ManufacturerData().GetAt(0);
-        // FIXME Compat with REG_DWORD_BIG_ENDIAN
-        uint8_t* prefix = uint16_t_union{ manufacturerData.CompanyId() }.bytes;
-        auto result = std::vector<uint8_t>{ prefix, prefix + sizeof(uint16_t_union) };
-
-        auto data = to_bytevc(manufacturerData.Data());
-        result.insert(result.end(), data.begin(), data.end());
-        return result;
+        }
     }
 
-    void FlutterBlePeripheralPlugin::BluetoothLEWatcher_Received(
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::BluetoothLEWatcher_Received(
         BluetoothLEAdvertisementWatcher sender,
         BluetoothLEAdvertisementReceivedEventArgs args) {
-        //OutputDebugString((L"Received " + winrt::to_hstring(args.BluetoothAddress()) + L"\n").c_str());
-        auto manufacturer_data = parseManufacturerData(args.Advertisement());
-        if (scan_result_sink_) {
+        try {
+            // Extract all data on the callback thread first
+            auto manufacturer_data = parseManufacturerData(args.Advertisement());
             auto bluetoothAddress = args.BluetoothAddress();
             auto localName = args.Advertisement().LocalName();
             auto name = winrt::to_string(localName);
             if (localName.empty()) {
-                // TODO
-                // auto device = co_await BluetoothLEDevice::FromBluetoothAddressAsync(bluetoothAddress);
-                // name = winrt::to_string(device.Name());
-
                 std::stringstream sstream;
                 sstream << std::hex << bluetoothAddress;
                 name = sstream.str();
             }
-            scan_result_sink_->Success(flutter::EncodableMap{
-              {"deviceName", name},
-              {"address", std::to_string(bluetoothAddress)},
-              {"manufacturerSpecificData", manufacturer_data},
-              {"rssi", args.RawSignalStrengthInDBm()},
-              //{"serviceUuids", args.Advertisement().ServiceUuids()},
+            auto rssi = args.RawSignalStrengthInDBm();
+            auto address = std::to_string(bluetoothAddress);
+
+            // Switch to UI thread before sending to Flutter
+            co_await ui_thread_;
+
+            if (scan_result_sink_) {
+                scan_result_sink_->Success(flutter::EncodableMap{
+                    {"deviceName", name},
+                    {"address", address},
+                    {"manufacturerSpecificData", manufacturer_data},
+                    {"rssi", rssi},
                 });
+            }
+        }
+        catch (...) {
+            // Silently ignore failed advertisement processing
+        }
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::OnRadioStateChanged(Radio sender, IInspectable args) {
+        try {
+            int state = 0;
+            try {
+                switch (sender.State()) {
+                    case RadioState::On:
+                        state = 4; // idle (advertising state is tracked via publisher events)
+                        break;
+                    case RadioState::Off:
+                        state = 3; // poweredOff
+                        break;
+                    case RadioState::Disabled:
+                        state = 1; // unsupported - adapter disabled in Device Manager
+                        break;
+                    default:
+                        state = 0; // unknown
+                        break;
+                }
+            }
+            catch (...) {
+                state = 1;
+            }
+            co_await ui_thread_;
+            SendState(state);
+        }
+        catch (...) {
+            // Ignore state change errors
         }
     }
 
