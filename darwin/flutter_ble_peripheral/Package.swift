@@ -12,11 +12,15 @@ let package = Package(
     products: [
         .library(name: "flutter-ble-peripheral", targets: ["flutter_ble_peripheral"])
     ],
-    dependencies: [],
+    dependencies: [
+        .package(name: "FlutterFramework", path: "../FlutterFramework")
+    ],
     targets: [
         .target(
             name: "flutter_ble_peripheral",
-            dependencies: [],
+            dependencies: [
+                .product(name: "FlutterFramework", package: "FlutterFramework")
+            ],
             resources: [
                 .process("Resources"),
             ]

@@ -4,7 +4,7 @@
 #
 Pod::Spec.new do |s|
   s.name             = 'flutter_ble_peripheral'
-  s.version          = '2.0.1'
+  s.version          = '2.1.1'
   s.summary          = 'This plugin enables a device to be set into peripheral mode, and advertise custom
                           services and characteristics.'
   s.description      = <<-DESC

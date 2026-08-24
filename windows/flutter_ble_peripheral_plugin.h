@@ -75,10 +75,12 @@ namespace flutter_ble_peripheral {
         std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> state_changed_sink_;
 
         Radio bluetoothRadio{ nullptr };
+        winrt::event_token radioStateChangedToken;
+        winrt::fire_and_forget OnRadioStateChanged(Radio sender, IInspectable args);
 
         BluetoothLEAdvertisementWatcher bluetoothLEWatcher{ nullptr };
         winrt::event_token bluetoothLEWatcherReceivedToken;
-        void BluetoothLEWatcher_Received(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementReceivedEventArgs args);
+        winrt::fire_and_forget BluetoothLEWatcher_Received(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementReceivedEventArgs args);
 
 
         BluetoothLEAdvertisementPublisher bluetoothLEPublisher{ nullptr };
