@@ -9,6 +9,9 @@ part of 'advertise_data.dart';
 AdvertiseData _$AdvertiseDataFromJson(Map<String, dynamic> json) =>
     AdvertiseData(
       serviceUuid: json['serviceUuid'] as String?,
+      serviceUuids: (json['serviceUuids'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList(),
       manufacturerId: (json['manufacturerId'] as num?)?.toInt(),
       manufacturerData: const Uint8ListConverter().fromJson(
         json['manufacturerData'] as List?,
@@ -26,6 +29,7 @@ AdvertiseData _$AdvertiseDataFromJson(Map<String, dynamic> json) =>
 Map<String, dynamic> _$AdvertiseDataToJson(AdvertiseData instance) =>
     <String, dynamic>{
       'serviceUuid': instance.serviceUuid,
+      'serviceUuids': instance.serviceUuids,
       'manufacturerId': instance.manufacturerId,
       'manufacturerData': const Uint8ListConverter().toJson(
         instance.manufacturerData,

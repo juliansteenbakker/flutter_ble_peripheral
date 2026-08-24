@@ -286,6 +286,45 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         }
     }
 
+    /**
+     * Parses a service uuid from Dart into a [UUID].
+     *
+     * Accepts the 16 bit ("A1B2"), 32 bit ("A1B2C3D4") and 128 bit forms, like CBUUID
+     * does on Apple platforms. Short forms are expanded onto the Bluetooth Base UUID;
+     * Android re-encodes those as compact 16 or 32 bit uuid lists on air.
+     */
+    private fun parseServiceUuid(value: String): UUID {
+        val hex = value.replace("-", "")
+        return when (hex.length) {
+            4 -> UUID.fromString("0000$hex-0000-1000-8000-00805F9B34FB")
+            8 -> UUID.fromString("$hex-0000-1000-8000-00805F9B34FB")
+            32 -> UUID.fromString(
+                    "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-" +
+                            "${hex.substring(16, 20)}-${hex.substring(20)}"
+            )
+            else -> throw IllegalArgumentException("Invalid service uuid: $value")
+        }
+    }
+
+    /**
+     * Adds the service uuids under [prefix] to [builder].
+     *
+     * When the plural `serviceUuids` is set, the singular `serviceUuid` is not used,
+     * matching AdvertiseData.serviceUuids and the Apple implementation.
+     */
+    private fun addServiceUuids(builder: AdvertiseData.Builder, arguments: Map<*, *>, prefix: String = "") {
+        val uuids = arguments["${prefix}serviceUuids"] as List<*>?
+        if (!uuids.isNullOrEmpty()) {
+            uuids.forEach { value ->
+                (value as? String)?.let { builder.addServiceUuid(ParcelUuid(parseServiceUuid(it))) }
+            }
+        } else {
+            (arguments["${prefix}serviceUuid"] as? String)?.let {
+                builder.addServiceUuid(ParcelUuid(parseServiceUuid(it)))
+            }
+        }
+    }
+
     private fun startPeripheral(call: MethodCall, result: MethodChannel.Result) {
 
         if (call.arguments !is Map<*, *>) {
@@ -302,7 +341,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             (arguments["serviceSolicitationUuid"] as String?)?.let { advertiseData.addServiceSolicitationUuid(
                     ParcelUuid(UUID.fromString(it))) }
 
-        (arguments["serviceUuid"] as String?)?.let { advertiseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
+        addServiceUuids(advertiseData, arguments)
         //TODO: addTransportDiscoveryData
         (arguments["includeDeviceName"] as Boolean?)?.let { advertiseData.setIncludeDeviceName(it) }
         (arguments["transmissionPowerIncluded"] as Boolean?)?.let {
@@ -319,7 +358,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                 (arguments["responseserviceSolicitationUuid"] as String?)?.let { advertiseResponseData.addServiceSolicitationUuid(
                         ParcelUuid(UUID.fromString(it))) }
 
-            (arguments["responseserviceUuid"] as String?)?.let { advertiseResponseData.addServiceUuid(ParcelUuid(UUID.fromString(it))) }
+            addServiceUuids(advertiseResponseData, arguments, "response")
             //TODO: addTransportDiscoveryData
             (arguments["responseincludeDeviceName"] as Boolean?)?.let { advertiseResponseData.setIncludeDeviceName(it) }
             (arguments["responsetransmissionPowerIncluded"] as Boolean?)?.let {
@@ -367,11 +406,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                         )
                     }
 
-                (arguments["periodicserviceUuid"] as String?)?.let {
-                    periodicAdvertiseData.addServiceUuid(
-                            ParcelUuid(UUID.fromString(it))
-                    )
-                }
+                addServiceUuids(periodicAdvertiseData, arguments, "periodic")
                 //TODO: addTransportDiscoveryData
                 (arguments["periodicincludeDeviceName"] as Boolean?)?.let {
                     periodicAdvertiseData.setIncludeDeviceName(

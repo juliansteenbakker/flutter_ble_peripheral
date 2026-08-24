@@ -22,11 +22,14 @@ class AdvertiseData {
   // )
   final String? serviceUuid;
 
-  /// Android & iOS
+  /// Android, iOS & macOS
   ///
-  /// Specifies multiple service UUIDs to be advertised
-  /// Multiple serviceUuids is only supported on iOS for now.
+  /// Specifies multiple service UUIDs to be advertised.
   /// If specified, [serviceUuid] will not be used.
+  ///
+  /// Each entry may be a 128 bit UUID (dashed or undashed), or a 16 bit
+  /// ("A1B2") or 32 bit ("A1B2C3D4") short form resolved against the Bluetooth
+  /// Base UUID and advertised as a compact 16 or 32 bit service UUID.
   final List<String>? serviceUuids;
 
   /// Android only

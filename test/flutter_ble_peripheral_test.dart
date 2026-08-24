@@ -76,12 +76,21 @@ void main() {
       expect(arguments['manufacturerDataBytes'], bytes);
     });
 
-    test('adds serviceUuids by hand, since toJson drops them', () async {
+    // serviceUuids has to reach the channel even when serviceUuid is null, so
+    // that Android can advertise the list on its own.
+    test('sends serviceUuids without a singular serviceUuid', () async {
       await blePeripheral.start(
-        advertiseData: AdvertiseData(serviceUuids: const ['abcd', 'ef01']),
+        advertiseData: AdvertiseData(
+          serviceUuids: const ['5b0e0100-0100-1000-8000-00805f9b34fb', 'A1B2'],
+        ),
       );
 
-      expect(argumentsOf(calls.single)['serviceUuids'], const ['abcd', 'ef01']);
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['serviceUuids'], const [
+        '5b0e0100-0100-1000-8000-00805f9b34fb',
+        'A1B2',
+      ]);
+      expect(arguments['serviceUuid'], isNull);
     });
 
     test('honours explicit advertise settings', () async {
