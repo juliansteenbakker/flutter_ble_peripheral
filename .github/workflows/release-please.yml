@@ -1,0 +1,53 @@
+name: release-please
+
+# Opens/updates a release PR (version bump + changelog) based on Conventional
+# Commit messages. Merging the release PR tags the release, which triggers
+# publish.yml to publish to pub.dev.
+on:
+  push:
+    branches: [develop]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    if: github.repository == 'juliansteenbakker/flutter_ble_peripheral'
+    runs-on: ubuntu-latest
+    outputs:
+      releases_created: ${{ steps.release.outputs.releases_created }}
+    steps:
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          token: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+          target-branch: develop
+
+  # Once a release lands on develop, fast-track it onto master so that
+  # hotfixes can always be branched from a branch matching the latest
+  # published state.
+  promote-to-master:
+    needs: release-please
+    if: needs.release-please.outputs.releases_created == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+      - name: Open and merge promotion PR into master
+        env:
+          GH_TOKEN: ${{ secrets.RELEASE_PLEASE_TOKEN }}
+        run: |
+          gh pr create \
+            --base master \
+            --head develop \
+            --title "chore: promote release to master" \
+            --body "Automated promotion of the newly released version from develop to master." \
+            || echo "PR may already exist, continuing"
+          # A real merge commit (not squash) is required here so that the
+          # tagged release commit on develop stays a genuine ancestor of
+          # master. release-please-master.yml relies on that ancestry to find
+          # the last release when scanning master's history.
+          gh pr merge develop --merge
