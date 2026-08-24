@@ -1,0 +1,283 @@
+name: CI
+
+on:
+  push:
+    branches: [master, develop]
+  pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  PUB_ENVIRONMENT: bot.github
+
+jobs:
+  # The dependency review API is only available on public repositories, or on
+  # private ones with GitHub Advanced Security. Without the guard this job fails
+  # outright on a private repo rather than being skipped.
+  dependency_review:
+    name: Dependency Review
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && !github.event.repository.private
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+      - name: Dependency Review
+        uses: actions/dependency-review-action@v5
+
+  analysis:
+    name: Analysis (${{ matrix.name }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Minimum supported Flutter version declared in pubspec.yaml, so that
+          # the declared floor is a claim CI actually enforces. See the
+          # "Prepare Minimum-Version Checkout" step for why this row needs
+          # preprocessing and analyzes lib/ only.
+          - name: "flutter-3.10"
+            flutter-version: "3.10.x"
+            minimum-version: true
+            pub-command: "get"
+            analyze-paths: "lib"
+          # Latest stable, which analyzes the plugin and the example app.
+          - name: "latest"
+            flutter-version: ""
+            pub-command: "get"
+            analyze-paths: "."
+          # Lowest allowed versions of all dependencies, mirroring the
+          # downgrade analysis that pub.dev runs when scoring the package.
+          - name: "downgrade"
+            flutter-version: ""
+            pub-command: "downgrade --no-example"
+            analyze-paths: "lib"
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ matrix.flutter-version }}
+          channel: stable
+          cache: true
+
+      - name: Flutter Version Info
+        run: flutter doctor -v
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-${{ matrix.name }}-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-${{ matrix.name }}-
+
+      # The minimum-version row proves only that lib/ still compiles on the
+      # oldest Flutter the pubspec claims to support. Three things have to be
+      # removed first, none of which a consumer of the package would see.
+      - name: Prepare Minimum-Version Checkout
+        if: matrix.minimum-version
+        run: |
+          # 1. Dev dependencies are never resolved by consumers, so their own
+          #    (higher) SDK floors must not constrain the floor the package
+          #    declares. This mirrors flutter/packages' .ci/scripts/analyze_legacy.sh, and is
+          #    why this row analyzes lib/ only.
+          yq -i 'del(.dev_dependencies)' pubspec.yaml
+          # 2. analysis_options.yaml pulls the `lint` package in by `package:`
+          #    URI, which stops resolving once the dev dependency is gone.
+          printf 'analyzer:\n  errors:\n    lines_longer_than_80_chars: ignore\n' > analysis_options.yaml
+          # 3. The example app has its own, unrelated dependency floors.
+          rm -rf example
+
+      - name: Install Dependencies
+        run: flutter pub ${{ matrix.pub-command }}
+
+      - name: Lint Code
+        run: flutter analyze ${{ matrix.analyze-paths }}
+
+  formatting:
+    name: Formatting
+    needs: analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Pub Dependencies
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.pub-cache
+            .dart_tool
+          key: ${{ runner.os }}-pub-formatting-${{ hashFiles('**/pubspec.yaml') }}
+          restore-keys: |
+            ${{ runner.os }}-pub-formatting-
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Check Code Formatting
+        run: dart format --set-exit-if-changed .
+
+  # Runs on all three host OSes because the Dart code branches on
+  # dart:io Platform: the Apple, Android and Windows paths of handleData (and
+  # of start/stop) each only run on their own host.
+  test:
+    name: Test (${{ matrix.os }})
+    needs: analysis
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Dependencies
+        run: flutter pub get
+
+      - name: Run Tests
+        run: flutter test
+
+  # The jobs below build the example app on every platform the plugin supports.
+  # `flutter analyze` never compiles the Kotlin, Swift, or C++ sources, so these
+  # are the only jobs that catch a broken native change.
+  build_android:
+    name: Android Build
+    needs: formatting
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: "temurin"
+          java-version: "17"
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Cache Gradle
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: ${{ runner.os }}-gradle-${{ hashFiles('android/**/*.gradle*', 'example/android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'example/android/gradle/wrapper/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-gradle-
+
+      - name: Install Example Dependencies
+        working-directory: example
+        run: flutter pub get
+
+      - name: Build Example App
+        working-directory: example
+        run: flutter build apk --debug
+
+  build_ios:
+    name: iOS Build
+    needs: formatting
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Example Dependencies
+        working-directory: example
+        run: flutter pub get
+
+      - name: Build Example App
+        working-directory: example
+        run: flutter build ios --debug --no-codesign
+
+  build_macos:
+    name: macOS Build
+    needs: formatting
+    runs-on: macos-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Example Dependencies
+        working-directory: example
+        run: flutter pub get
+
+      - name: Build Example App
+        working-directory: example
+        run: flutter build macos --debug
+
+  build_windows:
+    name: Windows Build
+    needs: formatting
+    runs-on: windows-latest
+    timeout-minutes: 30
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Install Example Dependencies
+        working-directory: example
+        run: flutter pub get
+
+      - name: Build Example App
+        working-directory: example
+        run: flutter build windows --debug
