@@ -154,6 +154,57 @@ void main() {
       expect(arguments['setprimaryPhy'], 1);
     });
 
+    test('prefixes the periodic data with periodic', () async {
+      await blePeripheral.start(
+        advertiseData: AdvertiseData(),
+        advertisePeriodicData: AdvertiseData(
+          serviceUuid: 'FEAA',
+          manufacturerId: 1234,
+          manufacturerData: Uint8List.fromList([1, 2, 3]),
+          includeDeviceName: true,
+        ),
+        periodicAdvertiseSettings: PeriodicAdvertiseSettings(
+          interval: 200,
+          includeTxPowerLevel: true,
+        ),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['periodicserviceUuid'], 'FEAA');
+      expect(arguments['periodicmanufacturerId'], 1234);
+      expect(arguments['periodicmanufacturerData'], const [1, 2, 3]);
+      expect(arguments['periodicincludeDeviceName'], true);
+      expect(arguments['periodicsettingsinterval'], 200);
+      expect(arguments['periodicsettingsincludeTxPowerLevel'], true);
+    });
+
+    test('omits the periodic keys when no periodic data is given', () async {
+      await blePeripheral.start(advertiseData: AdvertiseData());
+
+      final arguments = argumentsOf(calls.single);
+      expect(
+        arguments.keys.where((k) => (k! as String).startsWith('periodic')),
+        isEmpty,
+      );
+    });
+
+    // The native side switches the TX power flag on these keys, so they must
+    // keep the names the models serialise to.
+    test('sends the tx power flags under the model key names', () async {
+      await blePeripheral.start(
+        advertiseData: AdvertiseData(includePowerLevel: true),
+        advertiseResponseData: AdvertiseData(includePowerLevel: true),
+        advertiseSetParameters: AdvertiseSetParameters(
+          includeTxPowerLevel: true,
+        ),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['includePowerLevel'], true);
+      expect(arguments['responseincludePowerLevel'], true);
+      expect(arguments['setincludeTxPowerLevel'], true);
+    });
+
     test('maps a null response to unknown', () async {
       expect(
         await blePeripheral.start(advertiseData: AdvertiseData()),

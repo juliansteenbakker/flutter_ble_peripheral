@@ -1,8 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
-// Not exported from the barrel file, even though start() takes one.
-import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

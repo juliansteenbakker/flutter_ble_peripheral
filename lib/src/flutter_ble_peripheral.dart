@@ -61,34 +61,34 @@ class FlutterBlePeripheral {
     AdvertiseData? advertisePeriodicData,
     PeriodicAdvertiseSettings? periodicAdvertiseSettings,
   }) async {
+    // The native side reads one flat map, where everything but the primary
+    // advertise data is namespaced by a prefix on the model's own json keys.
     final parameters = advertiseData.toJson();
-    parameters["manufacturerDataBytes"] = advertiseData.manufacturerData;
-    final settings = advertiseSettings ?? AdvertiseSettings();
-    final jsonSettings = settings.toJson();
-    for (final key in jsonSettings.keys) {
-      parameters[key] = jsonSettings[key];
+    // Windows reads the manufacturer data as a byte buffer rather than a list.
+    parameters['manufacturerDataBytes'] = advertiseData.manufacturerData;
+
+    void addPrefixed(String prefix, Map<String, dynamic> json) {
+      for (final key in json.keys) {
+        parameters['$prefix$key'] = json[key];
+      }
     }
 
-    if (advertiseData.serviceUuids != null) {
-      parameters['serviceUuids'] = advertiseData.serviceUuids;
-    }
-
-    parameters.addAll(advertiseData.toJson());
+    addPrefixed('', (advertiseSettings ?? AdvertiseSettings()).toJson());
 
     if (advertiseSetParameters != null) {
-      final json = advertiseSetParameters.toJson();
-      for (final key in json.keys) {
-        parameters['set$key'] = json[key];
-      }
-      parameters.addAll(advertiseData.toJson());
+      addPrefixed('set', advertiseSetParameters.toJson());
     }
 
     if (advertiseResponseData != null) {
-      final json = advertiseResponseData.toJson();
-      for (final key in json.keys) {
-        parameters['response$key'] = json[key];
-      }
-      parameters.addAll(advertiseData.toJson());
+      addPrefixed('response', advertiseResponseData.toJson());
+    }
+
+    if (advertisePeriodicData != null) {
+      addPrefixed('periodic', advertisePeriodicData.toJson());
+    }
+
+    if (periodicAdvertiseSettings != null) {
+      addPrefixed('periodicsettings', periodicAdvertiseSettings.toJson());
     }
 
     final response = await _methodChannel.invokeMethod<int>(
