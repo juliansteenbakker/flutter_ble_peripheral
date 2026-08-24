@@ -1,7 +1,7 @@
 
-[![pub package](https://img.shields.io/pub/v/flutter_ble_peripheral?include_prereleases)](https://pub.dartlang.org/packages/flutter_ble_peripheral)
+[![pub package](https://img.shields.io/pub/v/flutter_ble_peripheral?include_prereleases)](https://pub.dev/packages/flutter_ble_peripheral)
 [![Join the chat](https://img.shields.io/discord/827432913896341534)](https://discord.gg/XeyJZhaczm)
-[![Workflow](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions/workflows/flutter_format.yml/badge.svg?branch=master)](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions)
+[![Workflow](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions)
 [![style: lint](https://img.shields.io/badge/style-lint-4BC0F5.svg)](https://pub.dev/packages/lint)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/juliansteenbakker?label=sponsor%20me)](https://github.com/sponsors/juliansteenbakker)
 
