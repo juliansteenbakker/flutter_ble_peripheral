@@ -325,6 +325,46 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         }
     }
 
+    /**
+     * Reads a byte payload sent from Dart.
+     *
+     * The standard method codec only keeps a typed byte array for a `Uint8List`;
+     * a `List<int>` arrives as a list of boxed ints, so both have to be accepted.
+     */
+    private fun readBytes(value: Any?): ByteArray? = when (value) {
+        null -> null
+        is ByteArray -> value
+        is List<*> -> ByteArray(value.size) { (value[it] as Number).toByte() }
+        else -> throw IllegalArgumentException("Expected a byte payload, got $value")
+    }
+
+    /** Adds the manufacturer data under [prefix] to [builder]. */
+    private fun addManufacturerData(builder: AdvertiseData.Builder, arguments: Map<*, *>, prefix: String = "") {
+        readBytes(arguments["${prefix}manufacturerData"])?.let { bytes ->
+            val id = (arguments["${prefix}manufacturerId"] as Number?)?.toInt()
+                    ?: throw IllegalArgumentException("${prefix}manufacturerData needs a ${prefix}manufacturerId")
+            builder.addManufacturerData(id, bytes)
+        }
+    }
+
+    /** Adds the service data under [prefix] to [builder]. */
+    private fun addServiceData(builder: AdvertiseData.Builder, arguments: Map<*, *>, prefix: String = "") {
+        readBytes(arguments["${prefix}serviceData"])?.let { bytes ->
+            val uuid = arguments["${prefix}serviceDataUuid"] as String?
+                    ?: throw IllegalArgumentException("${prefix}serviceData needs a ${prefix}serviceDataUuid")
+            builder.addServiceData(ParcelUuid(parseServiceUuid(uuid)), bytes)
+        }
+    }
+
+    /** Whether Dart sent anything worth putting in the advertisement under [prefix]. */
+    private fun hasAdvertiseData(arguments: Map<*, *>, prefix: String): Boolean =
+            arguments["${prefix}manufacturerData"] != null ||
+                    arguments["${prefix}serviceData"] != null ||
+                    arguments["${prefix}serviceUuid"] != null ||
+                    !(arguments["${prefix}serviceUuids"] as List<*>?).isNullOrEmpty() ||
+                    arguments["${prefix}serviceSolicitationUuid"] != null ||
+                    arguments["${prefix}includeDeviceName"] == true
+
     private fun startPeripheral(call: MethodCall, result: MethodChannel.Result) {
 
         if (call.arguments !is Map<*, *>) {
@@ -335,11 +375,11 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
         // First build main advertise data.
         val advertiseData: AdvertiseData.Builder = AdvertiseData.Builder()
-        (arguments["manufacturerData"] as ArrayList<*>?)?.let { list -> advertiseData.addManufacturerData((arguments["manufacturerId"] as Int), list.map { (it as Int).toByte() }.toByteArray()) }
-        (arguments["serviceData"] as ByteArray?)?.let { advertiseData.addServiceData(ParcelUuid(UUID.fromString(arguments["serviceDataUuid"] as String)), it) }
+        addManufacturerData(advertiseData, arguments)
+        addServiceData(advertiseData, arguments)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
             (arguments["serviceSolicitationUuid"] as String?)?.let { advertiseData.addServiceSolicitationUuid(
-                    ParcelUuid(UUID.fromString(it))) }
+                    ParcelUuid(parseServiceUuid(it))) }
 
         addServiceUuids(advertiseData, arguments)
         //TODO: addTransportDiscoveryData
@@ -350,13 +390,13 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
         // Build advertise response data if provided
         var advertiseResponseData: AdvertiseData.Builder? = null
-        if ((arguments["responsemanufacturerData"] as ByteArray?) != null || (arguments["responseserviceDataUuid"] as ByteArray?) != null || (arguments["responseserviceUuid"] as String?) != null) {
+        if (hasAdvertiseData(arguments, "response")) {
             advertiseResponseData = AdvertiseData.Builder()
-            (arguments["responsemanufacturerData"] as ByteArray?)?.let { advertiseResponseData.addManufacturerData((arguments["responsemanufacturerId"] as Int), it) }
-            (arguments["responseserviceData"] as ByteArray?)?.let { advertiseResponseData.addServiceData(ParcelUuid(UUID.fromString(arguments["responseserviceDataUuid"] as String)), it) }
+            addManufacturerData(advertiseResponseData, arguments, "response")
+            addServiceData(advertiseResponseData, arguments, "response")
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                 (arguments["responseserviceSolicitationUuid"] as String?)?.let { advertiseResponseData.addServiceSolicitationUuid(
-                        ParcelUuid(UUID.fromString(it))) }
+                        ParcelUuid(parseServiceUuid(it))) }
 
             addServiceUuids(advertiseResponseData, arguments, "response")
             //TODO: addTransportDiscoveryData
@@ -383,26 +423,16 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
 
             var periodicAdvertiseData: AdvertiseData.Builder? = null
             var periodicAdvertiseDataSettings: PeriodicAdvertisingParameters.Builder? = null
-            if ((arguments["periodicmanufacturerData"] as ByteArray?) != null || (arguments["periodicServiceDataUuid"] as ByteArray?) != null || (arguments["periodicServiceUuid"] as String?) != null) {
+            if (hasAdvertiseData(arguments, "periodic")) {
                 periodicAdvertiseData = AdvertiseData.Builder()
                 periodicAdvertiseDataSettings = PeriodicAdvertisingParameters.Builder()
 
-                (arguments["periodicmanufacturerData"] as ByteArray?)?.let {
-                    periodicAdvertiseData.addManufacturerData(
-                            (arguments["periodicManufacturerId"] as Int),
-                            it
-                    )
-                }
-                (arguments["periodicserviceData"] as ByteArray?)?.let {
-                    periodicAdvertiseData.addServiceData(
-                            ParcelUuid(UUID.fromString(arguments["periodicserviceDataUuid"] as String)),
-                            it
-                    )
-                }
+                addManufacturerData(periodicAdvertiseData, arguments, "periodic")
+                addServiceData(periodicAdvertiseData, arguments, "periodic")
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S)
                     (arguments["periodicserviceSolicitationUuid"] as String?)?.let {
                         periodicAdvertiseData.addServiceSolicitationUuid(
-                                ParcelUuid(UUID.fromString(it))
+                                ParcelUuid(parseServiceUuid(it))
                         )
                     }
 
