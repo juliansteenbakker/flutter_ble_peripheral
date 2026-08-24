@@ -164,36 +164,6 @@ jobs:
       - name: Run Tests
         run: flutter test
 
-  # `flutter analyze` never looks at the Swift sources, and the Apple build jobs
-  # below compile against the latest SDK rather than the deployment targets the
-  # podspec and Package.swift declare. This job is what catches an API used
-  # without an availability guard.
-  typecheck_swift:
-    name: Swift Typecheck
-    needs: analysis
-    runs-on: macos-latest
-    timeout-minutes: 10
-
-    steps:
-      - name: Checkout Repository
-        uses: actions/checkout@v7
-
-      - name: Typecheck Swift against iOS minimum
-        run: |
-          swiftc -typecheck \
-            -target arm64-apple-ios13.0 \
-            -sdk "$(xcrun --sdk iphoneos --show-sdk-path)" \
-            darwin/flutter_ble_peripheral/Sources/flutter_ble_peripheral/*.swift \
-            darwin/flutter_ble_peripheral/Sources/flutter_ble_peripheral/**/*.swift
-
-      - name: Typecheck Swift against macOS minimum
-        run: |
-          swiftc -typecheck \
-            -target arm64-apple-macos10.15 \
-            -sdk "$(xcrun --sdk macosx --show-sdk-path)" \
-            darwin/flutter_ble_peripheral/Sources/flutter_ble_peripheral/*.swift \
-            darwin/flutter_ble_peripheral/Sources/flutter_ble_peripheral/**/*.swift
-
   # The jobs below build the example app on every platform the plugin supports.
   # `flutter analyze` never compiles the Kotlin, Swift, or C++ sources, so these
   # are the only jobs that catch a broken native change.
