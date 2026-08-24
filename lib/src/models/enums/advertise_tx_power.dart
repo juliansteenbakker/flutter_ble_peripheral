@@ -23,5 +23,5 @@ enum AdvertiseTxPower {
   /// Advertise using high TX power level. This corresponds to largest visibility range of the
   /// advertising packet.
   @JsonValue(3)
-  advertiseTxPowerHigh
+  advertiseTxPowerHigh,
 }

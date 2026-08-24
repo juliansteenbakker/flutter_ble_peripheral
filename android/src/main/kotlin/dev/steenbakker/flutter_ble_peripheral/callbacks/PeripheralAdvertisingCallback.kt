@@ -18,6 +18,7 @@ class PeripheralAdvertisingCallback(private val result: MethodChannel.Result, pr
     override fun onStartFailure(errorCode: Int) {
         super.onStartFailure(errorCode)
         val statusText: String
+        Log.i("FlutterBlePeripheral", "onStartFailure() error: $errorCode")
         when (errorCode) {
             ADVERTISE_FAILED_ALREADY_STARTED -> {
                 statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
