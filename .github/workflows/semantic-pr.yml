@@ -1,0 +1,40 @@
+name: "Semantic PRs"
+
+# release-please builds the changelog from squash-merged PR titles, so the
+# title has to be a valid Conventional Commit for a release to pick it up.
+on:
+  pull_request_target:
+    types:
+      - opened
+      - edited
+      - synchronize
+
+permissions:
+  pull-requests: read
+
+jobs:
+  main:
+    name: Validate PR title
+    runs-on: ubuntu-latest
+    steps:
+      - uses: amannn/action-semantic-pull-request@v6
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          # The default list is the conventional-commit-types set, which has no
+          # "deps". Dependabot uses that prefix for the plugin's own
+          # dependencies so they land under the changelog's "Dependencies"
+          # heading, so it has to be allowed here too.
+          types: |
+            feat
+            fix
+            perf
+            deps
+            revert
+            docs
+            style
+            refactor
+            test
+            build
+            ci
+            chore

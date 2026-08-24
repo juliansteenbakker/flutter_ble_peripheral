@@ -1,0 +1,5 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Flutter documentation
+    url: https://docs.flutter.dev/
+    about: For general Flutter questions unrelated to this plugin.

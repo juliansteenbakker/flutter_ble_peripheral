@@ -1,0 +1,89 @@
+name: Bug report
+description: Report a problem with flutter_ble_peripheral
+labels: [bug]
+body:
+  - type: checkboxes
+    attributes:
+      label: Is there an existing issue for this?
+      description: Please search existing issues (open and closed) before filing a new one.
+      options:
+        - label: I have searched the existing issues
+          required: true
+
+  - type: checkboxes
+    attributes:
+      label: Have you checked the platform side?
+      description: |
+        This plugin wraps each platform's native BLE peripheral API (Android
+        `BluetoothLeAdvertiser`, Apple `CBPeripheralManager`, Windows WinRT
+        `BluetoothLEAdvertisementPublisher`). What may be advertised, and how much of it
+        fits in a packet, is dictated by the OS.
+      options:
+        - label: The problem still occurs with the example app in this repository
+          required: false
+        - label: I verified what is actually broadcast with a scanner app (e.g. nRF Connect, LightBlue)
+          required: false
+
+  - type: input
+    attributes:
+      label: flutter_ble_peripheral version
+      placeholder: e.g. 2.1.1
+    validations:
+      required: true
+
+  - type: dropdown
+    attributes:
+      label: Platform
+      multiple: true
+      options:
+        - Android
+        - iOS
+        - macOS
+        - Windows
+    validations:
+      required: true
+
+  - type: input
+    attributes:
+      label: Device and OS version
+      description: The phone/tablet/Mac/PC doing the advertising.
+      placeholder: e.g. Pixel 8, Android 15
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Flutter doctor output
+      description: Output of `flutter doctor -v`.
+      render: text
+
+  - type: textarea
+    attributes:
+      label: What happened?
+      description: A clear description of the bug, and what you expected to happen instead.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: |
+        Minimal steps to reproduce the behavior. A minimal reproducible sample project or code snippet is very helpful.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: How do you start advertising?
+      description: |
+        The `start` call, including the `AdvertiseData`, `AdvertiseSettings` and any
+        `AdvertiseSetParameters` you pass.
+      render: dart
+
+  - type: textarea
+    attributes:
+      label: Logs
+      description: |
+        Relevant logs, stack traces, or crash reports. Native logs are the most useful ones here:
+        `adb logcat` on Android, the Xcode/Console output on iOS and macOS, or the debug console on Windows.
+      render: text
