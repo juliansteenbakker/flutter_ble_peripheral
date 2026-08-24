@@ -1,20 +1,63 @@
 version: 2
 updates:
-  - package-ecosystem: "github-actions"
-    directory: "/"
+  # A "<type>(scope): ..." prefix is required on every ecosystem here, otherwise
+  # semantic-pr.yml rejects Dependabot's default "Bump x from y to z" titles.
+  #
+  # Ecosystems that ship to plugin consumers (the plugin's own Android/pub
+  # dependencies) use "deps", which release-please renders under a
+  # "Dependencies" changelog heading. Dev-only ecosystems (CI actions, the
+  # example app) use "chore" so they stay out of the changelog.
+  #
+  # There is no swift ecosystem entry: darwin/flutter_ble_peripheral/Package.swift
+  # only depends on the local FlutterFramework path package, so there is nothing
+  # for Dependabot to bump. The Windows plugin has no external dependencies
+  # either -- it links against the Windows SDK/WinRT directly.
+  - package-ecosystem: github-actions
+    directory: /
     schedule:
-      interval: "weekly"
+      interval: weekly
     reviewers:
-      - "juliansteenbakker"
+      - juliansteenbakker
+    commit-message:
+      prefix: chore
+      include: scope
+
   - package-ecosystem: gradle
-    directory: "/android"
+    directory: /android
     schedule:
-      interval: "weekly"
+      interval: weekly
     reviewers:
-      - "juliansteenbakker"
+      - juliansteenbakker
+    commit-message:
+      prefix: deps
+      include: scope
+
   - package-ecosystem: gradle
-    directory: "/example/android"
+    directory: /example/android
     schedule:
-      interval: "weekly"
+      interval: weekly
     reviewers:
-      - "juliansteenbakker"
+      - juliansteenbakker
+    commit-message:
+      prefix: chore
+      include: scope
+
+  - package-ecosystem: pub
+    directory: /
+    schedule:
+      interval: weekly
+    reviewers:
+      - juliansteenbakker
+    commit-message:
+      prefix: deps
+      include: scope
+
+  - package-ecosystem: pub
+    directory: /example
+    schedule:
+      interval: weekly
+    reviewers:
+      - juliansteenbakker
+    commit-message:
+      prefix: chore
+      include: scope

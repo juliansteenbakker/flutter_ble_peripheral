@@ -81,6 +81,23 @@ class FlutterBlePeripheralManager(context: Context) {
     fun isBluetoothEnabled(): Boolean {
         return mBluetoothManager?.adapter?.isEnabled ?: false
     }
+
+    /**
+     * Simple check if required permissions are granted (without rationale check).
+     * Can be used with just Context, doesn't require Activity.
+     */
+    fun hasRequiredPermissions(context: Context): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasBluetoothAdvertisePermission(context) && hasBluetoothConnectPermission(context)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            hasLocationCoarsePermission(context) && hasLocationFinePermission(context)
+        } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            hasLocationCoarsePermission(context)
+        } else {
+            true // Permissions not required on older versions
+        }
+    }
+
     fun hasPermission(activity: Activity): State {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
             if (!hasBluetoothAdvertisePermission(activity) || !hasBluetoothConnectPermission(activity)) {

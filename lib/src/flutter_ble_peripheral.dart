@@ -31,8 +31,9 @@ class FlutterBlePeripheral {
   FlutterBlePeripheral._internal();
 
   /// Method Channel used to communicate state with
-  static const MethodChannel _methodChannel =
-      MethodChannel('dev.steenbakker.flutter_ble_peripheral/ble_state');
+  static const MethodChannel _methodChannel = MethodChannel(
+    'dev.steenbakker.flutter_ble_peripheral/ble_state',
+  );
 
   /// Event Channel for MTU state
   final EventChannel _mtuChangedEventChannel = const EventChannel(
@@ -100,8 +101,10 @@ class FlutterBlePeripheral {
       parameters.addAll(advertiseData.toJson());
     }
 
-    final response =
-        await _methodChannel.invokeMethod<int>('start', parameters);
+    final response = await _methodChannel.invokeMethod<int>(
+      'start',
+      parameters,
+    );
     return response == null
         ? BluetoothPeripheralState.unknown
         : BluetoothPeripheralState.values[response];
@@ -128,16 +131,29 @@ class FlutterBlePeripheral {
   Future<bool> get isConnected async =>
       await _methodChannel.invokeMethod<bool>('isConnected') ?? false;
 
+  /// Returns `true` if Bluetooth is turned on.
+  ///
+  /// On Windows, checks the Bluetooth radio state.
+  Future<bool> get isBluetoothOn async =>
+      await _methodChannel.invokeMethod<bool>('isBluetoothOn') ?? false;
+
   /// Start advertising. Takes [AdvertiseData] as an input.
   Future<void> sendData(Uint8List data) async {
     await _methodChannel.invokeMethod('sendData', data);
   }
 
-  /// Stop advertising
+  /// Enable Bluetooth programmatically.
   ///
   /// [askUser] ONLY AVAILABLE ON ANDROID SDK < 33
   /// If set to false, it will enable bluetooth without asking user.
+  ///
+  /// On Windows, this uses the Radio API to turn on Bluetooth.
+  /// The [askUser] parameter is ignored on Windows.
   Future<bool> enableBluetooth({bool askUser = true}) async {
+    if (Platform.isWindows) {
+      return await _methodChannel.invokeMethod<bool>('enableBluetooth') ??
+          false;
+    }
     if (!Platform.isAndroid) return false;
     return await _methodChannel.invokeMethod<bool>(
           'enableBluetooth',
@@ -146,17 +162,44 @@ class FlutterBlePeripheral {
         false;
   }
 
+  /// Requests the required permissions for BLE advertising.
+  ///
+  /// On Android, requests Bluetooth permissions.
+  /// On iOS/macOS, returns current authorization status (permissions are
+  /// requested implicitly when initializing the peripheral manager).
+  /// On Windows, requests location permission (required for BLE).
   Future<BluetoothPeripheralState> requestPermission() async {
-    if (!Platform.isAndroid) return BluetoothPeripheralState.unknown;
-    final response =
-        await _methodChannel.invokeMethod<int>('requestPermission');
+    if (Platform.isWindows) {
+      final granted = await _methodChannel.invokeMethod<bool>(
+            'requestLocationPermission',
+          ) ??
+          false;
+      return granted
+          ? BluetoothPeripheralState.granted
+          : BluetoothPeripheralState.denied;
+    }
+    final response = await _methodChannel.invokeMethod<int>(
+      'requestPermission',
+    );
     return response == null
         ? BluetoothPeripheralState.unknown
         : BluetoothPeripheralState.values[response];
   }
 
+  /// Checks if the required permissions for BLE advertising are granted.
+  ///
+  /// On Android, checks Bluetooth permissions.
+  /// On iOS/macOS, checks Bluetooth authorization status.
+  /// On Windows, checks location permission (required for BLE).
   Future<BluetoothPeripheralState> hasPermission() async {
-    if (!Platform.isAndroid) return BluetoothPeripheralState.unknown;
+    if (Platform.isWindows) {
+      final granted =
+          await _methodChannel.invokeMethod<bool>('hasLocationPermission') ??
+              false;
+      return granted
+          ? BluetoothPeripheralState.granted
+          : BluetoothPeripheralState.denied;
+    }
     final response = await _methodChannel.invokeMethod<int>('hasPermission');
     return response == null
         ? BluetoothPeripheralState.unknown
@@ -169,6 +212,38 @@ class FlutterBlePeripheral {
 
   Future<void> openAppSettings() async {
     await _methodChannel.invokeMethod('openAppSettings');
+  }
+
+  /// Opens the Windows Nearby Sharing settings page.
+  ///
+  /// This is useful when BLE advertising fails due to Nearby Sharing
+  /// blocking the Bluetooth resources (ResourceInUse error).
+  /// Only works on Windows.
+  Future<void> openNearbyShareSettings() async {
+    if (!Platform.isWindows) return;
+    await _methodChannel.invokeMethod('openNearbyShareSettings');
+  }
+
+  /// Checks if Windows Nearby Sharing is enabled.
+  ///
+  /// Returns `true` if Nearby Sharing is set to "My devices only" or
+  /// "Everyone nearby". Returns `false` if it's off or on non-Windows platforms.
+  ///
+  /// Nearby Sharing can interfere with BLE advertising on Windows.
+  Future<bool> isNearbyShareEnabled() async {
+    if (!Platform.isWindows) return false;
+    return await _methodChannel.invokeMethod<bool>('isNearbyShareEnabled') ??
+        false;
+  }
+
+  /// Opens the Windows Location privacy settings page.
+  ///
+  /// Useful when the user has denied location permission and needs
+  /// to manually enable it for the app.
+  /// Only works on Windows.
+  Future<void> openLocationSettings() async {
+    if (!Platform.isWindows) return;
+    await _methodChannel.invokeMethod('openLocationSettings');
   }
 
   /// Returns Stream of MTU updates.
@@ -185,10 +260,9 @@ class FlutterBlePeripheral {
   ///
   /// After listening to this Stream, you'll be notified about changes in peripheral state.
   Stream<PeripheralState>? get onPeripheralStateChanged {
-    if (Platform.isWindows) return null;
-    _peripheralState ??= _stateChangedEventChannel
-        .receiveBroadcastStream()
-        .map((dynamic event) => PeripheralState.values[event as int]);
+    _peripheralState ??= _stateChangedEventChannel.receiveBroadcastStream().map(
+          (dynamic event) => PeripheralState.values[event as int],
+        );
     return _peripheralState!;
   }
 

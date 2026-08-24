@@ -1,3 +1,33 @@
+## 2.1.1
+### Fixes
+- [Windows] Fixed crash when Bluetooth adapter is not present or Bluetooth is disabled
+- [Windows] Added comprehensive exception handling throughout the plugin to prevent crashes from WinRT API failures
+- [Windows] Fixed initial state reporting to correctly show `unsupported` when no Bluetooth adapter is available
+- [Windows] Fixed potential crash from type mismatches in method call arguments
+
+## 2.1.0
+### New Features
+- [iOS/macOS] Added `isBluetoothOn` to check Bluetooth power state
+- [iOS/macOS] Added `hasPermission` using `CBPeripheralManager.authorization` API
+- [iOS/macOS] Added `requestPermission` support (returns current state, as permissions are implicit on Apple)
+- [iOS/macOS] Added `openBluetoothSettings` that opens Bluetooth settings directly
+- [Android] Added `isBluetoothOn` to check Bluetooth power state
+- [Android] Added Bluetooth state change listener - UI now updates when Bluetooth is toggled while app is open
+- [Dart] `hasPermission()` and `requestPermission()` now work on iOS/macOS (previously returned `unknown`)
+
+### Improvements
+- [iOS/macOS] `isSupported` now uses peripheral manager state instead of iBeacon check
+- [iOS/macOS] Permission and Bluetooth state are now properly separated (permission can be checked regardless of power state)
+- [Example] Complete redesign with Material 3 UI
+- [Example] Added comprehensive startup checks for: BLE support, permissions, Bluetooth state
+- [Example] Platform-specific permission dialogs (Apple shows Settings only, Android shows Grant button)
+- [Example] Android permission dialog updates when permanently denied
+- [Example] Bluetooth off dialog hides "Turn On" button on Apple (not supported)
+- [Windows] Updated build configuration
+
+### Fixes
+- [iOS/macOS] `enableBluetooth` now properly returns `false` (not supported on Apple platforms)
+
 ## 2.0.1
 Fixes naming issues
 
