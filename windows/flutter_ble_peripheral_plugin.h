@@ -26,9 +26,6 @@
 #include <atomic>
 #include <map>
 #include <memory>
-#include <sstream>
-#include <algorithm>
-#include <iomanip>
 
 namespace flutter_ble_peripheral {
 
@@ -50,7 +47,7 @@ namespace flutter_ble_peripheral {
 
 
 
-    class FlutterBlePeripheralPlugin : public flutter::Plugin, public flutter::StreamHandler<flutter::EncodableValue> {
+    class FlutterBlePeripheralPlugin : public flutter::Plugin {
     public:
         static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
 
@@ -73,23 +70,11 @@ namespace flutter_ble_peripheral {
         // Builds the advertisement payload from the arguments Dart sent.
         void BuildAdvertisement(const EncodableMap& arguments);
 
-        std::unique_ptr<flutter::StreamHandlerError<>> OnListenInternal(
-            const flutter::EncodableValue* arguments,
-            std::unique_ptr<flutter::EventSink<>>&& events) override;
-        std::unique_ptr<flutter::StreamHandlerError<>> OnCancelInternal(
-            const flutter::EncodableValue* arguments) override;
-
-        std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> scan_result_sink_;
         std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> state_changed_sink_;
 
         Radio bluetoothRadio{ nullptr };
         winrt::event_token radioStateChangedToken;
         winrt::fire_and_forget OnRadioStateChanged(Radio sender, IInspectable args);
-
-        BluetoothLEAdvertisementWatcher bluetoothLEWatcher{ nullptr };
-        winrt::event_token bluetoothLEWatcherReceivedToken;
-        winrt::fire_and_forget BluetoothLEWatcher_Received(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementReceivedEventArgs args);
-
 
         BluetoothLEAdvertisementPublisher bluetoothLEPublisher{ nullptr };
         winrt::event_token bluetoothLEPublisherStatusChangedToken;

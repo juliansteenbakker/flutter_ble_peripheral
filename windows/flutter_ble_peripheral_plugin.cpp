@@ -21,11 +21,9 @@
 
 #include <algorithm>
 #include <array>
-#include <iomanip>
 #include <map>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -53,31 +51,12 @@ namespace flutter_ble_peripheral {
                 registrar->messenger(), "dev.steenbakker.flutter_ble_peripheral/ble_state_changed",
                 &flutter::StandardMethodCodec::GetInstance());
 
-        auto event_scan_result =
-            std::make_unique<flutter::EventChannel<flutter::EncodableValue>>(
-                registrar->messenger(), "dev.steenbakker.flutter_ble_peripheral/scan_result",
-                &flutter::StandardMethodCodec::GetInstance());
-
         auto plugin = std::make_unique<FlutterBlePeripheralPlugin>();
 
         channel->SetMethodCallHandler(
             [plugin_pointer = plugin.get()](const auto& call, auto result) {
                 plugin_pointer->HandleMethodCall(call, std::move(result));
             });
-
-        auto scan_handler = std::make_unique<
-            flutter::StreamHandlerFunctions<>>(
-                [plugin_pointer = plugin.get()](
-                    const flutter::EncodableValue* arguments,
-                    std::unique_ptr<flutter::EventSink<>>&& events)
-                -> std::unique_ptr<flutter::StreamHandlerError<>> {
-                    return plugin_pointer->OnListen(arguments, std::move(events));
-                },
-                [plugin_pointer = plugin.get()](const flutter::EncodableValue* arguments)
-                    -> std::unique_ptr<flutter::StreamHandlerError<>> {
-                    return plugin_pointer->OnCancel(arguments);
-                });
-        event_scan_result->SetStreamHandler(std::move(scan_handler));
 
         auto state_handler = std::make_unique<
             flutter::StreamHandlerFunctions<>>(
@@ -729,79 +708,6 @@ namespace flutter_ble_peripheral {
         }
     }
 
-    union uint16_t_union {
-        uint16_t uint16;
-        byte bytes[sizeof(uint16_t)];
-    };
-
-    std::vector<uint8_t> to_bytevc(IBuffer buffer) {
-        try {
-            if (!buffer) {
-                return std::vector<uint8_t>();
-            }
-            auto reader = DataReader::FromBuffer(buffer);
-            auto result = std::vector<uint8_t>(reader.UnconsumedBufferLength());
-            reader.ReadBytes(result);
-            return result;
-        }
-        catch (...) {
-            return std::vector<uint8_t>();
-        }
-    }
-
-    std::vector<uint8_t> parseManufacturerData(BluetoothLEAdvertisement advertisement) {
-        try {
-            if (advertisement.ManufacturerData().Size() == 0)
-                return std::vector<uint8_t>();
-
-            auto manufacturerData = advertisement.ManufacturerData().GetAt(0);
-            // FIXME Compat with REG_DWORD_BIG_ENDIAN
-            uint8_t* prefix = uint16_t_union{ manufacturerData.CompanyId() }.bytes;
-            auto result = std::vector<uint8_t>{ prefix, prefix + sizeof(uint16_t_union) };
-
-            auto data = to_bytevc(manufacturerData.Data());
-            result.insert(result.end(), data.begin(), data.end());
-            return result;
-        }
-        catch (...) {
-            return std::vector<uint8_t>();
-        }
-    }
-
-    winrt::fire_and_forget FlutterBlePeripheralPlugin::BluetoothLEWatcher_Received(
-        BluetoothLEAdvertisementWatcher sender,
-        BluetoothLEAdvertisementReceivedEventArgs args) {
-        try {
-            // Extract all data on the callback thread first
-            auto manufacturer_data = parseManufacturerData(args.Advertisement());
-            auto bluetoothAddress = args.BluetoothAddress();
-            auto localName = args.Advertisement().LocalName();
-            auto name = winrt::to_string(localName);
-            if (localName.empty()) {
-                std::stringstream sstream;
-                sstream << std::hex << bluetoothAddress;
-                name = sstream.str();
-            }
-            auto rssi = args.RawSignalStrengthInDBm();
-            auto address = std::to_string(bluetoothAddress);
-
-            // Switch to UI thread before sending to Flutter
-            co_await ui_thread_;
-
-            if (scan_result_sink_) {
-                scan_result_sink_->Success(flutter::EncodableMap{
-                    {"deviceName", name},
-                    {"address", address},
-                    {"manufacturerSpecificData", manufacturer_data},
-                    {"rssi", rssi},
-                });
-            }
-        }
-        catch (...) {
-            // Silently ignore failed advertisement processing
-        }
-    }
-
     winrt::fire_and_forget FlutterBlePeripheralPlugin::OnRadioStateChanged(Radio sender, IInspectable args) {
         auto alive = alive_;
         try {
@@ -823,22 +729,6 @@ namespace flutter_ble_peripheral {
         catch (...) {
             // Ignore state change errors
         }
-    }
-
-
-
-    std::unique_ptr<flutter::StreamHandlerError<flutter::EncodableValue>> FlutterBlePeripheralPlugin::OnListenInternal(
-        const flutter::EncodableValue* arguments, std::unique_ptr<flutter::EventSink<flutter::EncodableValue>>&& events)
-    {
-        scan_result_sink_ = std::move(events);
-        return nullptr;
-    }
-
-    std::unique_ptr<flutter::StreamHandlerError<flutter::EncodableValue>> FlutterBlePeripheralPlugin::OnCancelInternal(
-        const flutter::EncodableValue* arguments)
-    {
-        scan_result_sink_ = nullptr;
-        return nullptr;
     }
 
 }  // namespace flutter_ble_peripheral
