@@ -33,6 +33,15 @@ class FlutterBlePeripheralExampleState
   final _manufacturerIdController = TextEditingController(text: '1234');
   final _manufacturerDataController =
       TextEditingController(text: '01 02 03 04 05 06');
+  final _sendDataController = TextEditingController(text: '01 02 03');
+
+  /// Data received from a connected central on the RX characteristic.
+  final List<Uint8List> _receivedData = [];
+  int? _mtu;
+  bool _subscribed = false;
+  StreamSubscription<Uint8List>? _dataReceivedSubscription;
+  StreamSubscription<bool>? _subscriptionChangedSubscription;
+  StreamSubscription<int>? _mtuSubscription;
 
   String? get _serviceUuid => _serviceUuidController.text.isNotEmpty
       ? _serviceUuidController.text
@@ -69,6 +78,21 @@ class FlutterBlePeripheralExampleState
   void initState() {
     super.initState();
     initPlatformState();
+
+    _dataReceivedSubscription =
+        FlutterBlePeripheral().onDataReceived.listen((data) {
+      if (!mounted) return;
+      setState(() => _receivedData.insert(0, data));
+    });
+    _mtuSubscription = FlutterBlePeripheral().onMtuChanged.listen((mtu) {
+      if (!mounted) return;
+      setState(() => _mtu = mtu);
+    });
+    _subscriptionChangedSubscription =
+        FlutterBlePeripheral().onSubscriptionChanged.listen((subscribed) {
+      if (!mounted) return;
+      setState(() => _subscribed = subscribed);
+    });
   }
 
   @override
@@ -77,6 +101,10 @@ class FlutterBlePeripheralExampleState
     _localNameController.dispose();
     _manufacturerIdController.dispose();
     _manufacturerDataController.dispose();
+    _sendDataController.dispose();
+    _dataReceivedSubscription?.cancel();
+    _mtuSubscription?.cancel();
+    _subscriptionChangedSubscription?.cancel();
     super.dispose();
   }
 
@@ -253,7 +281,31 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<void> _startAdvertising() async {
-    await FlutterBlePeripheral().start(advertiseData: advertiseData);
+    await FlutterBlePeripheral().start(
+      advertiseData: advertiseData,
+      // Serve the TX/RX pair the flutter_ble_central example talks to. The
+      // characteristic uuids default to the Nordic UART Service ones, so a
+      // central can find them without being told out of band.
+      gattServer: const GattServerSettings(),
+      // A central can only connect to a connectable advertisement. Android's
+      // builder defaults to connectable, but say so rather than rely on it.
+      androidSettings: const AndroidAdvertiseSettings(
+        advertiseSettings: AdvertiseSettings(connectable: true),
+      ),
+    );
+  }
+
+  Future<void> _sendData() async {
+    final data = _parseManufacturerData(_sendDataController.text);
+    if (data == null) {
+      _showSnackBar(
+        'Enter data as hex bytes, for example 01 02 03',
+        isError: true,
+      );
+      return;
+    }
+    await FlutterBlePeripheral().sendData(data);
+    _showSnackBar('Sent ${data.length} bytes');
   }
 
   Future<void> _stopAdvertising() async {
@@ -343,6 +395,62 @@ class FlutterBlePeripheralExampleState
               ),
               const SizedBox(height: 16),
 
+              // GATT server
+              _SectionCard(
+                title: 'GATT',
+                icon: Icons.swap_horiz,
+                children: [
+                  Text(
+                    _subscribed
+                        ? 'A central is subscribed, sendData will deliver'
+                        : 'No central subscribed yet',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  Text(
+                    _mtu == null ? 'MTU: unknown' : 'MTU: $_mtu',
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'TX $defaultTxCharacteristicUuid\n'
+                    'RX $defaultRxCharacteristicUuid',
+                    style: TextStyle(fontFamily: 'monospace', fontSize: 10),
+                  ),
+                  const SizedBox(height: 12),
+                  TextField(
+                    controller: _sendDataController,
+                    decoration: const InputDecoration(
+                      labelText: 'Data to send (hex bytes)',
+                      border: OutlineInputBorder(),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton.icon(
+                    onPressed: _subscribed ? _sendData : null,
+                    icon: const Icon(Icons.send),
+                    label: const Text('Send to connected centrals'),
+                  ),
+                  const SizedBox(height: 12),
+                  if (_receivedData.isEmpty)
+                    const Text('No data received yet')
+                  else
+                    ..._receivedData.take(5).map(
+                          (data) => Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 2),
+                            child: Text(
+                              data
+                                  .map(
+                                    (b) => b.toRadixString(16).padLeft(2, '0'),
+                                  )
+                                  .join(' '),
+                              style: const TextStyle(
+                                fontFamily: 'monospace',
+                              ),
+                            ),
+                          ),
+                        ),
+                ],
+              ),
               const SizedBox(height: 16),
 
               // Bluetooth Controls

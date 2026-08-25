@@ -183,12 +183,51 @@ advertising set is limited by `AdvertiseSetParameters.duration` instead, while
 `WindowsAdvertiseSettings.timeout` applies either way, since a Windows publisher has
 no per-set duration to end it. Apple has no equivalent.
 
+### GATT server
+
+Pass `gattServer` to serve a service alongside the advertisement. It holds a TX
+characteristic the peripheral notifies on and an RX characteristic the central writes
+to.
+
+```dart
+await peripheral.start(
+  advertiseData: const AdvertiseDataCore(
+    serviceUuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
+  ),
+  gattServer: const GattServerSettings(),
+);
+
+peripheral.onDataReceived.listen((bytes) {
+  // A central wrote to the RX characteristic.
+});
+
+await peripheral.sendData(Uint8List.fromList([1, 2, 3]));
+```
+
+The service uuid defaults to the advertised one. The characteristic uuids default to
+the Nordic UART Service pair, exported as `defaultTxCharacteristicUuid` and
+`defaultRxCharacteristicUuid`, so a central that knows that profile can talk to the
+peripheral without being told them out of band. Pass your own to serve a different
+layout. They are never derived from the service uuid, because a central caches the
+GATT database between connections and a characteristic uuid that moves breaks the
+link.
+
+`sendData` only reaches a central that subscribed to TX, which is not the same as one
+that merely connected. Watch `onSubscriptionChanged`, or check `isSubscribed`, to know
+when it can deliver. Payloads are queued per central, so back-to-back calls arrive in
+order rather than overwriting each other, and a central that reads TX gets the payload
+sent last.
+
+Not supported on Windows yet.
+
 ### Streams
 
 | Stream | Type | Description |
 | --- | --- | --- |
 | `onPeripheralStateChanged` | `PeripheralState` | Adapter and advertising state |
 | `onMtuChanged` | `int` | Negotiated MTU, after a central connects |
+| `onSubscriptionChanged` | `bool` | Whether a central is subscribed to TX |
+| `onDataReceived` | `Uint8List` | Bytes a central wrote to the RX characteristic |
 
 ## API
 
@@ -199,6 +238,8 @@ no per-set duration to end it. Apple has no equivalent.
 | `isSupported` | `bool` | Whether BLE advertising is available on this device |
 | `isAdvertising` | `bool` | Whether an advertisement is running |
 | `isConnected` | `bool` | Whether a central is connected (Android and Apple) |
+| `isSubscribed` | `bool` | Whether a central subscribed to TX, so `sendData` can deliver |
+| `sendData(Uint8List)` | `void` | Notifies the subscribed centrals on the TX characteristic |
 | `isBluetoothOn` | `bool` | Whether the adapter is powered on |
 | `hasPermission()` | `PeripheralBluetoothState` | Current permission and adapter state |
 | `requestPermission()` | `PeripheralBluetoothState` | Prompts for the required permissions |
@@ -211,8 +252,14 @@ no per-set duration to end it. Apple has no equivalent.
 
 ## Example
 
-The [example app](example/lib/main.dart) covers permission handling, adapter state and
-advertising with custom data. Run it with `cd example && flutter run`.
+The [example app](example/lib/main.dart) covers permission handling, adapter state,
+advertising with custom data and the GATT server. Run it with
+`cd example && flutter run`.
+
+It is the peripheral half of a pair. Run the
+[flutter_ble_central](https://github.com/juliansteenbakker/flutter_ble_central)
+example on a second device to connect to it and exchange bytes in both directions;
+see [the example README](example/README.md#running-the-pair).
 
 ## Contributing
 

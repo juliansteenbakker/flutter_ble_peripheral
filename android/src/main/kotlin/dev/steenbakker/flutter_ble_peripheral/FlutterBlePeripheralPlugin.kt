@@ -30,6 +30,9 @@ import dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralManager.Compan
 import dev.steenbakker.flutter_ble_peripheral.FlutterBlePeripheralManager.Companion.REQUEST_PERMISSION_BT
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingCallback
 import dev.steenbakker.flutter_ble_peripheral.callbacks.PeripheralAdvertisingSetCallback
+import dev.steenbakker.flutter_ble_peripheral.handlers.DataReceivedHandler
+import dev.steenbakker.flutter_ble_peripheral.handlers.MtuChangedHandler
+import dev.steenbakker.flutter_ble_peripheral.handlers.SubscriptionChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.handlers.PeripheralStateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.*
 import io.flutter.Log
@@ -66,7 +69,14 @@ class FlutterBlePeripheralPlugin :
     /** Handler for broadcasting peripheral state changes to Flutter. */
     private lateinit var peripheralStateChangedHandler: PeripheralStateChangedHandler
 
+    /** Handler for broadcasting received data from centrals to Flutter. */
+    private lateinit var dataReceivedHandler: DataReceivedHandler
 
+    /** Handler for broadcasting MTU changes to Flutter. */
+    private lateinit var mtuChangedHandler: MtuChangedHandler
+
+    /** Handler for broadcasting TX subscription changes to Flutter. */
+    private lateinit var subscriptionChangedHandler: SubscriptionChangedHandler
 
     /** BLE manager responsible for low-level Bluetooth peripheral operations. */
     private var flutterBlePeripheralManager: FlutterBlePeripheralManager? = null
@@ -127,9 +137,15 @@ class FlutterBlePeripheralPlugin :
 
         context = flutterPluginBinding.applicationContext
         peripheralStateChangedHandler = PeripheralStateChangedHandler(flutterPluginBinding)
+        dataReceivedHandler = DataReceivedHandler(flutterPluginBinding)
+        mtuChangedHandler = MtuChangedHandler(flutterPluginBinding)
+        subscriptionChangedHandler = SubscriptionChangedHandler(flutterPluginBinding)
         flutterBlePeripheralManager = FlutterBlePeripheralManager(
             flutterPluginBinding.applicationContext,
-            peripheralStateChangedHandler
+            peripheralStateChangedHandler,
+            dataReceivedHandler,
+            mtuChangedHandler,
+            subscriptionChangedHandler
         )
 
         val filter = IntentFilter(BluetoothAdapter.ACTION_STATE_CHANGED)
@@ -174,7 +190,9 @@ class FlutterBlePeripheralPlugin :
             "openBluetoothSettings" -> handleOpenBluetoothSettings(result)
             "isAdvertising" -> handleIsAdvertising(result)
             "isConnected" -> handleIsConnected(result)
+            "isSubscribed" -> handleIsSubscribed(result)
             "isBluetoothOn" -> handleIsBluetoothOn(result)
+            "sendData" -> handleSendData(call, result)
             else -> handleNotImplemented(result)
         }
     }
@@ -262,6 +280,24 @@ class FlutterBlePeripheralPlugin :
                     ?: throw IllegalArgumentException("${prefix}manufacturerData needs a ${prefix}manufacturerId")
             builder.addManufacturerData(id, bytes)
         }
+    }
+
+    /**
+     * The GATT service Dart asked for, or null to advertise without one.
+     *
+     * The characteristic uuids always come from Dart. They are the contract
+     * between the peripheral and the central, so they must never be derived
+     * from the service uuid.
+     */
+    private fun readGattService(arguments: Map<*, *>): GattServiceRequest? {
+        val serviceUuid = arguments["gattServiceUuid"] as String? ?: return null
+        return GattServiceRequest(
+                serviceUuid = serviceUuid,
+                txCharacteristicUuid = arguments["gattTxCharacteristicUuid"] as String
+                        ?: throw IllegalArgumentException("gattServiceUuid needs a gattTxCharacteristicUuid"),
+                rxCharacteristicUuid = arguments["gattRxCharacteristicUuid"] as String
+                        ?: throw IllegalArgumentException("gattServiceUuid needs a gattRxCharacteristicUuid"),
+        )
     }
 
     /** Adds the service data under [prefix] to [builder]. */
@@ -382,7 +418,7 @@ class FlutterBlePeripheralPlugin :
             advertisingSetCallback = PeripheralAdvertisingSetCallback(result, peripheralStateChangedHandler)
 
             flutterBlePeripheralManager!!.startSet(advertiseData.build(), advertiseSettingsSet.build(), advertiseResponseData?.build(), periodicAdvertiseData?.build(), periodicAdvertiseDataSettings?.build(),
-                maxExtendedAdvertisingEvents, duration, advertisingSetCallback!!)
+                maxExtendedAdvertisingEvents, duration, advertisingSetCallback!!, readGattService(arguments))
         } else {
             // Setup the advertiseSettings
             val advertiseSettings: AdvertiseSettings.Builder = AdvertiseSettings.Builder()
@@ -394,7 +430,7 @@ class FlutterBlePeripheralPlugin :
 
             advertisingCallback = PeripheralAdvertisingCallback(result, peripheralStateChangedHandler)
 
-            flutterBlePeripheralManager!!.start(advertiseData.build(), advertiseSettings.build(), advertiseResponseData?.build(), advertisingCallback!!)
+            flutterBlePeripheralManager!!.start(advertiseData.build(), advertiseSettings.build(), advertiseResponseData?.build(), advertisingCallback!!, readGattService(arguments))
         }
     }
 
@@ -430,8 +466,16 @@ class FlutterBlePeripheralPlugin :
         }
     }
 
+    private fun handleIsSubscribed(result: MethodChannel.Result) {
+        val isSubscribed = flutterBlePeripheralManager?.hasSubscribedDevices() ?: false
+        safeResult(result) {
+            Log.i(tag, "Is a central subscribed: $isSubscribed")
+            result.success(isSubscribed)
+        }
+    }
+
     private fun handleIsConnected(result: MethodChannel.Result) {
-        val isConnected = peripheralStateChangedHandler.state == PeripheralState.connected
+        val isConnected = flutterBlePeripheralManager?.hasConnectedDevices() ?: false
         safeResult(result) {
             Log.i(tag, "Is BLE connected: $isConnected")
             result.success(isConnected)
@@ -546,7 +590,34 @@ class FlutterBlePeripheralPlugin :
 
     /** Active advertising callback, used for legacy advertising. */
     private var advertisingCallback: PeripheralAdvertisingCallback? = null
+    
+    private fun handleSendData(call: MethodCall, result: MethodChannel.Result) {
+        safeResult(result) {
+            val data = call.arguments as? ByteArray
+            if (data == null) {
+                Log.e(tag, "Send data error: arguments is not ByteArray")
+                result.error("INVALID_ARGUMENT", "Data must be a ByteArray", null)
+                return@safeResult
+            }
 
+            if (flutterBlePeripheralManager == null) {
+                Log.e(tag, "Send data error: manager is null")
+                result.error("NOT_INITIALIZED", "FlutterBlePeripheralManager is not initialized", null)
+                return@safeResult
+            }
+
+            Log.i(tag, "Trying to send ${data.size} bytes")
+            val success = flutterBlePeripheralManager!!.sendData(data)
+
+            if (success) {
+                Log.i(tag, "Data sent successfully")
+                result.success(null)
+            } else {
+                Log.w(tag, "Failed to send data")
+                result.error("SEND_FAILED", "Failed to send data. GATT server may not be initialized or no devices connected", null)
+            }
+        }
+    }
 
     override fun onRequestPermissionsResult(
         requestCode: Int,
