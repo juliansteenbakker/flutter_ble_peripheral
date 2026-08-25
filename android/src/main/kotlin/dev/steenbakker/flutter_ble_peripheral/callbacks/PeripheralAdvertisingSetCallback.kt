@@ -4,6 +4,8 @@ import android.bluetooth.le.AdvertisingSet
 import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.RequiresApi
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
@@ -62,12 +64,16 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
             }
 
         }
-        if (status != ADVERTISE_SUCCESS) {
-            result.error(status.toString(), statusText, "startAdvertisingSet")
-        } else {
-            result.success(State.Ready.ordinal)
+        // The thread this callback arrives on is not part of the contract, and a
+        // result may only be sent from the main thread.
+        val message = statusText
+        Handler(Looper.getMainLooper()).post {
+            if (status != ADVERTISE_SUCCESS) {
+                result.error(status.toString(), message, "startAdvertisingSet")
+            } else {
+                result.success(State.Ready.ordinal)
+            }
         }
-
     }
 
     /**
