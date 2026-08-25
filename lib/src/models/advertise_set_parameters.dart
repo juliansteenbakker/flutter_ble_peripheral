@@ -6,7 +6,12 @@ part 'advertise_set_parameters.g.dart';
 /// Model of the data to be advertised.
 @JsonSerializable()
 class AdvertiseSetParameters {
-  final int? anonymous;
+  /// Android only
+  ///
+  /// Set whether the advertisement should be anonymous, omitting the device
+  /// address from it. Only available when advertising in non-legacy mode.
+  /// Default: false
+  final bool? anonymous;
 
   /// Android only
   ///
