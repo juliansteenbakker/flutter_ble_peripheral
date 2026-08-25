@@ -6,6 +6,8 @@
 
 import 'dart:async';
 import 'dart:io';
+// Needed on older SDKs, where Uint8List is not re-exported by
+// package:flutter/services.dart.
 // ignore: unnecessary_import
 import 'dart:typed_data';
 
@@ -17,11 +19,8 @@ import 'package:flutter_ble_peripheral/src/models/enums/bluetooth_peripheral_sta
 import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/models/peripheral_state.dart';
 
+/// Advertises this device as a BLE peripheral.
 class FlutterBlePeripheral {
-  /// Singleton instance
-  static final FlutterBlePeripheral _instance =
-      FlutterBlePeripheral._internal();
-
   /// Singleton factory
   factory FlutterBlePeripheral() {
     return _instance;
@@ -29,6 +28,10 @@ class FlutterBlePeripheral {
 
   /// Singleton constructor
   FlutterBlePeripheral._internal();
+
+  /// Singleton instance
+  static final FlutterBlePeripheral _instance =
+      FlutterBlePeripheral._internal();
 
   /// Method Channel used to communicate state with
   static const MethodChannel _methodChannel = MethodChannel(
@@ -48,7 +51,7 @@ class FlutterBlePeripheral {
   Stream<int>? _mtuState;
   Stream<PeripheralState>? _peripheralState;
 
-  //TODO Event Channel used to received data
+  // TODO(juliansteenbakker): event channel used to receive data.
   // final EventChannel _dataReceivedEventChannel = const EventChannel(
   //     'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
 
@@ -57,8 +60,8 @@ class FlutterBlePeripheral {
   /// Returns [BluetoothPeripheralState.ready] once the advertisement is on air.
   /// On Apple platforms a state such as [BluetoothPeripheralState.turnedOff] is
   /// returned when the radio is not up yet; the advertisement is queued and
-  /// starts as soon as it is. A platform that refuses the advertisement outright
-  /// throws a [PlatformException] instead.
+  /// starts as soon as it is. A platform that refuses the advertisement
+  /// outright throws a [PlatformException] instead.
   Future<BluetoothPeripheralState> start({
     required AdvertiseData advertiseData,
     AdvertiseSettings? advertiseSettings,
@@ -205,10 +208,13 @@ class FlutterBlePeripheral {
         : BluetoothPeripheralState.values[response];
   }
 
+  /// Opens the Bluetooth settings, or the app settings on iOS, where
+  /// Bluetooth cannot be reached directly.
   Future<void> openBluetoothSettings() async {
     await _methodChannel.invokeMethod('openBluetoothSettings');
   }
 
+  /// Opens this app's settings page.
   Future<void> openAppSettings() async {
     await _methodChannel.invokeMethod('openAppSettings');
   }
@@ -226,7 +232,8 @@ class FlutterBlePeripheral {
   /// Checks if Windows Nearby Sharing is enabled.
   ///
   /// Returns `true` if Nearby Sharing is set to "My devices only" or
-  /// "Everyone nearby". Returns `false` if it's off or on non-Windows platforms.
+  /// "Everyone nearby". Returns `false` if it is off, or on a non-Windows
+  /// platform.
   ///
   /// Nearby Sharing can interfere with BLE advertising on Windows.
   Future<bool> isNearbyShareEnabled() async {
@@ -257,7 +264,8 @@ class FlutterBlePeripheral {
 
   /// Returns Stream of state.
   ///
-  /// After listening to this Stream, you'll be notified about changes in peripheral state.
+  /// After listening to this Stream, you'll be notified about changes in
+  /// peripheral state.
   Stream<PeripheralState>? get onPeripheralStateChanged {
     _peripheralState ??= _stateChangedEventChannel.receiveBroadcastStream().map(
           (dynamic event) => PeripheralState.values[event as int],
@@ -269,6 +277,8 @@ class FlutterBlePeripheral {
   // ///
   // ///
   // Stream<Uint8List> getDataReceived() {
-  //   return _dataReceivedEventChannel.receiveBroadcastStream().cast<Uint8List>();
+  //   return _dataReceivedEventChannel
+  //       .receiveBroadcastStream()
+  //       .cast<Uint8List>();
   // }
 }

@@ -5,7 +5,6 @@
  */
 
 import 'dart:io';
-// ignore: unnecessary_import
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -57,7 +56,7 @@ class FlutterBlePeripheralExampleState
           input.split(RegExp(r'[\s,]+')).where((s) => s.isNotEmpty);
       final bytes = hexValues.map((hex) => int.parse(hex, radix: 16)).toList();
       return Uint8List.fromList(bytes);
-    } catch (e) {
+    } on FormatException {
       return null;
     }
   }
@@ -134,13 +133,14 @@ class FlutterBlePeripheralExampleState
     showDialog<void>(
       context: navigatorContext,
       barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
+      builder: (dialogContext) {
         return AlertDialog(
           icon:
               const Icon(Icons.bluetooth_disabled, color: Colors.red, size: 48),
           title: const Text('Bluetooth Not Supported'),
           content: const Text(
-            'This device does not support Bluetooth Low Energy (BLE) peripheral mode.\n\n'
+            'This device does not support Bluetooth Low Energy (BLE) '
+            'peripheral mode.\n\n'
             'BLE advertising requires compatible hardware.',
           ),
           actions: <Widget>[
@@ -161,7 +161,7 @@ class FlutterBlePeripheralExampleState
     return showDialog<bool>(
       context: navigatorContext,
       barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
+      builder: (dialogContext) {
         return _BluetoothOffDialog(
           onEnabled: () => _showSnackBar('Bluetooth enabled!'),
         );
@@ -170,14 +170,15 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<bool?> _showPermissionDialog(
-      BluetoothPeripheralState initialState) async {
+    BluetoothPeripheralState initialState,
+  ) async {
     final navigatorContext = _navigatorKey.currentContext;
     if (navigatorContext == null) return false;
 
     return showDialog<bool>(
       context: navigatorContext,
       barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
+      builder: (dialogContext) {
         return _PermissionDialog(
           initialState: initialState,
           onGranted: () => _showSnackBar('Permission granted!'),
@@ -193,10 +194,13 @@ class FlutterBlePeripheralExampleState
     showDialog<void>(
       context: navigatorContext,
       barrierDismissible: false,
-      builder: (BuildContext dialogContext) {
+      builder: (dialogContext) {
         return AlertDialog(
-          icon: const Icon(Icons.warning_amber_rounded,
-              color: Colors.orange, size: 48),
+          icon: const Icon(
+            Icons.warning_amber_rounded,
+            color: Colors.orange,
+            size: 48,
+          ),
           title: const Text('Nearby Sharing Detected'),
           content: const Text(
             'Windows Nearby Sharing is currently enabled. This may interfere '
@@ -464,9 +468,8 @@ class FlutterBlePeripheralExampleState
 }
 
 class _StatusCard extends StatelessWidget {
-  final bool isSupported;
-
   const _StatusCard({required this.isSupported});
+  final bool isSupported;
 
   @override
   Widget build(BuildContext context) {
@@ -540,7 +543,9 @@ class _StatusCard extends StatelessWidget {
   }
 
   (IconData, Color, String) _getStateInfo(
-      PeripheralState state, ColorScheme colorScheme) {
+    PeripheralState state,
+    ColorScheme colorScheme,
+  ) {
     return switch (state) {
       PeripheralState.advertising => (
           Icons.broadcast_on_personal,
@@ -570,15 +575,14 @@ class _StatusCard extends StatelessWidget {
 }
 
 class _SectionCard extends StatelessWidget {
-  final String title;
-  final IconData icon;
-  final List<Widget> children;
-
   const _SectionCard({
     required this.title,
     required this.icon,
     required this.children,
   });
+  final String title;
+  final IconData icon;
+  final List<Widget> children;
 
   @override
   Widget build(BuildContext context) {
@@ -610,17 +614,16 @@ class _SectionCard extends StatelessWidget {
 }
 
 class _ActionTile extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final VoidCallback onTap;
-
   const _ActionTile({
     required this.icon,
     required this.title,
     required this.subtitle,
     required this.onTap,
   });
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -636,17 +639,16 @@ class _ActionTile extends StatelessWidget {
 }
 
 class _AdvertiseConfigCard extends StatefulWidget {
-  final TextEditingController serviceUuidController;
-  final TextEditingController localNameController;
-  final TextEditingController manufacturerIdController;
-  final TextEditingController manufacturerDataController;
-
   const _AdvertiseConfigCard({
     required this.serviceUuidController,
     required this.localNameController,
     required this.manufacturerIdController,
     required this.manufacturerDataController,
   });
+  final TextEditingController serviceUuidController;
+  final TextEditingController localNameController;
+  final TextEditingController manufacturerIdController;
+  final TextEditingController manufacturerDataController;
 
   @override
   State<_AdvertiseConfigCard> createState() => _AdvertiseConfigCardState();
@@ -730,8 +732,11 @@ class _AdvertiseConfigCardState extends State<_AdvertiseConfigCard> {
                   const SizedBox(height: 16),
                   Row(
                     children: [
-                      const Icon(Icons.info_outline,
-                          size: 16, color: Colors.grey),
+                      const Icon(
+                        Icons.info_outline,
+                        size: 16,
+                        color: Colors.grey,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -759,13 +764,12 @@ class _AdvertiseConfigCardState extends State<_AdvertiseConfigCard> {
 }
 
 class _PermissionDialog extends StatefulWidget {
-  final VoidCallback onGranted;
-  final BluetoothPeripheralState initialState;
-
   const _PermissionDialog({
     required this.onGranted,
     required this.initialState,
   });
+  final VoidCallback onGranted;
+  final BluetoothPeripheralState initialState;
 
   @override
   State<_PermissionDialog> createState() => _PermissionDialogState();
@@ -850,11 +854,14 @@ class _PermissionDialogState extends State<_PermissionDialog>
         size: 48,
       ),
       title: Text(
-          _isPermanentlyDenied ? 'Permission Denied' : 'Permission Required'),
+        _isPermanentlyDenied ? 'Permission Denied' : 'Permission Required',
+      ),
       content: Text(
         _isPermanentlyDenied
-            ? 'Bluetooth permission was denied. You can only grant permission through the app settings.\n\n'
-                'Please open Settings and enable Bluetooth permissions for this app.'
+            ? 'Bluetooth permission was denied. You can only grant '
+                'permission through the app settings.\n\n'
+                'Please open Settings and enable Bluetooth permissions '
+                'for this app.'
             : 'BLE advertising requires Bluetooth permissions.\n\n'
                 'Please grant the required permissions to continue.',
       ),
@@ -961,10 +968,9 @@ class _PermissionDialogState extends State<_PermissionDialog>
 }
 
 class _StepItem extends StatelessWidget {
+  const _StepItem({required this.number, required this.text});
   final String number;
   final String text;
-
-  const _StepItem({required this.number, required this.text});
 
   @override
   Widget build(BuildContext context) {
@@ -1000,9 +1006,8 @@ class _StepItem extends StatelessWidget {
 }
 
 class _BluetoothOffDialog extends StatefulWidget {
-  final VoidCallback onEnabled;
-
   const _BluetoothOffDialog({required this.onEnabled});
+  final VoidCallback onEnabled;
 
   @override
   State<_BluetoothOffDialog> createState() => _BluetoothOffDialogState();

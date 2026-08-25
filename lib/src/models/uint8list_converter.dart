@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 import 'package:json_annotation/json_annotation.dart';
 
+/// Encodes a [Uint8List] as a plain list of ints, so that it survives the
+/// json round trip that `AdvertiseData` uses.
 class Uint8ListConverter implements JsonConverter<Uint8List?, List<dynamic>?> {
+  /// Creates the converter.
   const Uint8ListConverter();
 
   @override

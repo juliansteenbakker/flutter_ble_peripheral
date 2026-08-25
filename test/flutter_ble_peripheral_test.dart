@@ -154,8 +154,9 @@ void main() {
       expect(arguments['setprimaryPhy'], 1);
     });
 
-    // Every platform reports ready on a successful start; the index has to line
-    // up with BluetoothPeripheralState or the state comes back as something else.
+    // Every platform reports ready on a successful start; the index has to
+    // line up with BluetoothPeripheralState or the state comes back as
+    // something else.
     test('maps the native ready code to ready', () async {
       response = BluetoothPeripheralState.ready.index;
 
@@ -278,53 +279,65 @@ void main() {
   });
 
   group('permissions', () {
-    test('map the response to a state', () async {
-      response = 2;
-      expect(
-        await blePeripheral.requestPermission(),
-        BluetoothPeripheralState.permanentlyDenied,
-      );
+    test(
+      'map the response to a state',
+      () async {
+        response = 2;
+        expect(
+          await blePeripheral.requestPermission(),
+          BluetoothPeripheralState.permanentlyDenied,
+        );
 
-      response = 1;
-      expect(
-        await blePeripheral.hasPermission(),
-        BluetoothPeripheralState.denied,
-      );
+        response = 1;
+        expect(
+          await blePeripheral.hasPermission(),
+          BluetoothPeripheralState.denied,
+        );
 
-      expect(calls.map((c) => c.method), [
-        'requestPermission',
-        'hasPermission',
-      ]);
-    }, skip: Platform.isWindows);
+        expect(calls.map((c) => c.method), [
+          'requestPermission',
+          'hasPermission',
+        ]);
+      },
+      skip: Platform.isWindows,
+    );
 
-    test('map a null response to unknown', () async {
-      expect(
-        await blePeripheral.requestPermission(),
-        BluetoothPeripheralState.unknown,
-      );
-      expect(
-        await blePeripheral.hasPermission(),
-        BluetoothPeripheralState.unknown,
-      );
-    }, skip: Platform.isWindows);
+    test(
+      'map a null response to unknown',
+      () async {
+        expect(
+          await blePeripheral.requestPermission(),
+          BluetoothPeripheralState.unknown,
+        );
+        expect(
+          await blePeripheral.hasPermission(),
+          BluetoothPeripheralState.unknown,
+        );
+      },
+      skip: Platform.isWindows,
+    );
 
     // Windows has no Bluetooth permission of its own; the plugin asks for the
     // location permission that BLE requires and reduces it to granted/denied.
-    test('go through the location permission on Windows', () async {
-      response = true;
-      expect(
-        await blePeripheral.requestPermission(),
-        BluetoothPeripheralState.granted,
-      );
-      expect(calls.single.method, 'requestLocationPermission');
+    test(
+      'go through the location permission on Windows',
+      () async {
+        response = true;
+        expect(
+          await blePeripheral.requestPermission(),
+          BluetoothPeripheralState.granted,
+        );
+        expect(calls.single.method, 'requestLocationPermission');
 
-      response = false;
-      expect(
-        await blePeripheral.hasPermission(),
-        BluetoothPeripheralState.denied,
-      );
-      expect(calls.last.method, 'hasLocationPermission');
-    }, skip: !Platform.isWindows);
+        response = false;
+        expect(
+          await blePeripheral.hasPermission(),
+          BluetoothPeripheralState.denied,
+        );
+        expect(calls.last.method, 'hasLocationPermission');
+      },
+      skip: !Platform.isWindows,
+    );
   });
 
   group('enableBluetooth', () {
@@ -359,26 +372,34 @@ void main() {
       ]);
     });
 
-    test('the Windows-only ones are no-ops elsewhere', () async {
-      await blePeripheral.openNearbyShareSettings();
-      await blePeripheral.openLocationSettings();
+    test(
+      'the Windows-only ones are no-ops elsewhere',
+      () async {
+        await blePeripheral.openNearbyShareSettings();
+        await blePeripheral.openLocationSettings();
 
-      expect(await blePeripheral.isNearbyShareEnabled(), false);
-      expect(calls, isEmpty);
-    }, skip: Platform.isWindows);
+        expect(await blePeripheral.isNearbyShareEnabled(), false);
+        expect(calls, isEmpty);
+      },
+      skip: Platform.isWindows,
+    );
 
-    test('the Windows-only ones reach the channel on Windows', () async {
-      response = true;
+    test(
+      'the Windows-only ones reach the channel on Windows',
+      () async {
+        response = true;
 
-      await blePeripheral.openNearbyShareSettings();
-      await blePeripheral.openLocationSettings();
-      expect(await blePeripheral.isNearbyShareEnabled(), true);
+        await blePeripheral.openNearbyShareSettings();
+        await blePeripheral.openLocationSettings();
+        expect(await blePeripheral.isNearbyShareEnabled(), true);
 
-      expect(calls.map((c) => c.method), [
-        'openNearbyShareSettings',
-        'openLocationSettings',
-        'isNearbyShareEnabled',
-      ]);
-    }, skip: !Platform.isWindows);
+        expect(calls.map((c) => c.method), [
+          'openNearbyShareSettings',
+          'openLocationSettings',
+          'isNearbyShareEnabled',
+        ]);
+      },
+      skip: !Platform.isWindows,
+    );
   });
 }

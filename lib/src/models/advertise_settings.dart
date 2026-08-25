@@ -7,6 +7,19 @@ part 'advertise_settings.g.dart';
 /// Model of the data to be advertised.
 @JsonSerializable()
 class AdvertiseSettings {
+  /// Creates the settings to advertise with.
+  AdvertiseSettings({
+    this.advertiseSet = true,
+    this.connectable = false,
+    this.timeout = 400,
+    this.advertiseMode = AdvertiseMode.advertiseModeLowLatency,
+    this.txPowerLevel = AdvertiseTxPower.advertiseTxPowerLow,
+  });
+
+  /// Creates settings from the map [toJson] produces.
+  factory AdvertiseSettings.fromJson(Map<String, dynamic> json) =>
+      _$AdvertiseSettingsFromJson(json);
+
   /// Android only
   ///
   /// Set the advertise mode to use when using android >= o
@@ -20,7 +33,8 @@ class AdvertiseSettings {
 
   /// Android only
   ///
-  /// Set whether the advertisement type should be connectable or non-connectable.
+  /// Set whether the advertisement type should be connectable or
+  /// non-connectable.
   /// Default: false
   final bool connectable;
 
@@ -33,20 +47,11 @@ class AdvertiseSettings {
 
   /// Android only
   ///
-  /// Set advertise TX power level to control the transmission power level for the advertising.
-  /// Default: AdvertisePower.ADVERTISE_TX_POWER_HIGH
+  /// Set advertise TX power level to control the transmission power level for
+  /// the advertising.
+  /// Default: [AdvertiseTxPower.advertiseTxPowerLow]
   final AdvertiseTxPower txPowerLevel;
 
-  AdvertiseSettings({
-    this.advertiseSet = true,
-    this.connectable = false,
-    this.timeout = 400,
-    this.advertiseMode = AdvertiseMode.advertiseModeLowLatency,
-    this.txPowerLevel = AdvertiseTxPower.advertiseTxPowerLow,
-  });
-
-  factory AdvertiseSettings.fromJson(Map<String, dynamic> json) =>
-      _$AdvertiseSettingsFromJson(json);
-
+  /// The map sent over the method channel to the platform.
   Map<String, dynamic> toJson() => _$AdvertiseSettingsToJson(this);
 }

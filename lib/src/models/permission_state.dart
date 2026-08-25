@@ -4,11 +4,13 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+/// Whether this app may use Bluetooth.
 enum PermissionState {
   /// The user granted access to the requested feature.
   granted,
 
-  /// The user denied access to the requested feature, permission needs to be asked first.
+  /// The user denied access to the requested feature, permission needs to be
+  /// asked first.
   denied,
 
   /// Permission to the requested feature is permanently denied,
@@ -20,7 +22,8 @@ enum PermissionState {
   unknown,
 
   /// The OS denied access to the requested feature.
-  /// The user cannot change this app's status, possibly due to active restrictions such as parental controls being in place.
+  /// The user cannot change this app's status, possibly due to active
+  /// restrictions such as parental controls being in place.
   ///
   /// Only supported on iOS.
   restricted,

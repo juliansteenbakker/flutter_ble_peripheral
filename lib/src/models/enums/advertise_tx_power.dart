@@ -6,9 +6,13 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+/// The transmission power to advertise at, which sets how far the
+/// advertisement carries.
+///
+/// Android only; maps onto `AdvertiseSettings.ADVERTISE_TX_POWER_*`.
 enum AdvertiseTxPower {
-  /// Advertise using the lowest transmission (TX) power level. Low transmission power can be used
-  /// to restrict the visibility range of advertising packets.
+  /// Advertise using the lowest transmission (TX) power level. Low transmission
+  /// power can be used to restrict the visibility range of advertising packets.
   @JsonValue(0)
   advertiseTxPowerUltraLow,
 
@@ -20,8 +24,8 @@ enum AdvertiseTxPower {
   @JsonValue(2)
   advertiseTxPowerMedium,
 
-  /// Advertise using high TX power level. This corresponds to largest visibility range of the
-  /// advertising packet.
+  /// Advertise using high TX power level. This corresponds to the largest
+  /// visibility range of the advertising packet.
   @JsonValue(3)
   advertiseTxPowerHigh,
 }

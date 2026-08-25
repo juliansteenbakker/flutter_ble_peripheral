@@ -14,11 +14,34 @@ part 'advertise_data.g.dart';
 /// Model of the data to be advertised.
 @JsonSerializable()
 class AdvertiseData {
+  /// Creates the data to advertise.
+  AdvertiseData({
+    // @Deprecated(
+    //   'Please use serviceUuids, where you can also define a single '
+    //   'service uuid.',
+    // )
+    this.serviceUuid,
+    this.serviceUuids,
+    this.manufacturerId,
+    this.manufacturerData,
+    this.serviceDataUuid,
+    this.serviceData,
+    this.includeDeviceName = false,
+    this.localName,
+    this.includePowerLevel = false,
+    this.serviceSolicitationUuid,
+  });
+
+  /// Creates advertise data from the map [toJson] produces.
+  factory AdvertiseData.fromJson(Map<String, dynamic> json) =>
+      _$AdvertiseDataFromJson(json);
+
   /// Android & iOS
   ///
   /// Specifies a single service UUIDs to be advertised
   // @Deprecated(
-  //   'Please use serviceUuids, where you can also define a single service uuid.',
+  //   'Please use serviceUuids, where you can also define a single '
+  //   'service uuid.',
   // )
   final String? serviceUuid;
 
@@ -76,24 +99,6 @@ class AdvertiseData {
   /// A service solicitation UUID to advertise data.
   final String? serviceSolicitationUuid;
 
-  AdvertiseData({
-    // @Deprecated(
-    //   'Please use serviceUuids, where you can also define a single service uuid.',
-    // )
-    this.serviceUuid,
-    this.serviceUuids,
-    this.manufacturerId,
-    this.manufacturerData,
-    this.serviceDataUuid,
-    this.serviceData,
-    this.includeDeviceName = false,
-    this.localName,
-    this.includePowerLevel = false,
-    this.serviceSolicitationUuid,
-  });
-
-  factory AdvertiseData.fromJson(Map<String, dynamic> json) =>
-      _$AdvertiseDataFromJson(json);
-
+  /// The map sent over the method channel to the platform.
   Map<String, dynamic> toJson() => _$AdvertiseDataToJson(this);
 }
