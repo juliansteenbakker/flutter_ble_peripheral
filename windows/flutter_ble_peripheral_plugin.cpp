@@ -184,11 +184,22 @@ namespace flutter_ble_peripheral {
         size_t bits;
     };
 
+    // std::invalid_argument keeps only the pointer it is handed, so a message
+    // built at run time is dangling by the time it is caught. This owns it.
+    class InvalidArgument : public std::exception {
+    public:
+        explicit InvalidArgument(std::string message) : message_(std::move(message)) {}
+        const char* what() const noexcept override { return message_.c_str(); }
+
+    private:
+        std::string message_;
+    };
+
     uint8_t ParseHexDigit(char digit, const std::string& uuid) {
         if (digit >= '0' && digit <= '9') return static_cast<uint8_t>(digit - '0');
         if (digit >= 'a' && digit <= 'f') return static_cast<uint8_t>(digit - 'a' + 10);
         if (digit >= 'A' && digit <= 'F') return static_cast<uint8_t>(digit - 'A' + 10);
-        throw std::invalid_argument("Invalid service uuid: " + uuid);
+        throw InvalidArgument("Invalid service uuid: " + uuid);
     }
 
     // Accepts the 16 bit ("A1B2"), 32 bit ("A1B2C3D4") and 128 bit forms, like the
@@ -205,7 +216,7 @@ namespace flutter_ble_peripheral {
             case 4: bits = 16; hex = "0000" + hex + kBluetoothBaseSuffix; break;
             case 8: bits = 32; hex = hex + kBluetoothBaseSuffix; break;
             case 32: bits = 128; break;
-            default: throw std::invalid_argument("Invalid service uuid: " + value);
+            default: throw InvalidArgument("Invalid service uuid: " + value);
         }
 
         std::array<uint8_t, 16> bytes{};
@@ -279,13 +290,13 @@ namespace flutter_ble_peripheral {
             for (const auto& value : *list) {
                 const auto* number = std::get_if<std::int32_t>(&value);
                 if (!number) {
-                    throw std::invalid_argument(std::string("Expected a byte payload for ") + key);
+                    throw InvalidArgument(std::string("Expected a byte payload for ") + key);
                 }
                 bytes.push_back(static_cast<uint8_t>(*number));
             }
             return bytes;
         }
-        throw std::invalid_argument(std::string("Expected a byte payload for ") + key);
+        throw InvalidArgument(std::string("Expected a byte payload for ") + key);
     }
 
     std::optional<std::string> ReadString(const EncodableMap& arguments, const char* key) {
@@ -305,18 +316,19 @@ namespace flutter_ble_peripheral {
 
     // `includeDeviceName` is ignored: a Windows publisher has no way to pull in the
     // system Bluetooth name, so a name has to be given as `localName`.
+    // Builds the payload out of the fields a Windows publisher will carry.
+    //
+    // That is manufacturer data and service data, and nothing else: the publisher
+    // refuses to start at all on a legacy advertisement that sets a local name or
+    // service uuids, whether through the properties or as data sections of their
+    // own. Both are still validated, so that a malformed uuid is reported the way
+    // Android and Apple report it, but neither reaches the air.
     void FlutterBlePeripheralPlugin::BuildAdvertisement(const EncodableMap& arguments) {
         auto advertisement = bluetoothLEPublisher.Advertisement();
 
         // Rebuild from scratch, so repeated calls do not stack up.
-        advertisement.LocalName(L"");
         advertisement.ManufacturerData().Clear();
-        advertisement.ServiceUuids().Clear();
         advertisement.DataSections().Clear();
-
-        if (auto localName = ReadString(arguments, "localName")) {
-            advertisement.LocalName(winrt::to_hstring(*localName));
-        }
 
         // `manufacturerDataBytes` is the same payload as `manufacturerData`, sent as
         // a byte buffer rather than a list of ints.
@@ -327,7 +339,7 @@ namespace flutter_ble_peripheral {
         if (manufacturerBytes) {
             auto manufacturerId = ReadInt(arguments, "manufacturerId");
             if (!manufacturerId) {
-                throw std::invalid_argument("manufacturerData needs a manufacturerId");
+                throw InvalidArgument("manufacturerData needs a manufacturerId");
             }
 
             auto manufacturerData = Advertisement::BluetoothLEManufacturerData();
@@ -347,7 +359,7 @@ namespace flutter_ble_peripheral {
                 for (const auto& value : *list) {
                     const auto* uuid = std::get_if<std::string>(&value);
                     if (!uuid) {
-                        throw std::invalid_argument("Invalid service uuid");
+                        throw InvalidArgument("Invalid service uuid");
                     }
                     serviceUuids.push_back(*uuid);
                 }
@@ -359,13 +371,13 @@ namespace flutter_ble_peripheral {
             }
         }
         for (const auto& uuid : serviceUuids) {
-            advertisement.ServiceUuids().Append(ParseServiceUuid(uuid).guid);
+            ParseServiceUuid(uuid);
         }
 
         if (auto serviceData = ReadBytes(arguments, "serviceData")) {
             auto serviceDataUuid = ReadString(arguments, "serviceDataUuid");
             if (!serviceDataUuid) {
-                throw std::invalid_argument("serviceData needs a serviceDataUuid");
+                throw InvalidArgument("serviceData needs a serviceDataUuid");
             }
 
             uint8_t dataType = 0;
@@ -376,6 +388,15 @@ namespace flutter_ble_peripheral {
             dataWriter.WriteBytes(section);
             advertisement.DataSections().Append(
                 BluetoothLEAdvertisementDataSection(dataType, dataWriter.DetachBuffer()));
+        }
+
+        // The publisher fails to start on an empty payload, with an error that says
+        // nothing about why.
+        if (advertisement.ManufacturerData().Size() == 0 &&
+            advertisement.DataSections().Size() == 0) {
+            throw InvalidArgument(
+                "Windows can only advertise manufacturerData and serviceData, "
+                "one of which has to be set");
         }
     }
 
@@ -402,7 +423,7 @@ namespace flutter_ble_peripheral {
 
                 result->Success(8);
             }
-            catch (const std::invalid_argument& error) {
+            catch (const InvalidArgument& error) {
                 result->Error("invalid_arguments", error.what());
             }
             catch (...) {
