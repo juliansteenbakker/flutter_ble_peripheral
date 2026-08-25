@@ -71,6 +71,10 @@ namespace flutter_ble_peripheral {
         // Builds the advertisement payload from the arguments Dart sent.
         void BuildAdvertisement(const EncodableMap& arguments);
 
+        // Applies the WindowsAdvertiseSettings fields, which sit on the publisher
+        // rather than on the advertisement.
+        void ApplyWindowsSettings(const EncodableMap& arguments);
+
         std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> state_changed_sink_;
 
         Radio bluetoothRadio{ nullptr };

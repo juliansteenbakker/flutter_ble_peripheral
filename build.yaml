@@ -1,0 +1,10 @@
+targets:
+  $default:
+    builders:
+      source_gen:combining_builder:
+        options:
+          # The legacy-analysis CI row replaces analysis_options.yaml, so the
+          # generated code has to carry this ignore itself. AdvertiseData is
+          # deprecated but still serialized for backwards compatibility.
+          ignore_for_file:
+            - deprecated_member_use_from_same_package

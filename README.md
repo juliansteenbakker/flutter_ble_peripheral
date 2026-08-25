@@ -88,25 +88,25 @@ final peripheral = FlutterBlePeripheral();
 
 ### Permissions and adapter state
 
-Every permission call returns a `BluetoothPeripheralState`, which covers both the
+Every permission call returns a `PeripheralBluetoothState`, which covers both the
 permission result and the state of the adapter.
 
 ```dart
 if (!await peripheral.isSupported) return;
 
 var state = await peripheral.hasPermission();
-if (state != BluetoothPeripheralState.granted) {
+if (state != PeripheralBluetoothState.granted) {
   state = await peripheral.requestPermission();
 }
 
 switch (state) {
-  case BluetoothPeripheralState.granted:
-  case BluetoothPeripheralState.ready:
+  case PeripheralBluetoothState.granted:
+  case PeripheralBluetoothState.ready:
     break;
-  case BluetoothPeripheralState.turnedOff:
+  case PeripheralBluetoothState.turnedOff:
     await peripheral.enableBluetooth();      // Android and Windows only
     break;
-  case BluetoothPeripheralState.permanentlyDenied:
+  case PeripheralBluetoothState.permanentlyDenied:
     await peripheral.openAppSettings();
     break;
   default:
@@ -118,7 +118,7 @@ switch (state) {
 
 ```dart
 await peripheral.start(
-  advertiseData: AdvertiseData(
+  advertiseData: AdvertiseDataCore(
     serviceUuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
     localName: 'My peripheral',
     manufacturerId: 1234,
@@ -130,34 +130,58 @@ await peripheral.start(
 await peripheral.stop();
 ```
 
-`start` returns a `BluetoothPeripheralState`, so an advertisement that could not be
+`start` returns a `PeripheralBluetoothState`, so an advertisement that could not be
 started because Bluetooth is off or unsupported is reported rather than thrown.
 
-`serviceUuid`, `serviceUuids` and `localName` are the only fields Apple platforms
-broadcast. Everything else is Android only, and `localName` is limited to 10 bytes on
-iOS and macOS.
+`AdvertiseDataCore` carries what more than one platform can advertise: the service
+uuids, the local name, the manufacturer data and the TX power flag. Not every
+platform carries all of them:
 
-### Advertise settings
+- Apple broadcasts only the service uuids and the local name, and limits the name to
+  about 10 bytes.
+- Android ignores `localName`; use `AndroidAdvertiseData.includeDeviceName` to
+  broadcast the system name instead.
+- Windows carries only the manufacturer data and the service data. A legacy Windows
+  advertisement refuses to start at all when it sets a local name or service uuids,
+  so both are validated and then left off the air.
 
-`AdvertiseSettings` mirrors Android's
-[`AdvertiseSettings`](https://developer.android.com/reference/android/bluetooth/le/AdvertiseSettings)
-and is ignored on the other platforms.
+### Platform settings
+
+Anything a single platform supports lives on that platform's class, passed alongside
+the shared data and ignored on the others.
 
 ```dart
 await peripheral.start(
-  advertiseData: AdvertiseData(localName: 'My peripheral'),
-  advertiseSettings: AdvertiseSettings(
-    advertiseMode: AdvertiseMode.advertiseModeLowLatency,
-    txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
-    connectable: true,
-    timeout: 400,
+  advertiseData: const AdvertiseDataCore(localName: 'My peripheral'),
+  androidSettings: const AndroidAdvertiseSettings(
+    advertiseSettings: AdvertiseSettings(
+      advertiseMode: AdvertiseMode.advertiseModeLowLatency,
+      txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
+      connectable: true,
+      timeout: 400,
+    ),
   ),
 );
 ```
 
-On Android 8.0 and above you can use the extended advertising API instead, by passing
-`AdvertiseSetParameters`. `AdvertiseSettings.advertiseSet` controls which of the two
-Android APIs is used.
+| Class | Carries |
+| --- | --- |
+| `AndroidAdvertiseData` | Service data, the device name flag, a solicitation uuid |
+| `AndroidAdvertiseSettings` | Advertise settings or set parameters, scan response and periodic data |
+| `DarwinAdvertiseSettings` | Overflow and solicited service uuids |
+| `WindowsAdvertiseSettings` | Advertise timeout, advertisement flags, extended advertising, preferred TX power |
+
+`AndroidAdvertiseData` extends `AdvertiseDataCore`, so pass it as `advertiseData` when
+you need the Android-only fields.
+
+On Android 8.0 and above, passing `AndroidAdvertiseSettings.advertiseSetParameters`
+switches to the extended advertising API instead of the legacy one.
+
+Android and Windows each carry their own advertise timeout, because the rules differ:
+`AdvertiseSettings.timeout` applies on Android's legacy path only, since an
+advertising set is limited by `AdvertiseSetParameters.duration` instead, while
+`WindowsAdvertiseSettings.timeout` applies either way, since a Windows publisher has
+no per-set duration to end it. Apple has no equivalent.
 
 ### Streams
 
@@ -170,15 +194,14 @@ Android APIs is used.
 
 | Member | Returns | Description |
 | --- | --- | --- |
-| `start({advertiseData, ...})` | `BluetoothPeripheralState` | Starts advertising |
-| `stop()` | `BluetoothPeripheralState` | Stops advertising |
+| `start({advertiseData, ...})` | `PeripheralBluetoothState` | Starts advertising |
+| `stop()` | `PeripheralBluetoothState` | Stops advertising |
 | `isSupported` | `bool` | Whether BLE advertising is available on this device |
 | `isAdvertising` | `bool` | Whether an advertisement is running |
 | `isConnected` | `bool` | Whether a central is connected (Android and Apple) |
 | `isBluetoothOn` | `bool` | Whether the adapter is powered on |
-| `sendData(Uint8List)` | `void` | Sends data to the connected central (Apple only) |
-| `hasPermission()` | `BluetoothPeripheralState` | Current permission and adapter state |
-| `requestPermission()` | `BluetoothPeripheralState` | Prompts for the required permissions |
+| `hasPermission()` | `PeripheralBluetoothState` | Current permission and adapter state |
+| `requestPermission()` | `PeripheralBluetoothState` | Prompts for the required permissions |
 | `enableBluetooth({askUser})` | `bool` | Turns the adapter on (Android and Windows) |
 | `openBluetoothSettings()` | `void` | Opens the system Bluetooth settings |
 | `openAppSettings()` | `void` | Opens this app's settings page |

@@ -1,8 +1,8 @@
 import 'dart:typed_data';
 
-import 'package:flutter_ble_peripheral/src/models/map_uint8list_converter.dart';
-import 'package:flutter_ble_peripheral/src/models/uint8list_converter.dart';
-import 'package:flutter_ble_peripheral/src/models/uint8list_map_string_converter.dart';
+import 'package:flutter_ble_peripheral/src/core/utils/map_uint8list_converter.dart';
+import 'package:flutter_ble_peripheral/src/core/utils/uint8list_converter.dart';
+import 'package:flutter_ble_peripheral/src/core/utils/uint8list_map_string_converter.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

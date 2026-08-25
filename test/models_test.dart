@@ -4,9 +4,9 @@ import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  group('AdvertiseData', () {
+  group('AndroidAdvertiseData', () {
     test('round trips', () {
-      final data = AdvertiseData(
+      final data = AndroidAdvertiseData(
         serviceUuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
         manufacturerId: 1234,
         manufacturerData: Uint8List.fromList([1, 2, 3]),
@@ -14,11 +14,11 @@ void main() {
         serviceData: const [16, 32],
         includeDeviceName: true,
         localName: 'Peripheral',
-        includePowerLevel: true,
+        includeTxPowerLevel: true,
         serviceSolicitationUuid: '0000180d-0000-1000-8000-00805f9b34fb',
       );
 
-      final decoded = AdvertiseData.fromJson(data.toJson());
+      final decoded = AndroidAdvertiseData.fromJson(data.toJson());
 
       expect(decoded.serviceUuid, data.serviceUuid);
       expect(decoded.manufacturerId, 1234);
@@ -27,21 +27,21 @@ void main() {
       expect(decoded.serviceData, const [16, 32]);
       expect(decoded.includeDeviceName, true);
       expect(decoded.localName, 'Peripheral');
-      expect(decoded.includePowerLevel, true);
+      expect(decoded.includeTxPowerLevel, true);
       expect(decoded.serviceSolicitationUuid, data.serviceSolicitationUuid);
     });
 
     test('applies its defaults', () {
-      final data = AdvertiseData();
+      const data = AndroidAdvertiseData();
 
       expect(data.includeDeviceName, false);
-      expect(data.includePowerLevel, false);
+      expect(data.includeTxPowerLevel, false);
       expect(data.serviceUuid, isNull);
       expect(data.serviceUuids, isNull);
     });
 
     test('encodes the manufacturer data as a plain int list', () {
-      final json = AdvertiseData(
+      final json = AndroidAdvertiseData(
         manufacturerData: Uint8List.fromList([1, 2, 3]),
       ).toJson();
 
@@ -49,9 +49,52 @@ void main() {
     });
 
     test('encodes serviceUuids', () {
-      final json = AdvertiseData(serviceUuids: const ['abcd']).toJson();
+      const json = ['abcd'];
+      expect(
+        const AndroidAdvertiseData(serviceUuids: json).toJson()['serviceUuids'],
+        json,
+      );
+    });
 
-      expect(json['serviceUuids'], const ['abcd']);
+    test('carries the core fields over from AdvertiseDataCore', () {
+      const core = AdvertiseDataCore(
+        serviceUuid: 'abcd',
+        serviceUuids: ['abcd', 'ef01'],
+        localName: 'Peripheral',
+      );
+
+      final data = AndroidAdvertiseData.fromCore(core);
+
+      expect(data.serviceUuid, core.serviceUuid);
+      expect(data.serviceUuids, core.serviceUuids);
+      expect(data.localName, core.localName);
+    });
+  });
+
+  // The deprecated AdvertiseData keeps its old constructor names, so that code
+  // written against it keeps working until it is removed. includePowerLevel is
+  // now an alias for the core includeTxPowerLevel.
+  group('AdvertiseData', () {
+    test('maps includePowerLevel onto includeTxPowerLevel', () {
+      // Exercising the deprecated class on purpose.
+      // ignore: deprecated_member_use_from_same_package
+      final data = AdvertiseData(includePowerLevel: true);
+
+      expect(data.includePowerLevel, true);
+      expect(data.includeTxPowerLevel, true);
+      expect(data.toJson()['includeTxPowerLevel'], true);
+    });
+
+    test('still carries the manufacturer data', () {
+      // Exercising the deprecated class on purpose.
+      // ignore: deprecated_member_use_from_same_package
+      final data = AdvertiseData(
+        manufacturerId: 1234,
+        manufacturerData: Uint8List.fromList([1, 2, 3]),
+      );
+
+      expect(data.toJson()['manufacturerId'], 1234);
+      expect(data.toJson()['manufacturerData'], const [1, 2, 3]);
     });
   });
 
@@ -59,9 +102,8 @@ void main() {
     // These numbers are the wire format shared with the Android side, so they
     // must not drift.
     test('encodes enums as their Android constants', () {
-      final json = AdvertiseSettings(
+      final json = const AdvertiseSettings(
         advertiseMode: AdvertiseMode.advertiseModeBalanced,
-        txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
       ).toJson();
 
       expect(json['advertiseMode'], 1);
@@ -69,17 +111,16 @@ void main() {
     });
 
     test('applies its defaults', () {
-      final json = AdvertiseSettings().toJson();
+      final json = const AdvertiseSettings().toJson();
 
-      expect(json['advertiseSet'], true);
       expect(json['connectable'], false);
-      expect(json['timeout'], 400);
+      expect(json['timeout'], 0);
       expect(json['advertiseMode'], 2);
-      expect(json['txPowerLevel'], 1);
+      expect(json['txPowerLevel'], 3);
     });
 
     test('round trips', () {
-      final settings = AdvertiseSettings(
+      const settings = AdvertiseSettings(
         connectable: true,
         timeout: 1000,
         advertiseMode: AdvertiseMode.advertiseModeLowPower,
@@ -90,13 +131,13 @@ void main() {
       expect(decoded.connectable, true);
       expect(decoded.timeout, 1000);
       expect(decoded.advertiseMode, AdvertiseMode.advertiseModeLowPower);
-      expect(decoded.txPowerLevel, AdvertiseTxPower.advertiseTxPowerLow);
+      expect(decoded.txPowerLevel, AdvertiseTxPower.advertiseTxPowerHigh);
     });
   });
 
   group('AdvertiseSetParameters', () {
     test('applies its defaults', () {
-      final json = AdvertiseSetParameters().toJson();
+      final json = const AdvertiseSetParameters().toJson();
 
       expect(json['connectable'], false);
       expect(json['txPowerLevel'], txPowerHigh);
@@ -106,7 +147,7 @@ void main() {
     });
 
     test('round trips', () {
-      final parameters = AdvertiseSetParameters(
+      const parameters = AdvertiseSetParameters(
         connectable: true,
         interval: intervalMedium,
         primaryPhy: 1,
@@ -131,13 +172,13 @@ void main() {
     // channel as a bool rather than an int.
     test('encodes anonymous as a bool', () {
       expect(
-        AdvertiseSetParameters(anonymous: true).toJson()['anonymous'],
+        const AdvertiseSetParameters(anonymous: true).toJson()['anonymous'],
         true,
       );
-      expect(AdvertiseSetParameters().toJson()['anonymous'], isNull);
+      expect(const AdvertiseSetParameters().toJson()['anonymous'], isNull);
       expect(
         AdvertiseSetParameters.fromJson(
-          AdvertiseSetParameters(anonymous: true).toJson(),
+          const AdvertiseSetParameters(anonymous: true).toJson(),
         ).anonymous,
         true,
       );
@@ -146,13 +187,13 @@ void main() {
 
   group('PeriodicAdvertiseSettings', () {
     test('round trips and applies its defaults', () {
-      final json = PeriodicAdvertiseSettings().toJson();
+      final json = const PeriodicAdvertiseSettings().toJson();
 
       expect(json['interval'], 100);
       expect(json['includeTxPowerLevel'], false);
 
       final decoded = PeriodicAdvertiseSettings.fromJson(
-        PeriodicAdvertiseSettings(interval: 250).toJson(),
+        const PeriodicAdvertiseSettings(interval: 250).toJson(),
       );
       expect(decoded.interval, 250);
     });
@@ -175,32 +216,45 @@ void main() {
     });
   });
 
-  group('BluetoothPeripheralState', () {
+  group('PeripheralBluetoothState', () {
     // start/stop index into values with the raw int from the channel, so the
     // declared order has to stay in step with the native enums.
     test('index matches the native state code', () {
       expect(
-        BluetoothPeripheralState.values[0],
-        BluetoothPeripheralState.granted,
+        PeripheralBluetoothState.values[0],
+        PeripheralBluetoothState.granted,
       );
       expect(
-        BluetoothPeripheralState.values[5],
-        BluetoothPeripheralState.turnedOff,
+        PeripheralBluetoothState.values[5],
+        PeripheralBluetoothState.turnedOff,
       );
       expect(
-        BluetoothPeripheralState.values[8],
-        BluetoothPeripheralState.ready,
+        PeripheralBluetoothState.values[8],
+        PeripheralBluetoothState.ready,
       );
-      expect(BluetoothPeripheralState.values, hasLength(9));
+      expect(PeripheralBluetoothState.values, hasLength(9));
     });
   });
 
   group('PeripheralState', () {
     // onPeripheralStateChanged indexes into values with the raw channel int.
     test('index matches the native state code', () {
-      expect(PeripheralState.values[0], PeripheralState.unknown);
-      expect(PeripheralState.values[5], PeripheralState.advertising);
-      expect(PeripheralState.values[6], PeripheralState.connected);
+      expect(
+        PeripheralState.values[0],
+        PeripheralState.unknown,
+      );
+      expect(
+        PeripheralState.values[5],
+        PeripheralState.idle,
+      );
+      expect(
+        PeripheralState.values[6],
+        PeripheralState.advertising,
+      );
+      expect(
+        PeripheralState.values[7],
+        PeripheralState.connected,
+      );
     });
   });
 }

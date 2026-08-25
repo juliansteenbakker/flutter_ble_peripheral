@@ -4,6 +4,7 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+import 'dart:async';
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -33,13 +34,16 @@ class FlutterBlePeripheralExampleState
   final _manufacturerDataController =
       TextEditingController(text: '01 02 03 04 05 06');
 
-  AdvertiseData get advertiseData => AdvertiseData(
-        serviceUuid: _serviceUuidController.text.isNotEmpty
-            ? _serviceUuidController.text
-            : null,
-        localName: _localNameController.text.isNotEmpty
-            ? _localNameController.text
-            : null,
+  String? get _serviceUuid => _serviceUuidController.text.isNotEmpty
+      ? _serviceUuidController.text
+      : null;
+
+  String? get _localName =>
+      _localNameController.text.isNotEmpty ? _localNameController.text : null;
+
+  AdvertiseDataCore get advertiseData => AndroidAdvertiseData(
+        serviceUuid: _serviceUuid,
+        localName: _localName,
         manufacturerId: int.tryParse(_manufacturerIdController.text),
         manufacturerData:
             _parseManufacturerData(_manufacturerDataController.text),
@@ -104,7 +108,7 @@ class FlutterBlePeripheralExampleState
     // Check permissions first (on Apple, we can't determine Bluetooth power
     // state until we have permission - state shows as .unauthorized)
     final permission = await FlutterBlePeripheral().hasPermission();
-    if (permission != BluetoothPeripheralState.granted && mounted) {
+    if (permission != PeripheralBluetoothState.granted && mounted) {
       final shouldContinue = await _showPermissionDialog(permission);
       if (shouldContinue != true) return;
     }
@@ -170,7 +174,7 @@ class FlutterBlePeripheralExampleState
   }
 
   Future<bool?> _showPermissionDialog(
-    BluetoothPeripheralState initialState,
+    PeripheralBluetoothState initialState,
   ) async {
     final navigatorContext = _navigatorKey.currentContext;
     if (navigatorContext == null) return false;
@@ -339,6 +343,8 @@ class FlutterBlePeripheralExampleState
               ),
               const SizedBox(height: 16),
 
+              const SizedBox(height: 16),
+
               // Bluetooth Controls
               _SectionCard(
                 title: 'Bluetooth',
@@ -383,7 +389,7 @@ class FlutterBlePeripheralExampleState
                           await FlutterBlePeripheral().hasPermission();
                       _showSnackBar(
                         'Permission: ${permission.name}',
-                        isError: permission != BluetoothPeripheralState.granted,
+                        isError: permission != PeripheralBluetoothState.granted,
                       );
                     },
                   ),
@@ -398,7 +404,7 @@ class FlutterBlePeripheralExampleState
                         _showSnackBar(
                           'Permission: ${permission.name}',
                           isError:
-                              permission != BluetoothPeripheralState.granted,
+                              permission != PeripheralBluetoothState.granted,
                         );
                       },
                     ),
@@ -769,7 +775,7 @@ class _PermissionDialog extends StatefulWidget {
     required this.initialState,
   });
   final VoidCallback onGranted;
-  final BluetoothPeripheralState initialState;
+  final PeripheralBluetoothState initialState;
 
   @override
   State<_PermissionDialog> createState() => _PermissionDialogState();
@@ -779,7 +785,7 @@ class _PermissionDialogState extends State<_PermissionDialog>
     with WidgetsBindingObserver {
   bool _checkingPermission = false;
   bool _requesting = false;
-  late BluetoothPeripheralState _permissionState;
+  late PeripheralBluetoothState _permissionState;
 
   @override
   void initState() {
@@ -806,7 +812,7 @@ class _PermissionDialogState extends State<_PermissionDialog>
     _checkingPermission = true;
 
     final result = await FlutterBlePeripheral().hasPermission();
-    if (result == BluetoothPeripheralState.granted && mounted) {
+    if (result == PeripheralBluetoothState.granted && mounted) {
       widget.onGranted();
       Navigator.of(context).pop(true);
     } else if (mounted) {
@@ -821,7 +827,7 @@ class _PermissionDialogState extends State<_PermissionDialog>
     setState(() => _requesting = true);
 
     final result = await FlutterBlePeripheral().requestPermission();
-    if (result == BluetoothPeripheralState.granted && mounted) {
+    if (result == PeripheralBluetoothState.granted && mounted) {
       widget.onGranted();
       Navigator.of(context).pop(true);
     } else if (mounted) {
@@ -833,7 +839,7 @@ class _PermissionDialogState extends State<_PermissionDialog>
   }
 
   bool get _isPermanentlyDenied =>
-      _permissionState == BluetoothPeripheralState.permanentlyDenied;
+      _permissionState == PeripheralBluetoothState.permanentlyDenied;
 
   @override
   Widget build(BuildContext context) {

@@ -4,22 +4,22 @@ import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseSettings
 import android.os.Handler
 import android.os.Looper
-import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
+import dev.steenbakker.flutter_ble_peripheral.handlers.PeripheralStateChangedHandler
+import dev.steenbakker.flutter_ble_peripheral.models.PeripheralBluetoothState
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
-import dev.steenbakker.flutter_ble_peripheral.models.State
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
 
-class PeripheralAdvertisingCallback(private val result: MethodChannel.Result, private val stateChangedHandler: StateChangedHandler): AdvertiseCallback() {
+class PeripheralAdvertisingCallback(private val result: MethodChannel.Result, private val peripheralStateChangedHandler: PeripheralStateChangedHandler): AdvertiseCallback() {
     override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
         super.onStartSuccess(settingsInEffect)
         Log.i("FlutterBlePeripheral", "onStartSuccess() mode: ${settingsInEffect.mode}, txPOWER ${settingsInEffect.txPowerLevel}")
         // The thread this callback arrives on is not part of the contract, and a
         // result may only be sent from the main thread.
         Handler(Looper.getMainLooper()).post {
-            result.success(State.Ready.ordinal)
+            result.success(PeripheralBluetoothState.Ready.ordinal)
         }
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        peripheralStateChangedHandler.publish(PeripheralState.advertising)
     }
 
     override fun onStartFailure(errorCode: Int) {
@@ -29,27 +29,27 @@ class PeripheralAdvertisingCallback(private val result: MethodChannel.Result, pr
         when (errorCode) {
             ADVERTISE_FAILED_ALREADY_STARTED -> {
                 statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+                peripheralStateChangedHandler.publish(PeripheralState.advertising)
             }
             ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
                 statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
+                peripheralStateChangedHandler.publish(PeripheralState.unsupported)
             }
             ADVERTISE_FAILED_INTERNAL_ERROR -> {
                 statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                peripheralStateChangedHandler.publish(PeripheralState.idle)
             }
             ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
                 statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                peripheralStateChangedHandler.publish(PeripheralState.idle)
             }
             ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                 statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                peripheralStateChangedHandler.publish(PeripheralState.idle)
             }
             else -> {
                 statusText = "UNDOCUMENTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
+                peripheralStateChangedHandler.publish(PeripheralState.unknown)
             }
         }
         Handler(Looper.getMainLooper()).post {
