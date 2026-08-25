@@ -93,6 +93,33 @@ void main() {
       expect(arguments['serviceUuid'], isNull);
     });
 
+    // The native side reads these under a response prefix and builds a separate
+    // AdvertiseData for the scan response.
+    test('prefixes the response data with response', () async {
+      await blePeripheral.start(
+        advertiseData: AdvertiseData(serviceUuid: 'abcd'),
+        advertiseResponseData: AdvertiseData(
+          serviceUuid: 'ef01',
+          manufacturerId: 1234,
+          manufacturerData: Uint8List.fromList([1, 2, 3]),
+          serviceDataUuid: 'FEAA',
+          serviceData: const [4, 5],
+          includeDeviceName: true,
+        ),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['responseserviceUuid'], 'ef01');
+      expect(arguments['responsemanufacturerId'], 1234);
+      expect(arguments['responsemanufacturerData'], const [1, 2, 3]);
+      expect(arguments['responseserviceDataUuid'], 'FEAA');
+      expect(arguments['responseserviceData'], const [4, 5]);
+      expect(arguments['responseincludeDeviceName'], true);
+      // The primary data must not be overwritten by the response data.
+      expect(arguments['serviceUuid'], 'abcd');
+      expect(arguments['manufacturerData'], isNull);
+    });
+
     test('honours explicit advertise settings', () async {
       await blePeripheral.start(
         advertiseData: AdvertiseData(),
