@@ -65,6 +65,9 @@ namespace flutter_ble_peripheral {
             const flutter::MethodCall<flutter::EncodableValue>& method_call,
             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
+        // Builds the advertisement payload from the arguments Dart sent.
+        void BuildAdvertisement(const EncodableMap& arguments);
+
         std::unique_ptr<flutter::StreamHandlerError<>> OnListenInternal(
             const flutter::EncodableValue* arguments,
             std::unique_ptr<flutter::EventSink<>>&& events) override;

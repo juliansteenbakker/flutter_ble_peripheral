@@ -19,11 +19,16 @@
 #include <flutter/standard_method_codec.h>
 #include <flutter/standard_message_codec.h>
 
+#include <algorithm>
+#include <array>
+#include <iomanip>
 #include <map>
 #include <memory>
+#include <optional>
 #include <sstream>
-#include <algorithm>
-#include <iomanip>
+#include <stdexcept>
+#include <string>
+#include <vector>
 
 // For getPlatformVersion; remove unless needed for your plugin implementation.
 #include <VersionHelpers.h>
@@ -162,6 +167,218 @@ namespace flutter_ble_peripheral {
         }
     }
 
+    // The tail of the Bluetooth Base UUID, onto which the 16 and 32 bit short
+    // forms of a service uuid are expanded.
+    constexpr auto kBluetoothBaseSuffix = "00001000800000805F9B34FB";
+
+    // Advertising data types for service data, per the Bluetooth Core Supplement:
+    // a 16, 32 and 128 bit service uuid respectively.
+    constexpr uint8_t kServiceData16Bit = 0x16;
+    constexpr uint8_t kServiceData32Bit = 0x20;
+    constexpr uint8_t kServiceData128Bit = 0x21;
+
+    // A service uuid, with the width it was written in, which decides how a
+    // service data section encodes it.
+    struct ServiceUuid {
+        winrt::guid guid;
+        size_t bits;
+    };
+
+    uint8_t ParseHexDigit(char digit, const std::string& uuid) {
+        if (digit >= '0' && digit <= '9') return static_cast<uint8_t>(digit - '0');
+        if (digit >= 'a' && digit <= 'f') return static_cast<uint8_t>(digit - 'a' + 10);
+        if (digit >= 'A' && digit <= 'F') return static_cast<uint8_t>(digit - 'A' + 10);
+        throw std::invalid_argument("Invalid service uuid: " + uuid);
+    }
+
+    // Accepts the 16 bit ("A1B2"), 32 bit ("A1B2C3D4") and 128 bit forms, like the
+    // Android and Apple implementations do, expanding the short forms onto the
+    // Bluetooth Base UUID.
+    ServiceUuid ParseServiceUuid(const std::string& value) {
+        std::string hex;
+        for (char character : value) {
+            if (character != '-') hex.push_back(character);
+        }
+
+        size_t bits;
+        switch (hex.size()) {
+            case 4: bits = 16; hex = "0000" + hex + kBluetoothBaseSuffix; break;
+            case 8: bits = 32; hex = hex + kBluetoothBaseSuffix; break;
+            case 32: bits = 128; break;
+            default: throw std::invalid_argument("Invalid service uuid: " + value);
+        }
+
+        std::array<uint8_t, 16> bytes{};
+        for (size_t i = 0; i < bytes.size(); i++) {
+            bytes[i] = static_cast<uint8_t>(
+                (ParseHexDigit(hex[i * 2], value) << 4) | ParseHexDigit(hex[i * 2 + 1], value));
+        }
+
+        return ServiceUuid{
+            winrt::guid{
+                (static_cast<uint32_t>(bytes[0]) << 24) | (static_cast<uint32_t>(bytes[1]) << 16) |
+                    (static_cast<uint32_t>(bytes[2]) << 8) | static_cast<uint32_t>(bytes[3]),
+                static_cast<uint16_t>((static_cast<uint16_t>(bytes[4]) << 8) | bytes[5]),
+                static_cast<uint16_t>((static_cast<uint16_t>(bytes[6]) << 8) | bytes[7]),
+                { bytes[8], bytes[9], bytes[10], bytes[11],
+                  bytes[12], bytes[13], bytes[14], bytes[15] },
+            },
+            bits,
+        };
+    }
+
+    // The little endian uuid a service data section carries ahead of the data,
+    // along with the advertising data type matching its width.
+    std::vector<uint8_t> ServiceDataPrefix(const ServiceUuid& uuid, uint8_t& data_type) {
+        const auto& guid = uuid.guid;
+        switch (uuid.bits) {
+            case 16:
+                data_type = kServiceData16Bit;
+                return {
+                    static_cast<uint8_t>(guid.Data1),
+                    static_cast<uint8_t>(guid.Data1 >> 8),
+                };
+            case 32:
+                data_type = kServiceData32Bit;
+                return {
+                    static_cast<uint8_t>(guid.Data1),
+                    static_cast<uint8_t>(guid.Data1 >> 8),
+                    static_cast<uint8_t>(guid.Data1 >> 16),
+                    static_cast<uint8_t>(guid.Data1 >> 24),
+                };
+            default:
+                data_type = kServiceData128Bit;
+                return {
+                    guid.Data4[7], guid.Data4[6], guid.Data4[5], guid.Data4[4],
+                    guid.Data4[3], guid.Data4[2], guid.Data4[1], guid.Data4[0],
+                    static_cast<uint8_t>(guid.Data3),
+                    static_cast<uint8_t>(guid.Data3 >> 8),
+                    static_cast<uint8_t>(guid.Data2),
+                    static_cast<uint8_t>(guid.Data2 >> 8),
+                    static_cast<uint8_t>(guid.Data1),
+                    static_cast<uint8_t>(guid.Data1 >> 8),
+                    static_cast<uint8_t>(guid.Data1 >> 16),
+                    static_cast<uint8_t>(guid.Data1 >> 24),
+                };
+        }
+    }
+
+    // The standard method codec only keeps a typed byte vector for a `Uint8List`;
+    // a `List<int>` arrives as a list of boxed ints, so both have to be accepted.
+    std::optional<std::vector<uint8_t>> ReadBytes(const EncodableMap& arguments, const char* key) {
+        auto it = arguments.find(EncodableValue(key));
+        if (it == arguments.end() || std::holds_alternative<std::monostate>(it->second)) {
+            return std::nullopt;
+        }
+        if (const auto* bytes = std::get_if<std::vector<uint8_t>>(&it->second)) {
+            return *bytes;
+        }
+        if (const auto* list = std::get_if<flutter::EncodableList>(&it->second)) {
+            std::vector<uint8_t> bytes;
+            bytes.reserve(list->size());
+            for (const auto& value : *list) {
+                const auto* number = std::get_if<std::int32_t>(&value);
+                if (!number) {
+                    throw std::invalid_argument(std::string("Expected a byte payload for ") + key);
+                }
+                bytes.push_back(static_cast<uint8_t>(*number));
+            }
+            return bytes;
+        }
+        throw std::invalid_argument(std::string("Expected a byte payload for ") + key);
+    }
+
+    std::optional<std::string> ReadString(const EncodableMap& arguments, const char* key) {
+        auto it = arguments.find(EncodableValue(key));
+        if (it == arguments.end()) return std::nullopt;
+        if (const auto* value = std::get_if<std::string>(&it->second)) return *value;
+        return std::nullopt;
+    }
+
+    std::optional<std::int64_t> ReadInt(const EncodableMap& arguments, const char* key) {
+        auto it = arguments.find(EncodableValue(key));
+        if (it == arguments.end()) return std::nullopt;
+        if (const auto* value = std::get_if<std::int32_t>(&it->second)) return *value;
+        if (const auto* value = std::get_if<std::int64_t>(&it->second)) return *value;
+        return std::nullopt;
+    }
+
+    // `includeDeviceName` is ignored: a Windows publisher has no way to pull in the
+    // system Bluetooth name, so a name has to be given as `localName`.
+    void FlutterBlePeripheralPlugin::BuildAdvertisement(const EncodableMap& arguments) {
+        auto advertisement = bluetoothLEPublisher.Advertisement();
+
+        // Rebuild from scratch, so repeated calls do not stack up.
+        advertisement.LocalName(L"");
+        advertisement.ManufacturerData().Clear();
+        advertisement.ServiceUuids().Clear();
+        advertisement.DataSections().Clear();
+
+        if (auto localName = ReadString(arguments, "localName")) {
+            advertisement.LocalName(winrt::to_hstring(*localName));
+        }
+
+        // `manufacturerDataBytes` is the same payload as `manufacturerData`, sent as
+        // a byte buffer rather than a list of ints.
+        auto manufacturerBytes = ReadBytes(arguments, "manufacturerDataBytes");
+        if (!manufacturerBytes) {
+            manufacturerBytes = ReadBytes(arguments, "manufacturerData");
+        }
+        if (manufacturerBytes) {
+            auto manufacturerId = ReadInt(arguments, "manufacturerId");
+            if (!manufacturerId) {
+                throw std::invalid_argument("manufacturerData needs a manufacturerId");
+            }
+
+            auto manufacturerData = Advertisement::BluetoothLEManufacturerData();
+            manufacturerData.CompanyId(static_cast<uint16_t>(*manufacturerId));
+            auto dataWriter = DataWriter();
+            dataWriter.WriteBytes(*manufacturerBytes);
+            manufacturerData.Data(dataWriter.DetachBuffer());
+            advertisement.ManufacturerData().Append(manufacturerData);
+        }
+
+        // When the plural `serviceUuids` is set the singular `serviceUuid` is not
+        // used, matching the Android and Apple implementations.
+        std::vector<std::string> serviceUuids;
+        auto uuidsIt = arguments.find(EncodableValue("serviceUuids"));
+        if (uuidsIt != arguments.end()) {
+            if (const auto* list = std::get_if<flutter::EncodableList>(&uuidsIt->second)) {
+                for (const auto& value : *list) {
+                    const auto* uuid = std::get_if<std::string>(&value);
+                    if (!uuid) {
+                        throw std::invalid_argument("Invalid service uuid");
+                    }
+                    serviceUuids.push_back(*uuid);
+                }
+            }
+        }
+        if (serviceUuids.empty()) {
+            if (auto uuid = ReadString(arguments, "serviceUuid")) {
+                serviceUuids.push_back(*uuid);
+            }
+        }
+        for (const auto& uuid : serviceUuids) {
+            advertisement.ServiceUuids().Append(ParseServiceUuid(uuid).guid);
+        }
+
+        if (auto serviceData = ReadBytes(arguments, "serviceData")) {
+            auto serviceDataUuid = ReadString(arguments, "serviceDataUuid");
+            if (!serviceDataUuid) {
+                throw std::invalid_argument("serviceData needs a serviceDataUuid");
+            }
+
+            uint8_t dataType = 0;
+            auto section = ServiceDataPrefix(ParseServiceUuid(*serviceDataUuid), dataType);
+            section.insert(section.end(), serviceData->begin(), serviceData->end());
+
+            auto dataWriter = DataWriter();
+            dataWriter.WriteBytes(section);
+            advertisement.DataSections().Append(
+                BluetoothLEAdvertisementDataSection(dataType, dataWriter.DetachBuffer()));
+        }
+    }
+
     void FlutterBlePeripheralPlugin::HandleMethodCall(
         const flutter::MethodCall<flutter::EncodableValue>& method_call,
         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
@@ -175,30 +392,18 @@ namespace flutter_ble_peripheral {
                 }
 
                 const auto* arguments = std::get_if<EncodableMap>(method_call.arguments());
-                Advertisement::BluetoothLEManufacturerData manufacturerData = Advertisement::BluetoothLEManufacturerData();
-                if (arguments) {
-                    auto manuDataIt = arguments->find(EncodableValue("manufacturerDataBytes"));
-                    if (manuDataIt != arguments->end()) {
-                        auto dataWriter = DataWriter();
-                        auto* vector = std::get_if<std::vector<uint8_t>>(&manuDataIt->second);
-                        if (vector) {
-                            dataWriter.WriteBytes(*vector);
-                            manufacturerData.Data(dataWriter.DetachBuffer());
-                        }
-                    }
-                    auto manuIdIt = arguments->find(EncodableValue("manufacturerId"));
-                    if (manuIdIt != arguments->end()) {
-                        auto* manuId = std::get_if<std::int32_t>(&manuIdIt->second);
-                        if (manuId) {
-                            manufacturerData.CompanyId(*manuId);
-                        }
-                    }
+                if (!arguments) {
+                    result->Error("invalid_arguments", "Arguments are not a map");
+                    return;
                 }
 
-                bluetoothLEPublisher.Advertisement().ManufacturerData().Append(manufacturerData);
+                BuildAdvertisement(*arguments);
                 bluetoothLEPublisher.Start();
 
                 result->Success(8);
+            }
+            catch (const std::invalid_argument& error) {
+                result->Error("invalid_arguments", error.what());
             }
             catch (...) {
                 result->Error("start_failed", "Failed to start advertising");
@@ -208,6 +413,9 @@ namespace flutter_ble_peripheral {
             try {
                 if (bluetoothLEPublisher) {
                     bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
+                    bluetoothLEPublisher.Advertisement().ServiceUuids().Clear();
+                    bluetoothLEPublisher.Advertisement().DataSections().Clear();
+                    bluetoothLEPublisher.Advertisement().LocalName(L"");
                     bluetoothLEPublisher.Stop();
                 }
                 result->Success(8);
