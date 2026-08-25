@@ -21,11 +21,10 @@
 
 #include <algorithm>
 #include <array>
-#include <iomanip>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <optional>
-#include <sstream>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -53,31 +52,12 @@ namespace flutter_ble_peripheral {
                 registrar->messenger(), "dev.steenbakker.flutter_ble_peripheral/ble_state_changed",
                 &flutter::StandardMethodCodec::GetInstance());
 
-        auto event_scan_result =
-            std::make_unique<flutter::EventChannel<flutter::EncodableValue>>(
-                registrar->messenger(), "dev.steenbakker.flutter_ble_peripheral/scan_result",
-                &flutter::StandardMethodCodec::GetInstance());
-
         auto plugin = std::make_unique<FlutterBlePeripheralPlugin>();
 
         channel->SetMethodCallHandler(
             [plugin_pointer = plugin.get()](const auto& call, auto result) {
                 plugin_pointer->HandleMethodCall(call, std::move(result));
             });
-
-        auto scan_handler = std::make_unique<
-            flutter::StreamHandlerFunctions<>>(
-                [plugin_pointer = plugin.get()](
-                    const flutter::EncodableValue* arguments,
-                    std::unique_ptr<flutter::EventSink<>>&& events)
-                -> std::unique_ptr<flutter::StreamHandlerError<>> {
-                    return plugin_pointer->OnListen(arguments, std::move(events));
-                },
-                [plugin_pointer = plugin.get()](const flutter::EncodableValue* arguments)
-                    -> std::unique_ptr<flutter::StreamHandlerError<>> {
-                    return plugin_pointer->OnCancel(arguments);
-                });
-        event_scan_result->SetStreamHandler(std::move(scan_handler));
 
         auto state_handler = std::make_unique<
             flutter::StreamHandlerFunctions<>>(
@@ -163,6 +143,9 @@ namespace flutter_ble_peripheral {
             PublishState(state);
         }
     }
+
+    // What Android caps AdvertiseSettings.timeout at.
+    constexpr std::chrono::milliseconds kMaxAdvertiseTimeout{ 180000 };
 
     // The tail of the Bluetooth Base UUID, onto which the 16 and 32 bit short
     // forms of a service uuid are expanded.
@@ -303,6 +286,13 @@ namespace flutter_ble_peripheral {
         return std::nullopt;
     }
 
+    std::optional<bool> ReadBool(const EncodableMap& arguments, const char* key) {
+        auto it = arguments.find(EncodableValue(key));
+        if (it == arguments.end()) return std::nullopt;
+        if (const auto* value = std::get_if<bool>(&it->second)) return *value;
+        return std::nullopt;
+    }
+
     std::optional<std::int64_t> ReadInt(const EncodableMap& arguments, const char* key) {
         auto it = arguments.find(EncodableValue(key));
         if (it == arguments.end()) return std::nullopt;
@@ -326,6 +316,16 @@ namespace flutter_ble_peripheral {
         // Rebuild from scratch, so repeated calls do not stack up.
         advertisement.ManufacturerData().Clear();
         advertisement.DataSections().Clear();
+
+        // Android reads the timeout on its legacy path only, where the advertising
+        // set path uses a duration Windows has no equivalent for, and treats zero
+        // as no limit. Same here, so that the two agree on when advertising ends.
+        advertise_timeout_ = std::chrono::milliseconds::zero();
+        if (!ReadBool(arguments, "advertiseSet").value_or(true)) {
+            auto timeout = ReadInt(arguments, "timeout").value_or(0);
+            advertise_timeout_ = std::chrono::milliseconds(
+                std::clamp<std::int64_t>(timeout, 0, kMaxAdvertiseTimeout.count()));
+        }
 
         // `manufacturerDataBytes` is the same payload as `manufacturerData`, sent as
         // a byte buffer rather than a list of ints.
@@ -428,6 +428,7 @@ namespace flutter_ble_peripheral {
         else if (method_call.method_name().compare("stop") == 0) {
             try {
                 advertisement_pending_ = false;
+                advertisement_token_++;
                 if (bluetoothLEPublisher) {
                     bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
                     bluetoothLEPublisher.Advertisement().ServiceUuids().Clear();
@@ -628,10 +629,40 @@ namespace flutter_ble_peripheral {
         advertisement_pending_ = false;
         try {
             bluetoothLEPublisher.Start();
+            ArmAdvertiseTimeout();
             return true;
         }
         catch (...) {
             return false;
+        }
+    }
+
+    void FlutterBlePeripheralPlugin::ArmAdvertiseTimeout() {
+        // Anything that starts or stops advertising takes a new token, so that a
+        // timeout left over from an earlier advertisement does not end this one.
+        advertisement_token_++;
+        if (advertise_timeout_ > std::chrono::milliseconds::zero()) {
+            StopAfterTimeout(advertise_timeout_, advertisement_token_);
+        }
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::StopAfterTimeout(
+        std::chrono::milliseconds timeout, uint32_t token) {
+        auto alive = alive_;
+        co_await winrt::resume_after(timeout);
+        co_await ui_thread_;
+        if (!*alive || token != advertisement_token_) co_return;
+
+        try {
+            // The publisher reports the stop itself, which is what moves the state
+            // back to idle.
+            if (bluetoothLEPublisher &&
+                bluetoothLEPublisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started) {
+                bluetoothLEPublisher.Stop();
+            }
+        }
+        catch (...) {
+            // Nothing useful to do; the advertisement stays up.
         }
     }
 
@@ -652,6 +683,7 @@ namespace flutter_ble_peripheral {
 
         advertisement_pending_ = false;
         bluetoothLEPublisher.Start();
+        ArmAdvertiseTimeout();
         return BluetoothPeripheralState::Ready;
     }
 
@@ -729,79 +761,6 @@ namespace flutter_ble_peripheral {
         }
     }
 
-    union uint16_t_union {
-        uint16_t uint16;
-        byte bytes[sizeof(uint16_t)];
-    };
-
-    std::vector<uint8_t> to_bytevc(IBuffer buffer) {
-        try {
-            if (!buffer) {
-                return std::vector<uint8_t>();
-            }
-            auto reader = DataReader::FromBuffer(buffer);
-            auto result = std::vector<uint8_t>(reader.UnconsumedBufferLength());
-            reader.ReadBytes(result);
-            return result;
-        }
-        catch (...) {
-            return std::vector<uint8_t>();
-        }
-    }
-
-    std::vector<uint8_t> parseManufacturerData(BluetoothLEAdvertisement advertisement) {
-        try {
-            if (advertisement.ManufacturerData().Size() == 0)
-                return std::vector<uint8_t>();
-
-            auto manufacturerData = advertisement.ManufacturerData().GetAt(0);
-            // FIXME Compat with REG_DWORD_BIG_ENDIAN
-            uint8_t* prefix = uint16_t_union{ manufacturerData.CompanyId() }.bytes;
-            auto result = std::vector<uint8_t>{ prefix, prefix + sizeof(uint16_t_union) };
-
-            auto data = to_bytevc(manufacturerData.Data());
-            result.insert(result.end(), data.begin(), data.end());
-            return result;
-        }
-        catch (...) {
-            return std::vector<uint8_t>();
-        }
-    }
-
-    winrt::fire_and_forget FlutterBlePeripheralPlugin::BluetoothLEWatcher_Received(
-        BluetoothLEAdvertisementWatcher sender,
-        BluetoothLEAdvertisementReceivedEventArgs args) {
-        try {
-            // Extract all data on the callback thread first
-            auto manufacturer_data = parseManufacturerData(args.Advertisement());
-            auto bluetoothAddress = args.BluetoothAddress();
-            auto localName = args.Advertisement().LocalName();
-            auto name = winrt::to_string(localName);
-            if (localName.empty()) {
-                std::stringstream sstream;
-                sstream << std::hex << bluetoothAddress;
-                name = sstream.str();
-            }
-            auto rssi = args.RawSignalStrengthInDBm();
-            auto address = std::to_string(bluetoothAddress);
-
-            // Switch to UI thread before sending to Flutter
-            co_await ui_thread_;
-
-            if (scan_result_sink_) {
-                scan_result_sink_->Success(flutter::EncodableMap{
-                    {"deviceName", name},
-                    {"address", address},
-                    {"manufacturerSpecificData", manufacturer_data},
-                    {"rssi", rssi},
-                });
-            }
-        }
-        catch (...) {
-            // Silently ignore failed advertisement processing
-        }
-    }
-
     winrt::fire_and_forget FlutterBlePeripheralPlugin::OnRadioStateChanged(Radio sender, IInspectable args) {
         auto alive = alive_;
         try {
@@ -823,22 +782,6 @@ namespace flutter_ble_peripheral {
         catch (...) {
             // Ignore state change errors
         }
-    }
-
-
-
-    std::unique_ptr<flutter::StreamHandlerError<flutter::EncodableValue>> FlutterBlePeripheralPlugin::OnListenInternal(
-        const flutter::EncodableValue* arguments, std::unique_ptr<flutter::EventSink<flutter::EncodableValue>>&& events)
-    {
-        scan_result_sink_ = std::move(events);
-        return nullptr;
-    }
-
-    std::unique_ptr<flutter::StreamHandlerError<flutter::EncodableValue>> FlutterBlePeripheralPlugin::OnCancelInternal(
-        const flutter::EncodableValue* arguments)
-    {
-        scan_result_sink_ = nullptr;
-        return nullptr;
     }
 
 }  // namespace flutter_ble_peripheral

@@ -24,11 +24,9 @@
 #include "models/peripheral_state.h"
 
 #include <atomic>
+#include <chrono>
 #include <map>
 #include <memory>
-#include <sstream>
-#include <algorithm>
-#include <iomanip>
 
 namespace flutter_ble_peripheral {
 
@@ -50,7 +48,7 @@ namespace flutter_ble_peripheral {
 
 
 
-    class FlutterBlePeripheralPlugin : public flutter::Plugin, public flutter::StreamHandler<flutter::EncodableValue> {
+    class FlutterBlePeripheralPlugin : public flutter::Plugin {
     public:
         static void RegisterWithRegistrar(flutter::PluginRegistrarWindows* registrar);
 
@@ -73,23 +71,11 @@ namespace flutter_ble_peripheral {
         // Builds the advertisement payload from the arguments Dart sent.
         void BuildAdvertisement(const EncodableMap& arguments);
 
-        std::unique_ptr<flutter::StreamHandlerError<>> OnListenInternal(
-            const flutter::EncodableValue* arguments,
-            std::unique_ptr<flutter::EventSink<>>&& events) override;
-        std::unique_ptr<flutter::StreamHandlerError<>> OnCancelInternal(
-            const flutter::EncodableValue* arguments) override;
-
-        std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> scan_result_sink_;
         std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> state_changed_sink_;
 
         Radio bluetoothRadio{ nullptr };
         winrt::event_token radioStateChangedToken;
         winrt::fire_and_forget OnRadioStateChanged(Radio sender, IInspectable args);
-
-        BluetoothLEAdvertisementWatcher bluetoothLEWatcher{ nullptr };
-        winrt::event_token bluetoothLEWatcherReceivedToken;
-        winrt::fire_and_forget BluetoothLEWatcher_Received(BluetoothLEAdvertisementWatcher sender, BluetoothLEAdvertisementReceivedEventArgs args);
-
 
         BluetoothLEAdvertisementPublisher bluetoothLEPublisher{ nullptr };
         winrt::event_token bluetoothLEPublisherStatusChangedToken;
@@ -113,6 +99,11 @@ namespace flutter_ble_peripheral {
         // whether it went out; the publisher reports the resulting state itself.
         bool StartPendingAdvertisement();
 
+        // Starts the countdown that ends the advertisement just started, if the
+        // settings asked for one.
+        void ArmAdvertiseTimeout();
+        winrt::fire_and_forget StopAfterTimeout(std::chrono::milliseconds timeout, uint32_t token);
+
         // Starts the advertisement the publisher is holding, reporting the state it
         // leaves the peripheral in.
         BluetoothPeripheralState StartAdvertising();
@@ -122,6 +113,12 @@ namespace flutter_ble_peripheral {
         // Set when start() is called before the radio is up, so that the
         // advertisement can be issued once it comes on rather than being dropped.
         bool advertisement_pending_ = false;
+
+        // How long the advertisement runs for, or zero to leave it up.
+        std::chrono::milliseconds advertise_timeout_{ 0 };
+
+        // Identifies the advertisement a pending timeout belongs to.
+        uint32_t advertisement_token_ = 0;
 
         // Cleared when the plugin is destroyed, so that a coroutine resuming after
         // the fact does not touch it.
