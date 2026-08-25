@@ -86,7 +86,7 @@ namespace flutter_ble_peripheral {
                     std::unique_ptr<flutter::EventSink<>>&& events)
                 -> std::unique_ptr<flutter::StreamHandlerError<>> {
                     plugin_pointer->state_changed_sink_ = std::move(events);
-                    plugin_pointer->PublishState(plugin_pointer->peripheral_state_);
+                    plugin_pointer->SendCurrentState();
                     return nullptr;
                 },
                 [plugin_pointer = plugin.get()](const flutter::EncodableValue* arguments)
@@ -589,9 +589,19 @@ namespace flutter_ble_peripheral {
     }
 
     void FlutterBlePeripheralPlugin::PublishState(PeripheralState state) {
+        // A radio going down is reported by both the publisher and the radio
+        // itself, so the same state arrives twice; the repeat says nothing new.
+        if (state == peripheral_state_) {
+            return;
+        }
         peripheral_state_ = state;
+        SendCurrentState();
+    }
+
+    void FlutterBlePeripheralPlugin::SendCurrentState() {
         if (state_changed_sink_) {
-            state_changed_sink_->Success(flutter::EncodableValue(static_cast<int>(state)));
+            state_changed_sink_->Success(
+                flutter::EncodableValue(static_cast<int>(peripheral_state_)));
         }
     }
 

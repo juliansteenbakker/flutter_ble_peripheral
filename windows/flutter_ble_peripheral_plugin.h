@@ -98,10 +98,13 @@ namespace flutter_ble_peripheral {
         // For dispatching to platform thread
         winrt::apartment_context ui_thread_;
 
-        // Publishes a state on the state change stream, and remembers it so that a
-        // listener attaching later is handed the current one. Must be called on the
-        // UI thread.
+        // Publishes a state on the state change stream unless it is the one already
+        // reported, and remembers it for a listener attaching later. Must be called
+        // on the UI thread.
         void PublishState(PeripheralState state);
+
+        // Hands the current state to a listener that just attached.
+        void SendCurrentState();
 
         // The state a Bluetooth radio in this state puts the peripheral in.
         PeripheralState StateOf(RadioState radio_state) const;
