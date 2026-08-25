@@ -81,6 +81,9 @@ void main() {
       expect(converter.toJson(decoded), {
         uuid: const [16, 32],
       });
+      // Not a Uint8List: the method channel encodes one as a byte array rather
+      // than a list, and a plain int list is what the platform side reads.
+      expect(converter.toJson(decoded)![uuid], isNot(isA<Uint8List>()));
     });
 
     test('passes null through', () {

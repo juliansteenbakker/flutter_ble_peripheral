@@ -27,10 +27,12 @@ class Uint8ListMapStringConverter
     if (object == null) {
       return null;
     }
-    final map = <String, dynamic>{};
-    for (final key in object.keys) {
-      map[key] = object[key]!.toList();
+
+    final map = <String, List<int>>{};
+    for (final entry in object.entries) {
+      map[entry.key] = entry.value.toList();
     }
-    return object;
+
+    return map;
   }
 }
