@@ -2,6 +2,8 @@ package dev.steenbakker.flutter_ble_peripheral.callbacks
 
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseSettings
+import android.os.Handler
+import android.os.Looper
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import dev.steenbakker.flutter_ble_peripheral.models.State
@@ -12,7 +14,11 @@ class PeripheralAdvertisingCallback(private val result: MethodChannel.Result, pr
     override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
         super.onStartSuccess(settingsInEffect)
         Log.i("FlutterBlePeripheral", "onStartSuccess() mode: ${settingsInEffect.mode}, txPOWER ${settingsInEffect.txPowerLevel}")
-        result.success(State.Ready.ordinal)
+        // The thread this callback arrives on is not part of the contract, and a
+        // result may only be sent from the main thread.
+        Handler(Looper.getMainLooper()).post {
+            result.success(State.Ready.ordinal)
+        }
         stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
     }
 
@@ -46,6 +52,8 @@ class PeripheralAdvertisingCallback(private val result: MethodChannel.Result, pr
                 stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
             }
         }
-        result.error(errorCode.toString(), statusText, "startAdvertising")
+        Handler(Looper.getMainLooper()).post {
+            result.error(errorCode.toString(), statusText, "startAdvertising")
+        }
     }
 }
