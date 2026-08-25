@@ -124,12 +124,18 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             localName: map?["localName"] as? String,
             uuids: map?["serviceUuids"] as? [String] ,
         )
-        flutterBlePeripheralManager.start(advertiseData: advertiseData)
-        result(nil)
+        do {
+            try flutterBlePeripheralManager.start(advertiseData: advertiseData)
+            result(nil)
+        } catch let error as FlutterBlePeripheralError {
+            result(FlutterError(code: error.code, message: error.message, details: "startAdvertising"))
+        } catch {
+            result(FlutterError(code: "startAdvertising", message: error.localizedDescription, details: nil))
+        }
     }
     
     private func stopPeripheral(_ result: @escaping FlutterResult) {
-        flutterBlePeripheralManager.peripheralManager.stopAdvertising()
+        flutterBlePeripheralManager.stop()
         stateChangedHandler.publishPeripheralState(state: FlutterBlePeripheralState.idle)
         result(nil)
     }
