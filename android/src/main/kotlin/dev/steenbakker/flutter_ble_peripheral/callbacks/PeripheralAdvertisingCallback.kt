@@ -4,6 +4,7 @@ import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseSettings
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
+import dev.steenbakker.flutter_ble_peripheral.models.State
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
 
@@ -11,7 +12,7 @@ class PeripheralAdvertisingCallback(private val result: MethodChannel.Result, pr
     override fun onStartSuccess(settingsInEffect: AdvertiseSettings) {
         super.onStartSuccess(settingsInEffect)
         Log.i("FlutterBlePeripheral", "onStartSuccess() mode: ${settingsInEffect.mode}, txPOWER ${settingsInEffect.txPowerLevel}")
-        result.success(null)
+        result.success(State.Ready.ordinal)
         stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
     }
 

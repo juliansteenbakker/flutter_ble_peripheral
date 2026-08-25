@@ -80,8 +80,26 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         }
     }
 
-    // Returns permission state ordinal matching BluetoothPeripheralState enum
-    // 0=granted, 1=denied, 2=permanentlyDenied, 3=restricted, 7=unknown
+    /// What `start` reports back: `ready` once the advertisement is on air, or why
+    /// it is not. When the radio is still coming up the advertisement is queued and
+    /// issued on `poweredOn`, so `turnedOff` here is not a failure.
+    private func advertiseStartState() -> BluetoothPeripheralState {
+        switch flutterBlePeripheralManager.peripheralManager.state {
+        case .poweredOn:
+            return .ready
+        case .poweredOff:
+            return .turnedOff
+        case .unsupported:
+            return .unsupported
+        case .unauthorized:
+            return .permanentlyDenied
+        case .unknown, .resetting:
+            return .unknown
+        @unknown default:
+            return .unknown
+        }
+    }
+
     // Note: This checks PERMISSION status only, not Bluetooth power state (use isBluetoothOn for that)
     private func getPermissionState() -> Int {
         // First try the authorization API (iOS 13.1+/macOS 10.15+)
@@ -89,31 +107,32 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         if #available(iOS 13.1, macOS 10.15, *) {
             switch CBPeripheralManager.authorization {
             case .allowedAlways:
-                return 0 // granted
+                return BluetoothPeripheralState.granted.rawValue
             case .denied:
-                return 2 // permanentlyDenied
+                return BluetoothPeripheralState.permanentlyDenied.rawValue
             case .restricted:
-                return 3 // restricted
+                return BluetoothPeripheralState.restricted.rawValue
             case .notDetermined:
-                return 1 // denied (needs to request)
+                // Denied, in the sense that it still has to be requested.
+                return BluetoothPeripheralState.denied.rawValue
             @unknown default:
                 break // fall through to state-based check
             }
         }
 
         // Fallback for older OS: infer permission from peripheral manager state
-        let state = flutterBlePeripheralManager.peripheralManager.state
-        switch state {
+        switch flutterBlePeripheralManager.peripheralManager.state {
         case .unauthorized:
-            return 2 // permanentlyDenied
+            return BluetoothPeripheralState.permanentlyDenied.rawValue
         case .poweredOn, .poweredOff:
-            return 0 // granted (if we get these states, we have permission)
+            // Reaching either state means permission was granted.
+            return BluetoothPeripheralState.granted.rawValue
         case .unsupported:
-            return 6 // unsupported
+            return BluetoothPeripheralState.unsupported.rawValue
         case .unknown, .resetting:
-            return 7 // unknown
+            return BluetoothPeripheralState.unknown.rawValue
         @unknown default:
-            return 7 // unknown
+            return BluetoothPeripheralState.unknown.rawValue
         }
     }
     
@@ -126,7 +145,7 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         )
         do {
             try flutterBlePeripheralManager.start(advertiseData: advertiseData)
-            result(nil)
+            result(advertiseStartState().rawValue)
         } catch let error as FlutterBlePeripheralError {
             result(FlutterError(code: error.code, message: error.message, details: "startAdvertising"))
         } catch {
@@ -137,7 +156,7 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     private func stopPeripheral(_ result: @escaping FlutterResult) {
         flutterBlePeripheralManager.stop()
         stateChangedHandler.publishPeripheralState(state: FlutterBlePeripheralState.idle)
-        result(nil)
+        result(BluetoothPeripheralState.ready.rawValue)
     }
     
     private func isSupported(_ result: @escaping FlutterResult) {

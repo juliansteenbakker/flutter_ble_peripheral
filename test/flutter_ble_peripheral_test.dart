@@ -154,6 +154,18 @@ void main() {
       expect(arguments['setprimaryPhy'], 1);
     });
 
+    // Every platform reports ready on a successful start; the index has to line
+    // up with BluetoothPeripheralState or the state comes back as something else.
+    test('maps the native ready code to ready', () async {
+      response = BluetoothPeripheralState.ready.index;
+
+      expect(
+        await blePeripheral.start(advertiseData: AdvertiseData()),
+        BluetoothPeripheralState.ready,
+      );
+      expect(BluetoothPeripheralState.ready.index, 8);
+    });
+
     test('maps a null response to unknown', () async {
       expect(
         await blePeripheral.start(advertiseData: AdvertiseData()),
@@ -167,6 +179,11 @@ void main() {
       response = 5;
       expect(await blePeripheral.stop(), BluetoothPeripheralState.turnedOff);
       expect(calls.single.method, 'stop');
+    });
+
+    test('maps the native ready code to ready', () async {
+      response = BluetoothPeripheralState.ready.index;
+      expect(await blePeripheral.stop(), BluetoothPeripheralState.ready);
     });
 
     test('maps a null response to unknown', () async {
