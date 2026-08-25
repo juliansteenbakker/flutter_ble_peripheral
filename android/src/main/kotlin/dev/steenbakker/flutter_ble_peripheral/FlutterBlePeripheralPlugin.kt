@@ -384,7 +384,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
         addServiceUuids(advertiseData, arguments)
         //TODO: addTransportDiscoveryData
         (arguments["includeDeviceName"] as Boolean?)?.let { advertiseData.setIncludeDeviceName(it) }
-        (arguments["transmissionPowerIncluded"] as Boolean?)?.let {
+        (arguments["includePowerLevel"] as Boolean?)?.let {
             advertiseData.setIncludeTxPowerLevel(it)
         }
 
@@ -401,7 +401,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             addServiceUuids(advertiseResponseData, arguments, "response")
             //TODO: addTransportDiscoveryData
             (arguments["responseincludeDeviceName"] as Boolean?)?.let { advertiseResponseData.setIncludeDeviceName(it) }
-            (arguments["responsetransmissionPowerIncluded"] as Boolean?)?.let {
+            (arguments["responseincludePowerLevel"] as Boolean?)?.let {
                 advertiseResponseData.setIncludeTxPowerLevel(it)
             }
         }
@@ -413,7 +413,7 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
             val advertiseSettingsSet: AdvertisingSetParameters.Builder = AdvertisingSetParameters.Builder()
             (arguments["setanonymous"] as Boolean?)?.let { advertiseSettingsSet.setAnonymous(it) }
             (arguments["setconnectable"] as Boolean?)?.let { advertiseSettingsSet.setConnectable(it) }
-            (arguments["setsetIncludeTxPower"] as Boolean?)?.let { advertiseSettingsSet.setIncludeTxPower(it) }
+            (arguments["setincludeTxPowerLevel"] as Boolean?)?.let { advertiseSettingsSet.setIncludeTxPower(it) }
             (arguments["setinterval"] as Int?)?.let { advertiseSettingsSet.setInterval(it) }
             (arguments["setlegacyMode"] as Boolean?)?.let { advertiseSettingsSet.setLegacyMode(it) }
             (arguments["setprimaryPhy"] as Int?)?.let { advertiseSettingsSet.setPrimaryPhy(it) }
@@ -443,11 +443,11 @@ class FlutterBlePeripheralPlugin : FlutterPlugin, MethodChannel.MethodCallHandle
                             it
                     )
                 }
-                (arguments["periodictransmissionPowerIncluded"] as Boolean?)?.let {
+                (arguments["periodicincludePowerLevel"] as Boolean?)?.let {
                     periodicAdvertiseData.setIncludeTxPowerLevel(it)
                 }
 
-                (arguments["periodicsettingstransmissionPowerIncluded"] as Boolean?)?.let {
+                (arguments["periodicsettingsincludeTxPowerLevel"] as Boolean?)?.let {
                     periodicAdvertiseDataSettings.setIncludeTxPower(it)
                 }
 

@@ -1,8 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
-// Not exported from the barrel file, even though start() takes one.
-import 'package:flutter_ble_peripheral/src/models/periodic_advertise_settings.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -133,7 +131,9 @@ void main() {
     // channel as a bool rather than an int.
     test('encodes anonymous as a bool', () {
       expect(
-          AdvertiseSetParameters(anonymous: true).toJson()['anonymous'], true);
+        AdvertiseSetParameters(anonymous: true).toJson()['anonymous'],
+        true,
+      );
       expect(AdvertiseSetParameters().toJson()['anonymous'], isNull);
       expect(
         AdvertiseSetParameters.fromJson(
@@ -180,11 +180,17 @@ void main() {
     // declared order has to stay in step with the native enums.
     test('index matches the native state code', () {
       expect(
-          BluetoothPeripheralState.values[0], BluetoothPeripheralState.granted);
-      expect(BluetoothPeripheralState.values[5],
-          BluetoothPeripheralState.turnedOff);
+        BluetoothPeripheralState.values[0],
+        BluetoothPeripheralState.granted,
+      );
       expect(
-          BluetoothPeripheralState.values[8], BluetoothPeripheralState.ready);
+        BluetoothPeripheralState.values[5],
+        BluetoothPeripheralState.turnedOff,
+      );
+      expect(
+        BluetoothPeripheralState.values[8],
+        BluetoothPeripheralState.ready,
+      );
       expect(BluetoothPeripheralState.values, hasLength(9));
     });
   });

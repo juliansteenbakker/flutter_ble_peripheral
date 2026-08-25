@@ -166,6 +166,57 @@ void main() {
       expect(BluetoothPeripheralState.ready.index, 8);
     });
 
+    test('prefixes the periodic data with periodic', () async {
+      await blePeripheral.start(
+        advertiseData: AdvertiseData(),
+        advertisePeriodicData: AdvertiseData(
+          serviceUuid: 'FEAA',
+          manufacturerId: 1234,
+          manufacturerData: Uint8List.fromList([1, 2, 3]),
+          includeDeviceName: true,
+        ),
+        periodicAdvertiseSettings: PeriodicAdvertiseSettings(
+          interval: 200,
+          includeTxPowerLevel: true,
+        ),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['periodicserviceUuid'], 'FEAA');
+      expect(arguments['periodicmanufacturerId'], 1234);
+      expect(arguments['periodicmanufacturerData'], const [1, 2, 3]);
+      expect(arguments['periodicincludeDeviceName'], true);
+      expect(arguments['periodicsettingsinterval'], 200);
+      expect(arguments['periodicsettingsincludeTxPowerLevel'], true);
+    });
+
+    test('omits the periodic keys when no periodic data is given', () async {
+      await blePeripheral.start(advertiseData: AdvertiseData());
+
+      final arguments = argumentsOf(calls.single);
+      expect(
+        arguments.keys.where((k) => (k! as String).startsWith('periodic')),
+        isEmpty,
+      );
+    });
+
+    // The native side switches the TX power flag on these keys, so they must
+    // keep the names the models serialise to.
+    test('sends the tx power flags under the model key names', () async {
+      await blePeripheral.start(
+        advertiseData: AdvertiseData(includePowerLevel: true),
+        advertiseResponseData: AdvertiseData(includePowerLevel: true),
+        advertiseSetParameters: AdvertiseSetParameters(
+          includeTxPowerLevel: true,
+        ),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['includePowerLevel'], true);
+      expect(arguments['responseincludePowerLevel'], true);
+      expect(arguments['setincludeTxPowerLevel'], true);
+    });
+
     test('maps a null response to unknown', () async {
       expect(
         await blePeripheral.start(advertiseData: AdvertiseData()),
@@ -199,10 +250,12 @@ void main() {
       expect(await blePeripheral.isSupported, true);
       expect(await blePeripheral.isConnected, true);
       expect(await blePeripheral.isBluetoothOn, true);
-      expect(
-        calls.map((c) => c.method),
-        ['isAdvertising', 'isSupported', 'isConnected', 'isBluetoothOn'],
-      );
+      expect(calls.map((c) => c.method), [
+        'isAdvertising',
+        'isSupported',
+        'isConnected',
+        'isBluetoothOn',
+      ]);
     });
 
     test('fall back to false when the native side returns null', () async {
@@ -238,10 +291,10 @@ void main() {
         BluetoothPeripheralState.denied,
       );
 
-      expect(
-        calls.map((c) => c.method),
-        ['requestPermission', 'hasPermission'],
-      );
+      expect(calls.map((c) => c.method), [
+        'requestPermission',
+        'hasPermission',
+      ]);
     }, skip: Platform.isWindows);
 
     test('map a null response to unknown', () async {
@@ -300,10 +353,10 @@ void main() {
       await blePeripheral.openBluetoothSettings();
       await blePeripheral.openAppSettings();
 
-      expect(
-        calls.map((c) => c.method),
-        ['openBluetoothSettings', 'openAppSettings'],
-      );
+      expect(calls.map((c) => c.method), [
+        'openBluetoothSettings',
+        'openAppSettings',
+      ]);
     });
 
     test('the Windows-only ones are no-ops elsewhere', () async {
@@ -321,14 +374,11 @@ void main() {
       await blePeripheral.openLocationSettings();
       expect(await blePeripheral.isNearbyShareEnabled(), true);
 
-      expect(
-        calls.map((c) => c.method),
-        [
-          'openNearbyShareSettings',
-          'openLocationSettings',
-          'isNearbyShareEnabled',
-        ],
-      );
+      expect(calls.map((c) => c.method), [
+        'openNearbyShareSettings',
+        'openLocationSettings',
+        'isNearbyShareEnabled',
+      ]);
     }, skip: !Platform.isWindows);
   });
 }
