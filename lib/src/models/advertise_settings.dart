@@ -38,10 +38,11 @@ class AdvertiseSettings {
   /// Default: false
   final bool connectable;
 
-  /// Android only
+  /// Android and Windows only
   ///
-  /// Limit advertising to a given amount of time.
-  /// May not exceed 180000 milliseconds.
+  /// Limit advertising to a given amount of time, and only when [advertiseSet]
+  /// is false, since an advertising set is limited by its own duration instead.
+  /// May not exceed 180000 milliseconds; 0 leaves the advertisement up.
   /// Default: 400 milliseconds
   final int timeout;
 

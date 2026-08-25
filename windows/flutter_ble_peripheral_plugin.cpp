@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <map>
 #include <memory>
 #include <optional>
@@ -142,6 +143,9 @@ namespace flutter_ble_peripheral {
             PublishState(state);
         }
     }
+
+    // What Android caps AdvertiseSettings.timeout at.
+    constexpr std::chrono::milliseconds kMaxAdvertiseTimeout{ 180000 };
 
     // The tail of the Bluetooth Base UUID, onto which the 16 and 32 bit short
     // forms of a service uuid are expanded.
@@ -282,6 +286,13 @@ namespace flutter_ble_peripheral {
         return std::nullopt;
     }
 
+    std::optional<bool> ReadBool(const EncodableMap& arguments, const char* key) {
+        auto it = arguments.find(EncodableValue(key));
+        if (it == arguments.end()) return std::nullopt;
+        if (const auto* value = std::get_if<bool>(&it->second)) return *value;
+        return std::nullopt;
+    }
+
     std::optional<std::int64_t> ReadInt(const EncodableMap& arguments, const char* key) {
         auto it = arguments.find(EncodableValue(key));
         if (it == arguments.end()) return std::nullopt;
@@ -305,6 +316,16 @@ namespace flutter_ble_peripheral {
         // Rebuild from scratch, so repeated calls do not stack up.
         advertisement.ManufacturerData().Clear();
         advertisement.DataSections().Clear();
+
+        // Android reads the timeout on its legacy path only, where the advertising
+        // set path uses a duration Windows has no equivalent for, and treats zero
+        // as no limit. Same here, so that the two agree on when advertising ends.
+        advertise_timeout_ = std::chrono::milliseconds::zero();
+        if (!ReadBool(arguments, "advertiseSet").value_or(true)) {
+            auto timeout = ReadInt(arguments, "timeout").value_or(0);
+            advertise_timeout_ = std::chrono::milliseconds(
+                std::clamp<std::int64_t>(timeout, 0, kMaxAdvertiseTimeout.count()));
+        }
 
         // `manufacturerDataBytes` is the same payload as `manufacturerData`, sent as
         // a byte buffer rather than a list of ints.
@@ -407,6 +428,7 @@ namespace flutter_ble_peripheral {
         else if (method_call.method_name().compare("stop") == 0) {
             try {
                 advertisement_pending_ = false;
+                advertisement_token_++;
                 if (bluetoothLEPublisher) {
                     bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
                     bluetoothLEPublisher.Advertisement().ServiceUuids().Clear();
@@ -607,10 +629,40 @@ namespace flutter_ble_peripheral {
         advertisement_pending_ = false;
         try {
             bluetoothLEPublisher.Start();
+            ArmAdvertiseTimeout();
             return true;
         }
         catch (...) {
             return false;
+        }
+    }
+
+    void FlutterBlePeripheralPlugin::ArmAdvertiseTimeout() {
+        // Anything that starts or stops advertising takes a new token, so that a
+        // timeout left over from an earlier advertisement does not end this one.
+        advertisement_token_++;
+        if (advertise_timeout_ > std::chrono::milliseconds::zero()) {
+            StopAfterTimeout(advertise_timeout_, advertisement_token_);
+        }
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::StopAfterTimeout(
+        std::chrono::milliseconds timeout, uint32_t token) {
+        auto alive = alive_;
+        co_await winrt::resume_after(timeout);
+        co_await ui_thread_;
+        if (!*alive || token != advertisement_token_) co_return;
+
+        try {
+            // The publisher reports the stop itself, which is what moves the state
+            // back to idle.
+            if (bluetoothLEPublisher &&
+                bluetoothLEPublisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started) {
+                bluetoothLEPublisher.Stop();
+            }
+        }
+        catch (...) {
+            // Nothing useful to do; the advertisement stays up.
         }
     }
 
@@ -631,6 +683,7 @@ namespace flutter_ble_peripheral {
 
         advertisement_pending_ = false;
         bluetoothLEPublisher.Start();
+        ArmAdvertiseTimeout();
         return BluetoothPeripheralState::Ready;
     }
 
