@@ -6,12 +6,18 @@
 
 import 'package:json_annotation/json_annotation.dart';
 
+/// The result of a call that reaches the platform, covering both permission
+/// state and whether the adapter can be used.
+///
+/// The index of each entry is the value the platform sends back, so the order
+/// must not change.
 enum BluetoothPeripheralState {
   /// The user granted access to the requested feature.
   @JsonValue(0)
   granted,
 
-  /// The user denied access to the requested feature, permission needs to be asked first.
+  /// The user denied access to the requested feature, permission needs to be
+  /// asked first.
   @JsonValue(1)
   denied,
 
@@ -22,10 +28,10 @@ enum BluetoothPeripheralState {
   permanentlyDenied,
 
   /// The OS denied access to the requested feature.
-  /// The user cannot change this app's status, possibly due to active restrictions such as parental controls being in place.
+  /// The user cannot change this app's status, possibly due to active
+  /// restrictions such as parental controls being in place.
   ///
   /// Only supported on iOS.
-  ///
   @JsonValue(3)
   restricted,
 
@@ -37,12 +43,16 @@ enum BluetoothPeripheralState {
   /// Bluetooth is turned off
   @JsonValue(5)
   turnedOff,
+
+  /// Bluetooth is not supported on this device.
   @JsonValue(6)
   unsupported,
 
   /// The status is unknown
   @JsonValue(7)
   unknown,
+
+  /// Bluetooth is ready to be used.
   @JsonValue(8)
   ready,
 }

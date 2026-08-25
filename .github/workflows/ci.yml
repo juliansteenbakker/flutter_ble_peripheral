@@ -94,7 +94,7 @@ jobs:
           #    declares. This mirrors flutter/packages' .ci/scripts/analyze_legacy.sh, and is
           #    why this row analyzes lib/ only.
           yq -i 'del(.dev_dependencies)' pubspec.yaml
-          # 2. analysis_options.yaml pulls the `lint` package in by `package:`
+          # 2. analysis_options.yaml pulls very_good_analysis in by `package:`
           #    URI, which stops resolving once the dev dependency is gone.
           printf 'analyzer:\n  errors:\n    lines_longer_than_80_chars: ignore\n' > analysis_options.yaml
           # 3. The example app has its own, unrelated dependency floors.

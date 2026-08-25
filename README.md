@@ -2,7 +2,7 @@
 
 [![pub package](https://img.shields.io/pub/v/flutter_ble_peripheral?include_prereleases)](https://pub.dev/packages/flutter_ble_peripheral)
 [![CI](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions/workflows/ci.yml/badge.svg?branch=develop)](https://github.com/juliansteenbakker/flutter_ble_peripheral/actions/workflows/ci.yml)
-[![style: lint](https://img.shields.io/badge/style-lint-4BC0F5.svg)](https://pub.dev/packages/lint)
+[![style: very good analysis](https://img.shields.io/badge/style-very_good_analysis-B22C89.svg)](https://pub.dev/packages/very_good_analysis)
 [![GitHub Sponsors](https://img.shields.io/github/sponsors/juliansteenbakker)](https://github.com/sponsors/juliansteenbakker)
 
 Advertise over Bluetooth Low Energy from Flutter. This plugin puts the device in
