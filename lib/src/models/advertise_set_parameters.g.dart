@@ -17,7 +17,7 @@ AdvertiseSetParameters _$AdvertiseSetParametersFromJson(
       primaryPhy: (json['primaryPhy'] as num?)?.toInt(),
       scannable: json['scannable'] as bool?,
       secondaryPhy: (json['secondaryPhy'] as num?)?.toInt(),
-      anonymous: (json['anonymous'] as num?)?.toInt(),
+      anonymous: json['anonymous'] as bool?,
       includeTxPowerLevel: json['includeTxPowerLevel'] as bool? ?? false,
       duration: (json['duration'] as num?)?.toInt(),
       maxExtendedAdvertisingEvents:

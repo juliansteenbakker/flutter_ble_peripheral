@@ -128,6 +128,20 @@ void main() {
       expect(decoded.duration, 100);
       expect(decoded.maxExtendedAdvertisingEvents, 5);
     });
+
+    // Android reads setanonymous as a Boolean, so this has to go over the
+    // channel as a bool rather than an int.
+    test('encodes anonymous as a bool', () {
+      expect(
+          AdvertiseSetParameters(anonymous: true).toJson()['anonymous'], true);
+      expect(AdvertiseSetParameters().toJson()['anonymous'], isNull);
+      expect(
+        AdvertiseSetParameters.fromJson(
+          AdvertiseSetParameters(anonymous: true).toJson(),
+        ).anonymous,
+        true,
+      );
+    });
   });
 
   group('PeriodicAdvertiseSettings', () {
