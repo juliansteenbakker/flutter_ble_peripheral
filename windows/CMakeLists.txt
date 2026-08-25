@@ -22,6 +22,7 @@ set(PLUGIN_NAME "flutter_ble_peripheral_plugin")
 list(APPEND PLUGIN_SOURCES
         "flutter_ble_peripheral_plugin.cpp"
         "flutter_ble_peripheral_plugin.h"
+        "models/peripheral_state.h"
 )
 
 # Define the plugin library target. Its name must not be changed (see comment

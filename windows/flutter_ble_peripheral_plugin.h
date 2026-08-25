@@ -21,6 +21,9 @@
 #include <flutter/standard_method_codec.h>
 #include <flutter/standard_message_codec.h>
 
+#include "models/peripheral_state.h"
+
+#include <atomic>
 #include <map>
 #include <memory>
 #include <sstream>
@@ -42,6 +45,8 @@ namespace flutter_ble_peripheral {
 
     using flutter::EncodableMap;
     using flutter::EncodableValue;
+    using models::BluetoothPeripheralState;
+    using models::PeripheralState;
 
 
 
@@ -93,14 +98,39 @@ namespace flutter_ble_peripheral {
         // For dispatching to platform thread
         winrt::apartment_context ui_thread_;
 
-        // Send state to Flutter (must be called on UI thread)
-        void SendState(int state);
+        // Publishes a state on the state change stream, and remembers it so that a
+        // listener attaching later is handed the current one. Must be called on the
+        // UI thread.
+        void PublishState(PeripheralState state);
+
+        // The state a Bluetooth radio in this state puts the peripheral in.
+        PeripheralState StateOf(RadioState radio_state) const;
+
+        // Issues an advertisement held back while the radio was down, reporting
+        // whether it went out; the publisher reports the resulting state itself.
+        bool StartPendingAdvertisement();
+
+        // Starts the advertisement the publisher is holding, reporting the state it
+        // leaves the peripheral in.
+        BluetoothPeripheralState StartAdvertising();
+
+        PeripheralState peripheral_state_{ PeripheralState::Unknown };
+
+        // Set when start() is called before the radio is up, so that the
+        // advertisement can be issued once it comes on rather than being dropped.
+        bool advertisement_pending_ = false;
+
+        // Cleared when the plugin is destroyed, so that a coroutine resuming after
+        // the fact does not touch it.
+        std::shared_ptr<std::atomic_bool> alive_ = std::make_shared<std::atomic_bool>(true);
 
         // Async helper for enabling Bluetooth
         winrt::fire_and_forget EnableBluetoothAsync(std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
 
-        // Async helpers for location permission
-        winrt::fire_and_forget HasLocationPermissionAsync(std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
+        // Reads the location permission without asking for it.
+        bool HasLocationConsent() const;
+
+        // Async helper for requesting location permission, which prompts.
         winrt::fire_and_forget RequestLocationPermissionAsync(std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
     };
 

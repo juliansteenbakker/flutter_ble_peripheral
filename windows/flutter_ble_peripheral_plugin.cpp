@@ -86,40 +86,7 @@ namespace flutter_ble_peripheral {
                     std::unique_ptr<flutter::EventSink<>>&& events)
                 -> std::unique_ptr<flutter::StreamHandlerError<>> {
                     plugin_pointer->state_changed_sink_ = std::move(events);
-                    // Send initial state based on Bluetooth and publisher status
-                    // PeripheralState: 0=unknown, 1=unsupported, 2=unauthorized, 3=poweredOff, 4=idle, 5=advertising
-                    int initialState = 1; // unsupported by default (no radio)
-
-                    // Check if Bluetooth radio is available
-                    if (plugin_pointer->bluetoothRadio) {
-                        try {
-                            auto radioState = plugin_pointer->bluetoothRadio.State();
-                            if (radioState == RadioState::On) {
-                                initialState = 4; // idle - Bluetooth is on
-                            } else if (radioState == RadioState::Disabled) {
-                                initialState = 1; // unsupported - adapter disabled in Device Manager
-                            } else {
-                                initialState = 3; // poweredOff
-                            }
-                        }
-                        catch (...) {
-                            initialState = 1; // unsupported - radio no longer available
-                        }
-                    }
-
-                    // Check if already advertising
-                    if (initialState == 4 && plugin_pointer->bluetoothLEPublisher) {
-                        try {
-                            auto status = plugin_pointer->bluetoothLEPublisher.Status();
-                            if (status == BluetoothLEAdvertisementPublisherStatus::Started) {
-                                initialState = 5; // advertising
-                            }
-                        }
-                        catch (...) {
-                            // Publisher status unavailable, keep as idle
-                        }
-                    }
-                    plugin_pointer->state_changed_sink_->Success(flutter::EncodableValue(initialState));
+                    plugin_pointer->PublishState(plugin_pointer->peripheral_state_);
                     return nullptr;
                 },
                 [plugin_pointer = plugin.get()](const flutter::EncodableValue* arguments)
@@ -140,9 +107,29 @@ namespace flutter_ble_peripheral {
     }
 
     FlutterBlePeripheralPlugin::~FlutterBlePeripheralPlugin() {
+        // Revoke before the members go away: a radio or publisher event firing
+        // afterwards would run against a destroyed plugin.
+        *alive_ = false;
+        try {
+            if (bluetoothRadio && radioStateChangedToken) {
+                bluetoothRadio.StateChanged(radioStateChangedToken);
+            }
+            if (bluetoothLEPublisher) {
+                if (bluetoothLEPublisherStatusChangedToken) {
+                    bluetoothLEPublisher.StatusChanged(bluetoothLEPublisherStatusChangedToken);
+                }
+                if (bluetoothLEPublisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started) {
+                    bluetoothLEPublisher.Stop();
+                }
+            }
+        }
+        catch (...) {
+            // Nothing useful to do while tearing down.
+        }
     }
 
     winrt::fire_and_forget FlutterBlePeripheralPlugin::InitializeAsync() {
+        auto alive = alive_;
         try {
             auto bluetoothAdapter = co_await BluetoothAdapter::GetDefaultAsync();
             if (bluetoothAdapter) {
@@ -164,6 +151,16 @@ namespace flutter_ble_peripheral {
         }
         catch (...) {
             bluetoothRadio = nullptr;
+        }
+
+        // Until this has run there is no radio to report on, so a listener that
+        // attached in the meantime is still sitting on unknown, and a start() is
+        // still waiting on a radio that had not been found yet.
+        auto state = bluetoothRadio ? StateOf(bluetoothRadio.State()) : PeripheralState::Unsupported;
+        co_await ui_thread_;
+        if (!*alive) co_return;
+        if (!StartPendingAdvertisement()) {
+            PublishState(state);
         }
     }
 
@@ -419,9 +416,7 @@ namespace flutter_ble_peripheral {
                 }
 
                 BuildAdvertisement(*arguments);
-                bluetoothLEPublisher.Start();
-
-                result->Success(8);
+                result->Success(static_cast<int>(StartAdvertising()));
             }
             catch (const InvalidArgument& error) {
                 result->Error("invalid_arguments", error.what());
@@ -432,6 +427,7 @@ namespace flutter_ble_peripheral {
         }
         else if (method_call.method_name().compare("stop") == 0) {
             try {
+                advertisement_pending_ = false;
                 if (bluetoothLEPublisher) {
                     bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
                     bluetoothLEPublisher.Advertisement().ServiceUuids().Clear();
@@ -439,7 +435,7 @@ namespace flutter_ble_peripheral {
                     bluetoothLEPublisher.Advertisement().LocalName(L"");
                     bluetoothLEPublisher.Stop();
                 }
-                result->Success(8);
+                result->Success(static_cast<int>(BluetoothPeripheralState::Ready));
             }
             catch (...) {
                 result->Error("stop_failed", "Failed to stop advertising");
@@ -472,6 +468,16 @@ namespace flutter_ble_peripheral {
             }
             result->Success(isOn);
         }
+        else if (method_call.method_name().compare("isConnected") == 0) {
+            // Windows has no GATT server yet, so nothing can be connected to it.
+            result->Success(false);
+        }
+        else if (method_call.method_name().compare("openAppSettings") == 0) {
+            // A Flutter app on Windows is unpackaged and has no settings page of
+            // its own, so this opens Settings itself.
+            ShellExecuteW(nullptr, L"open", L"ms-settings:", nullptr, nullptr, SW_SHOWNORMAL);
+            result->Success(true);
+        }
         else if (method_call.method_name().compare("openNearbyShareSettings") == 0) {
             ShellExecuteW(nullptr, L"open", L"ms-settings:crossdevice", nullptr, nullptr, SW_SHOWNORMAL);
             result->Success(true);
@@ -502,8 +508,9 @@ namespace flutter_ble_peripheral {
             EnableBluetoothAsync(std::move(shared_result));
         }
         else if (method_call.method_name().compare("hasLocationPermission") == 0) {
-            auto shared_result = std::make_shared<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(std::move(result));
-            HasLocationPermissionAsync(std::move(shared_result));
+            // Deliberately not Geolocator::RequestAccessAsync, which prompts:
+            // checking whether the permission is held must not ask for it.
+            result->Success(HasLocationConsent());
         }
         else if (method_call.method_name().compare("requestLocationPermission") == 0) {
             auto shared_result = std::make_shared<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(std::move(result));
@@ -526,7 +533,8 @@ namespace flutter_ble_peripheral {
         BluetoothLEAdvertisementPublisher sender,
         BluetoothLEAdvertisementPublisherStatusChangedEventArgs args)
     {
-        int peripheralState = 0; // unknown
+        auto alive = alive_;
+        auto peripheralState = PeripheralState::Unknown;
 
         try {
             switch (args.Status()) {
@@ -534,65 +542,113 @@ namespace flutter_ble_peripheral {
                 case BluetoothLEAdvertisementPublisherStatus::Waiting:
                 case BluetoothLEAdvertisementPublisherStatus::Stopping:
                 case BluetoothLEAdvertisementPublisherStatus::Stopped:
-                    peripheralState = 4; // idle
+                    peripheralState = PeripheralState::Idle;
                     break;
                 case BluetoothLEAdvertisementPublisherStatus::Started:
-                    peripheralState = 5; // advertising
+                    peripheralState = PeripheralState::Advertising;
                     break;
                 case BluetoothLEAdvertisementPublisherStatus::Aborted:
-                    // Map error to appropriate state
                     switch (args.Error()) {
                         case BluetoothError::RadioNotAvailable:
                             // No radio at all, or adapter disabled in Device Manager → unsupported.
                             // Radio present but soft-off → poweredOff.
-                            if (!bluetoothRadio ||
-                                bluetoothRadio.State() == RadioState::Disabled) {
-                                peripheralState = 1; // unsupported
-                            } else {
-                                peripheralState = 3; // poweredOff
-                            }
+                            peripheralState = (!bluetoothRadio ||
+                                bluetoothRadio.State() == RadioState::Disabled)
+                                ? PeripheralState::Unsupported
+                                : PeripheralState::PoweredOff;
                             break;
                         case BluetoothError::ResourceInUse:
-                            // Resource conflict (e.g., Nearby Sharing is active)
-                            peripheralState = 2; // unauthorized (blocked by another app)
+                            // Something else holds the radio, such as Nearby Sharing.
+                            peripheralState = PeripheralState::Unauthorized;
                             break;
                         case BluetoothError::NotSupported:
                         case BluetoothError::TransportNotSupported:
-                            peripheralState = 1; // unsupported
+                            peripheralState = PeripheralState::Unsupported;
                             break;
                         case BluetoothError::DisabledByPolicy:
                         case BluetoothError::DisabledByUser:
                         case BluetoothError::ConsentRequired:
-                            peripheralState = 2; // unauthorized
+                            peripheralState = PeripheralState::Unauthorized;
                             break;
                         default:
-                            peripheralState = 0; // unknown
                             break;
                     }
                     break;
                 default:
-                    peripheralState = 0; // unknown
                     break;
             }
         }
         catch (...) {
-            peripheralState = 0; // unknown on error
+            peripheralState = PeripheralState::Unknown;
         }
 
         // Switch back to UI thread before sending to Flutter
         co_await ui_thread_;
-        SendState(peripheralState);
+        if (!*alive) co_return;
+        PublishState(peripheralState);
     }
 
-    void FlutterBlePeripheralPlugin::SendState(int state) {
+    void FlutterBlePeripheralPlugin::PublishState(PeripheralState state) {
+        peripheral_state_ = state;
         if (state_changed_sink_) {
-            state_changed_sink_->Success(flutter::EncodableValue(state));
+            state_changed_sink_->Success(flutter::EncodableValue(static_cast<int>(state)));
         }
+    }
+
+    PeripheralState FlutterBlePeripheralPlugin::StateOf(RadioState radio_state) const {
+        switch (radio_state) {
+            case RadioState::On:
+                return PeripheralState::Idle;
+            case RadioState::Off:
+                return PeripheralState::PoweredOff;
+            case RadioState::Disabled:
+                // Adapter disabled in Device Manager.
+                return PeripheralState::Unsupported;
+            default:
+                return PeripheralState::Unknown;
+        }
+    }
+
+    bool FlutterBlePeripheralPlugin::StartPendingAdvertisement() {
+        if (!advertisement_pending_ || !bluetoothLEPublisher || !bluetoothRadio ||
+            bluetoothRadio.State() != RadioState::On) {
+            return false;
+        }
+
+        advertisement_pending_ = false;
+        try {
+            bluetoothLEPublisher.Start();
+            return true;
+        }
+        catch (...) {
+            return false;
+        }
+    }
+
+    BluetoothPeripheralState FlutterBlePeripheralPlugin::StartAdvertising() {
+        // Starting while the radio is down only earns an Aborted status a moment
+        // later, so hold the advertisement and issue it once the radio comes up.
+        if (!bluetoothRadio) {
+            advertisement_pending_ = true;
+            return BluetoothPeripheralState::Unsupported;
+        }
+        auto radioState = bluetoothRadio.State();
+        if (radioState != RadioState::On) {
+            advertisement_pending_ = true;
+            return radioState == RadioState::Disabled
+                ? BluetoothPeripheralState::Unsupported
+                : BluetoothPeripheralState::TurnedOff;
+        }
+
+        advertisement_pending_ = false;
+        bluetoothLEPublisher.Start();
+        return BluetoothPeripheralState::Ready;
     }
 
     winrt::fire_and_forget FlutterBlePeripheralPlugin::EnableBluetoothAsync(
         std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result)
     {
+        auto alive = alive_;
         bool success = false;
 
         try {
@@ -610,42 +666,45 @@ namespace flutter_ble_peripheral {
 
         // Switch back to UI thread before returning result
         co_await ui_thread_;
+        if (!*alive) co_return;
         if (*result) {
             (*result)->Success(flutter::EncodableValue(success));
         }
 
-        // Send state update if Bluetooth was enabled successfully
-        if (success) {
-            SendState(4); // idle
-        }
     }
 
-    winrt::fire_and_forget FlutterBlePeripheralPlugin::HasLocationPermissionAsync(
-        std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result)
-    {
-        bool hasPermission = false;
+    // Whether location access is allowed, read from the consent store Settings
+    // writes it to. The per-user value wins; the machine value is the fallback for
+    // a user who has never been asked.
+    bool FlutterBlePeripheralPlugin::HasLocationConsent() const {
+        constexpr auto path =
+            L"Software\\Microsoft\\Windows\\CurrentVersion\\CapabilityAccessManager\\ConsentStore\\location";
 
-        try {
-            auto accessStatus = co_await Geolocator::RequestAccessAsync();
-            hasPermission = (accessStatus == GeolocationAccessStatus::Allowed);
+        for (auto root : { HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE }) {
+            HKEY key;
+            if (RegOpenKeyExW(root, path, 0, KEY_READ, &key) != ERROR_SUCCESS) {
+                continue;
+            }
+            wchar_t value[16] = {};
+            DWORD size = sizeof(value);
+            DWORD type = 0;
+            auto read = RegQueryValueExW(key, L"Value", nullptr, &type, (LPBYTE)value, &size);
+            RegCloseKey(key);
+            if (read == ERROR_SUCCESS && type == REG_SZ) {
+                return _wcsicmp(value, L"Allow") == 0;
+            }
         }
-        catch (...) {
-            hasPermission = false;
-        }
-
-        co_await ui_thread_;
-        if (*result) {
-            (*result)->Success(flutter::EncodableValue(hasPermission));
-        }
+        return false;
     }
 
     winrt::fire_and_forget FlutterBlePeripheralPlugin::RequestLocationPermissionAsync(
         std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result)
     {
+        auto alive = alive_;
         bool granted = false;
 
         try {
-            // RequestAccessAsync will prompt the user if permission hasn't been determined yet
+            // Prompts the user when the permission has not been decided yet.
             auto accessStatus = co_await Geolocator::RequestAccessAsync();
             granted = (accessStatus == GeolocationAccessStatus::Allowed);
         }
@@ -654,6 +713,7 @@ namespace flutter_ble_peripheral {
         }
 
         co_await ui_thread_;
+        if (!*alive) co_return;
         if (*result) {
             (*result)->Success(flutter::EncodableValue(granted));
         }
@@ -733,29 +793,22 @@ namespace flutter_ble_peripheral {
     }
 
     winrt::fire_and_forget FlutterBlePeripheralPlugin::OnRadioStateChanged(Radio sender, IInspectable args) {
+        auto alive = alive_;
         try {
-            int state = 0;
+            auto radioState = RadioState::Unknown;
             try {
-                switch (sender.State()) {
-                    case RadioState::On:
-                        state = 4; // idle (advertising state is tracked via publisher events)
-                        break;
-                    case RadioState::Off:
-                        state = 3; // poweredOff
-                        break;
-                    case RadioState::Disabled:
-                        state = 1; // unsupported - adapter disabled in Device Manager
-                        break;
-                    default:
-                        state = 0; // unknown
-                        break;
-                }
+                radioState = sender.State();
             }
             catch (...) {
-                state = 1;
+                radioState = RadioState::Unknown;
             }
+
             co_await ui_thread_;
-            SendState(state);
+            if (!*alive) co_return;
+
+            if (!StartPendingAdvertisement()) {
+                PublishState(StateOf(radioState));
+            }
         }
         catch (...) {
             // Ignore state change errors
