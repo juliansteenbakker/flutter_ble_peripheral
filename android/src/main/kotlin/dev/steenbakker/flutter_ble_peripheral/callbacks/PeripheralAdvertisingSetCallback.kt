@@ -7,6 +7,7 @@ import android.os.Build
 import androidx.annotation.RequiresApi
 import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
+import dev.steenbakker.flutter_ble_peripheral.models.State
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
 
@@ -64,7 +65,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
         if (status != ADVERTISE_SUCCESS) {
             result.error(status.toString(), statusText, "startAdvertisingSet")
         } else {
-            result.success(0)
+            result.success(State.Ready.ordinal)
         }
 
     }

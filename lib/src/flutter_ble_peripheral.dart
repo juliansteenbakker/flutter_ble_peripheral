@@ -53,6 +53,12 @@ class FlutterBlePeripheral {
   //     'dev.steenbakker.flutter_ble_peripheral/ble_data_received');
 
   /// Start advertising. Takes [AdvertiseData] as an input.
+  ///
+  /// Returns [BluetoothPeripheralState.ready] once the advertisement is on air.
+  /// On Apple platforms a state such as [BluetoothPeripheralState.turnedOff] is
+  /// returned when the radio is not up yet; the advertisement is queued and
+  /// starts as soon as it is. A platform that refuses the advertisement outright
+  /// throws a [PlatformException] instead.
   Future<BluetoothPeripheralState> start({
     required AdvertiseData advertiseData,
     AdvertiseSettings? advertiseSettings,
@@ -100,7 +106,10 @@ class FlutterBlePeripheral {
         : BluetoothPeripheralState.values[response];
   }
 
-  /// Stop advertising
+  /// Stop advertising.
+  ///
+  /// Returns [BluetoothPeripheralState.ready], since the adapter is free to
+  /// advertise again.
   Future<BluetoothPeripheralState> stop() async {
     final response = await _methodChannel.invokeMethod<int>('stop');
     return response == null
