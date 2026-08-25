@@ -218,7 +218,9 @@ when it can deliver. Payloads are queued per central, so back-to-back calls arri
 order rather than overwriting each other, and a central that reads TX gets the payload
 sent last.
 
-Not supported on Windows yet.
+On Windows the service is advertised by the GATT service provider rather than by the
+advertisement publisher, which is also what makes the peripheral connectable there and
+puts the service uuid on air; a legacy Windows advertisement cannot carry one.
 
 ### Streams
 

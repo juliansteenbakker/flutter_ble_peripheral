@@ -25,6 +25,8 @@
 
 #include <atomic>
 #include <chrono>
+#include <string>
+#include <vector>
 #include <map>
 #include <memory>
 
@@ -74,6 +76,49 @@ namespace flutter_ble_peripheral {
         // Applies the WindowsAdvertiseSettings fields, which sit on the publisher
         // rather than on the advertisement.
         void ApplyWindowsSettings(const EncodableMap& arguments);
+
+        // Serves the GATT service Dart asked for, with its TX and RX
+        // characteristics, and advertises it as connectable.
+        winrt::fire_and_forget StartGattServer(
+            const std::string& service_uuid,
+            const std::string& tx_uuid,
+            const std::string& rx_uuid);
+
+        // Tears the GATT service down and stops advertising it.
+        void StopGattServer();
+
+        // Hands a central the value sendData sent last.
+        winrt::fire_and_forget OnReadRequested(
+            GattLocalCharacteristic const& characteristic,
+            GattReadRequestedEventArgs const& args);
+
+        // Forwards what a central wrote to the RX characteristic to Dart.
+        winrt::fire_and_forget OnWriteRequested(
+            GattLocalCharacteristic const& characteristic,
+            GattWriteRequestedEventArgs const& args);
+
+        // Reports whether any central is subscribed, and the MTU it negotiated.
+        winrt::fire_and_forget OnSubscribersChanged(
+            GattLocalCharacteristic const& characteristic,
+            winrt::Windows::Foundation::IInspectable const& args);
+
+        std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> data_received_sink_;
+        std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> mtu_changed_sink_;
+        std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> subscription_sink_;
+
+        GattServiceProvider gatt_provider_{ nullptr };
+        GattLocalCharacteristic gatt_tx_{ nullptr };
+        GattLocalCharacteristic gatt_rx_{ nullptr };
+        winrt::event_token gatt_read_token_;
+        winrt::event_token gatt_write_token_;
+        winrt::event_token gatt_subscribers_token_;
+
+        // The payload sendData was given last, handed back to a central that
+        // reads the TX characteristic.
+        std::vector<uint8_t> gatt_last_sent_;
+
+        // The last subscription state published, so only changes are sent.
+        bool gatt_subscribed_ = false;
 
         std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> state_changed_sink_;
 
