@@ -31,6 +31,12 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
             state = .unknown
         }
         stateChangedHandler.publishPeripheralState(state: state)
+
+        // After publishing idle, so the advertising state that this produces is
+        // not overwritten by the state above.
+        if peripheral.state == .poweredOn {
+            startPendingAdvertisement()
+        }
     }
     
     func peripheralManagerDidStartAdvertising(_ peripheral: CBPeripheralManager, error: (any Error)?) {
