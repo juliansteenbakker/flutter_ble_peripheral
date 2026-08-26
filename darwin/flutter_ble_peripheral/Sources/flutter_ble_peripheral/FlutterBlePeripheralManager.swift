@@ -74,11 +74,14 @@ class FlutterBlePeripheralManager: NSObject {
 
     // MARK: - MTU Tracking
 
-    /// The current MTU (Maximum Transmission Unit) size.
-    /// Default is 158 (minimum supported before iOS 10).
-    var mtu: Int = 158 {
+    /// The largest notification payload a subscribed central will take, which is
+    /// what Core Bluetooth reports. Default is 158 (minimum supported before iOS 10).
+    ///
+    /// Dart is given the ATT MTU, three bytes larger for the header, since that is
+    /// what Android and Windows send.
+    var maximumNotificationSize: Int = 158 {
         didSet {
-            mtuChangedHandler?.publishMtu(mtu: mtu)
+            mtuChangedHandler?.publishMtu(mtu: maximumNotificationSize + 3)
         }
     }
 
