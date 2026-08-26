@@ -96,7 +96,8 @@ await FlutterBlePeripheral().sendData(Uint8List.fromList([1, 2, 3]));
 
 - Stopping advertising closes the GATT server and drops any queued payloads.
 - `sendData` queues per central, so back-to-back calls arrive in order rather
-  than overwriting each other.
+  than overwriting each other. It throws when no central is subscribed, rather
+  than dropping the payload.
 - A central that reads TX gets the payload sent last, so one that subscribes
   late can still pick it up.
 - Several centrals can connect at once. The example is written around a single
