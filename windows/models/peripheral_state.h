@@ -11,10 +11,13 @@ namespace models {
         Unsupported = 1,
         Unauthorized = 2,
         PoweredOff = 3,
-        Idle = 4,
-        Advertising = 5,
-        Connected = 6,
-        ShouldShowRequestPermissionRationale = 7,
+        // Android only, and never published from here, but it sits in the middle
+        // of the Dart enum, so everything after it hangs off having it.
+        LocationServicesDisabled = 4,
+        Idle = 5,
+        Advertising = 6,
+        Connected = 7,
+        ShouldShowRequestPermissionRationale = 8,
     };
 
     // Mirrors the Dart `BluetoothPeripheralState`, which is what `start`, `stop`
