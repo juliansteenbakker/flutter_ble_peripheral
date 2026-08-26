@@ -15,8 +15,8 @@ class BleStatusScreen extends StatelessWidget {
             'and location';
       case PeripheralState.poweredOff:
         return 'Bluetooth is powered off on your device turn it on';
-      // case PeripheralState.unauthorized:
-      //   return "Enable location services";
+      case PeripheralState.locationServicesDisabled:
+        return 'Enable location services';
       case PeripheralState.idle:
         return 'Bluetooth is up and running';
       case PeripheralState.unknown:

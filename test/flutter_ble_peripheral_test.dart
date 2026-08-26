@@ -38,11 +38,11 @@ void main() {
   });
 
   group('start', () {
-    test('sends the advertise data and the default settings', () async {
+    test('sends the advertise data', () async {
       response = 8;
 
       final state = await blePeripheral.start(
-        advertiseData: AdvertiseData(
+        advertiseData: AndroidAdvertiseData(
           serviceUuid: 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7',
           manufacturerId: 1234,
           manufacturerData: Uint8List.fromList([1, 2, 3]),
@@ -55,11 +55,37 @@ void main() {
       expect(arguments['serviceUuid'], 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7');
       expect(arguments['manufacturerId'], 1234);
       expect(arguments['localName'], 'Peripheral');
-      // Defaults from AdvertiseSettings, merged into the same flat payload.
-      expect(arguments['advertiseMode'], 2);
-      expect(arguments['txPowerLevel'], 1);
-      expect(arguments['timeout'], 400);
-      expect(state, BluetoothPeripheralState.ready);
+      expect(state, PeripheralBluetoothState.ready);
+    });
+
+    // Manufacturer data and the tx power flag live on AdvertiseDataCore, so
+    // they go over the channel unprefixed and every platform reads the same
+    // keys. Declaring them per platform was the wart the split introduced.
+    test('sends the shared fields without a platform prefix', () async {
+      await blePeripheral.start(
+        advertiseData: AdvertiseDataCore(
+          serviceUuid: 'abcd',
+          localName: 'Peripheral',
+          manufacturerId: 1234,
+          manufacturerData: Uint8List.fromList([1, 2, 3]),
+          includeTxPowerLevel: true,
+        ),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['serviceUuid'], 'abcd');
+      expect(arguments['localName'], 'Peripheral');
+      expect(arguments['manufacturerId'], 1234);
+      expect(arguments['manufacturerData'], const [1, 2, 3]);
+      expect(arguments['includeTxPowerLevel'], true);
+      expect(
+        arguments.keys.where(
+          (k) =>
+              (k! as String).startsWith('windows') ||
+              (k as String).startsWith('darwin'),
+        ),
+        isEmpty,
+      );
     });
 
     // The bytes are sent twice: once encoded by the converter and once raw, so
@@ -68,7 +94,7 @@ void main() {
       final bytes = Uint8List.fromList([1, 2, 3]);
 
       await blePeripheral.start(
-        advertiseData: AdvertiseData(manufacturerData: bytes),
+        advertiseData: AndroidAdvertiseData(manufacturerData: bytes),
       );
 
       final arguments = argumentsOf(calls.single);
@@ -80,8 +106,8 @@ void main() {
     // that Android can advertise the list on its own.
     test('sends serviceUuids without a singular serviceUuid', () async {
       await blePeripheral.start(
-        advertiseData: AdvertiseData(
-          serviceUuids: const ['5b0e0100-0100-1000-8000-00805f9b34fb', 'A1B2'],
+        advertiseData: const AdvertiseDataCore(
+          serviceUuids: ['5b0e0100-0100-1000-8000-00805f9b34fb', 'A1B2'],
         ),
       );
 
@@ -95,104 +121,130 @@ void main() {
 
     // The native side reads these under a response prefix and builds a separate
     // AdvertiseData for the scan response.
-    test('prefixes the response data with response', () async {
-      await blePeripheral.start(
-        advertiseData: AdvertiseData(serviceUuid: 'abcd'),
-        advertiseResponseData: AdvertiseData(
-          serviceUuid: 'ef01',
-          manufacturerId: 1234,
-          manufacturerData: Uint8List.fromList([1, 2, 3]),
-          serviceDataUuid: 'FEAA',
-          serviceData: const [4, 5],
-          includeDeviceName: true,
-        ),
-      );
+    test(
+      'prefixes the response data with response',
+      () async {
+        await blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(serviceUuid: 'abcd'),
+          androidSettings: AndroidAdvertiseSettings(
+            advertiseResponseData: AndroidAdvertiseData(
+              serviceUuid: 'ef01',
+              manufacturerId: 1234,
+              manufacturerData: Uint8List.fromList([1, 2, 3]),
+              serviceDataUuid: 'FEAA',
+              serviceData: const [4, 5],
+              includeDeviceName: true,
+            ),
+          ),
+        );
 
-      final arguments = argumentsOf(calls.single);
-      expect(arguments['responseserviceUuid'], 'ef01');
-      expect(arguments['responsemanufacturerId'], 1234);
-      expect(arguments['responsemanufacturerData'], const [1, 2, 3]);
-      expect(arguments['responseserviceDataUuid'], 'FEAA');
-      expect(arguments['responseserviceData'], const [4, 5]);
-      expect(arguments['responseincludeDeviceName'], true);
-      // The primary data must not be overwritten by the response data.
-      expect(arguments['serviceUuid'], 'abcd');
-      expect(arguments['manufacturerData'], isNull);
-    });
+        final arguments = argumentsOf(calls.single);
+        expect(arguments['responseserviceUuid'], 'ef01');
+        expect(arguments['responsemanufacturerId'], 1234);
+        expect(arguments['responsemanufacturerData'], const [1, 2, 3]);
+        expect(arguments['responseserviceDataUuid'], 'FEAA');
+        expect(arguments['responseserviceData'], const [4, 5]);
+        expect(arguments['responseincludeDeviceName'], true);
+        // The primary data must not be overwritten by the response data.
+        expect(arguments['serviceUuid'], 'abcd');
+        expect(arguments['manufacturerData'], isNull);
+      },
+      skip: !Platform.isAndroid,
+    );
 
-    test('honours explicit advertise settings', () async {
-      await blePeripheral.start(
-        advertiseData: AdvertiseData(),
-        advertiseSettings: AdvertiseSettings(
-          advertiseMode: AdvertiseMode.advertiseModeLowPower,
-          txPowerLevel: AdvertiseTxPower.advertiseTxPowerHigh,
-          connectable: true,
-          timeout: 1000,
-        ),
-      );
+    // The Android settings are only merged into the payload when running on
+    // Android, so these two only run there.
+    test(
+      'honours explicit advertise settings',
+      () async {
+        await blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(),
+          androidSettings: const AndroidAdvertiseSettings(
+            advertiseSettings: AdvertiseSettings(
+              advertiseMode: AdvertiseMode.advertiseModeLowPower,
+              connectable: true,
+              timeout: 1000,
+            ),
+          ),
+        );
 
-      final arguments = argumentsOf(calls.single);
-      expect(arguments['advertiseMode'], 0);
-      expect(arguments['txPowerLevel'], 3);
-      expect(arguments['connectable'], true);
-      expect(arguments['timeout'], 1000);
-    });
+        final arguments = argumentsOf(calls.single);
+        expect(arguments['advertiseMode'], 0);
+        expect(arguments['txPowerLevel'], 3);
+        expect(arguments['connectable'], true);
+        expect(arguments['timeout'], 1000);
+      },
+      skip: !Platform.isAndroid,
+    );
 
-    test('prefixes advertise set parameters with set', () async {
-      await blePeripheral.start(
-        advertiseData: AdvertiseData(),
-        advertiseSetParameters: AdvertiseSetParameters(
-          connectable: true,
-          interval: intervalMedium,
-          primaryPhy: 1,
-        ),
-      );
+    test(
+      'prefixes advertise set parameters with set',
+      () async {
+        await blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(),
+          androidSettings: const AndroidAdvertiseSettings(
+            advertiseSetParameters: AdvertiseSetParameters(
+              connectable: true,
+              interval: intervalMedium,
+              primaryPhy: 1,
+            ),
+          ),
+        );
 
-      final arguments = argumentsOf(calls.single);
-      expect(arguments['setconnectable'], true);
-      expect(arguments['setinterval'], intervalMedium);
-      expect(arguments['setprimaryPhy'], 1);
-    });
+        final arguments = argumentsOf(calls.single);
+        expect(arguments['setconnectable'], true);
+        expect(arguments['setinterval'], intervalMedium);
+        expect(arguments['setprimaryPhy'], 1);
+      },
+      skip: !Platform.isAndroid,
+    );
 
     // Every platform reports ready on a successful start; the index has to
-    // line up with BluetoothPeripheralState or the state comes back as
+    // line up with PeripheralBluetoothState or the state comes back as
     // something else.
     test('maps the native ready code to ready', () async {
-      response = BluetoothPeripheralState.ready.index;
+      response = PeripheralBluetoothState.ready.index;
 
       expect(
-        await blePeripheral.start(advertiseData: AdvertiseData()),
-        BluetoothPeripheralState.ready,
+        await blePeripheral.start(advertiseData: const AdvertiseDataCore()),
+        PeripheralBluetoothState.ready,
       );
-      expect(BluetoothPeripheralState.ready.index, 8);
+      expect(PeripheralBluetoothState.ready.index, 8);
     });
 
-    test('prefixes the periodic data with periodic', () async {
-      await blePeripheral.start(
-        advertiseData: AdvertiseData(),
-        advertisePeriodicData: AdvertiseData(
-          serviceUuid: 'FEAA',
-          manufacturerId: 1234,
-          manufacturerData: Uint8List.fromList([1, 2, 3]),
-          includeDeviceName: true,
-        ),
-        periodicAdvertiseSettings: PeriodicAdvertiseSettings(
-          interval: 200,
-          includeTxPowerLevel: true,
-        ),
-      );
+    test(
+      'prefixes the periodic data with periodic',
+      () async {
+        await blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(),
+          androidSettings: AndroidAdvertiseSettings(
+            advertiseSetParameters: const AdvertiseSetParameters(),
+            periodicAdvertiseData: AndroidAdvertiseData(
+              serviceUuid: 'FEAA',
+              manufacturerId: 1234,
+              manufacturerData: Uint8List.fromList([1, 2, 3]),
+              includeDeviceName: true,
+            ),
+            periodicAdvertiseSettings: const PeriodicAdvertiseSettings(
+              interval: 200,
+              includeTxPowerLevel: true,
+            ),
+          ),
+        );
 
-      final arguments = argumentsOf(calls.single);
-      expect(arguments['periodicserviceUuid'], 'FEAA');
-      expect(arguments['periodicmanufacturerId'], 1234);
-      expect(arguments['periodicmanufacturerData'], const [1, 2, 3]);
-      expect(arguments['periodicincludeDeviceName'], true);
-      expect(arguments['periodicsettingsinterval'], 200);
-      expect(arguments['periodicsettingsincludeTxPowerLevel'], true);
-    });
+        final arguments = argumentsOf(calls.single);
+        expect(arguments['periodicserviceUuid'], 'FEAA');
+        expect(arguments['periodicmanufacturerId'], 1234);
+        expect(arguments['periodicmanufacturerData'], const [1, 2, 3]);
+        expect(arguments['periodicincludeDeviceName'], true);
+        expect(arguments['periodicsettingsinterval'], 200);
+        expect(arguments['periodicsettingsincludeTxPowerLevel'], true);
+      },
+      skip: !Platform.isAndroid,
+    );
 
     test('omits the periodic keys when no periodic data is given', () async {
-      await blePeripheral.start(advertiseData: AdvertiseData());
+      await blePeripheral.start(advertiseData: const AdvertiseDataCore());
 
       final arguments = argumentsOf(calls.single);
       expect(
@@ -203,25 +255,69 @@ void main() {
 
     // The native side switches the TX power flag on these keys, so they must
     // keep the names the models serialise to.
-    test('sends the tx power flags under the model key names', () async {
-      await blePeripheral.start(
-        advertiseData: AdvertiseData(includePowerLevel: true),
-        advertiseResponseData: AdvertiseData(includePowerLevel: true),
-        advertiseSetParameters: AdvertiseSetParameters(
-          includeTxPowerLevel: true,
-        ),
-      );
+    test(
+      'sends the tx power flags under the model key names',
+      () async {
+        await blePeripheral.start(
+          advertiseData: const AndroidAdvertiseData(includeTxPowerLevel: true),
+          androidSettings: const AndroidAdvertiseSettings(
+            advertiseSetParameters: AdvertiseSetParameters(
+              includeTxPowerLevel: true,
+            ),
+            advertiseResponseData: AndroidAdvertiseData(
+              includeTxPowerLevel: true,
+            ),
+          ),
+        );
 
-      final arguments = argumentsOf(calls.single);
-      expect(arguments['includePowerLevel'], true);
-      expect(arguments['responseincludePowerLevel'], true);
-      expect(arguments['setincludeTxPowerLevel'], true);
-    });
+        final arguments = argumentsOf(calls.single);
+        expect(arguments['includeTxPowerLevel'], true);
+        expect(arguments['responseincludeTxPowerLevel'], true);
+        expect(arguments['setincludeTxPowerLevel'], true);
+      },
+      skip: !Platform.isAndroid,
+    );
+
+    // Android and Windows each carry their own timeout, since Android's applies
+    // on the legacy path only and Windows has no per-set duration to end an
+    // extended advertisement instead.
+    test(
+      'sends the Windows timeout under its own key',
+      () async {
+        await blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(),
+          windowsSettings: const WindowsAdvertiseSettings(timeout: 400),
+        );
+
+        final arguments = argumentsOf(calls.single);
+        expect(arguments['windowstimeout'], 400);
+        // Android's timeout must not stand in for it.
+        expect(arguments['timeout'], isNull);
+      },
+      skip: !Platform.isWindows,
+    );
+
+    test(
+      'sends the Android timeout unprefixed',
+      () async {
+        await blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(),
+          androidSettings: const AndroidAdvertiseSettings(
+            advertiseSettings: AdvertiseSettings(timeout: 400),
+          ),
+        );
+
+        final arguments = argumentsOf(calls.single);
+        expect(arguments['timeout'], 400);
+        expect(arguments['windowstimeout'], isNull);
+      },
+      skip: !Platform.isAndroid,
+    );
 
     test('maps a null response to unknown', () async {
       expect(
-        await blePeripheral.start(advertiseData: AdvertiseData()),
-        BluetoothPeripheralState.unknown,
+        await blePeripheral.start(advertiseData: const AdvertiseDataCore()),
+        PeripheralBluetoothState.unknown,
       );
     });
   });
@@ -229,17 +325,17 @@ void main() {
   group('stop', () {
     test('maps the response to a state', () async {
       response = 5;
-      expect(await blePeripheral.stop(), BluetoothPeripheralState.turnedOff);
+      expect(await blePeripheral.stop(), PeripheralBluetoothState.turnedOff);
       expect(calls.single.method, 'stop');
     });
 
     test('maps the native ready code to ready', () async {
-      response = BluetoothPeripheralState.ready.index;
-      expect(await blePeripheral.stop(), BluetoothPeripheralState.ready);
+      response = PeripheralBluetoothState.ready.index;
+      expect(await blePeripheral.stop(), PeripheralBluetoothState.ready);
     });
 
     test('maps a null response to unknown', () async {
-      expect(await blePeripheral.stop(), BluetoothPeripheralState.unknown);
+      expect(await blePeripheral.stop(), PeripheralBluetoothState.unknown);
     });
   });
 
@@ -285,13 +381,13 @@ void main() {
         response = 2;
         expect(
           await blePeripheral.requestPermission(),
-          BluetoothPeripheralState.permanentlyDenied,
+          PeripheralBluetoothState.permanentlyDenied,
         );
 
         response = 1;
         expect(
           await blePeripheral.hasPermission(),
-          BluetoothPeripheralState.denied,
+          PeripheralBluetoothState.denied,
         );
 
         expect(calls.map((c) => c.method), [
@@ -307,11 +403,11 @@ void main() {
       () async {
         expect(
           await blePeripheral.requestPermission(),
-          BluetoothPeripheralState.unknown,
+          PeripheralBluetoothState.unknown,
         );
         expect(
           await blePeripheral.hasPermission(),
-          BluetoothPeripheralState.unknown,
+          PeripheralBluetoothState.unknown,
         );
       },
       skip: Platform.isWindows,
@@ -325,14 +421,14 @@ void main() {
         response = true;
         expect(
           await blePeripheral.requestPermission(),
-          BluetoothPeripheralState.granted,
+          PeripheralBluetoothState.granted,
         );
         expect(calls.single.method, 'requestLocationPermission');
 
         response = false;
         expect(
           await blePeripheral.hasPermission(),
-          BluetoothPeripheralState.denied,
+          PeripheralBluetoothState.denied,
         );
         expect(calls.last.method, 'hasLocationPermission');
       },

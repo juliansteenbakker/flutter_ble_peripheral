@@ -144,8 +144,6 @@ namespace flutter_ble_peripheral {
         }
     }
 
-    // What Android caps AdvertiseSettings.timeout at.
-    constexpr std::chrono::milliseconds kMaxAdvertiseTimeout{ 180000 };
 
     // The tail of the Bluetooth Base UUID, onto which the 16 and 32 bit short
     // forms of a service uuid are expanded.
@@ -317,15 +315,12 @@ namespace flutter_ble_peripheral {
         advertisement.ManufacturerData().Clear();
         advertisement.DataSections().Clear();
 
-        // Android reads the timeout on its legacy path only, where the advertising
-        // set path uses a duration Windows has no equivalent for, and treats zero
-        // as no limit. Same here, so that the two agree on when advertising ends.
-        advertise_timeout_ = std::chrono::milliseconds::zero();
-        if (!ReadBool(arguments, "advertiseSet").value_or(true)) {
-            auto timeout = ReadInt(arguments, "timeout").value_or(0);
-            advertise_timeout_ = std::chrono::milliseconds(
-                std::clamp<std::int64_t>(timeout, 0, kMaxAdvertiseTimeout.count()));
-        }
+        // How long to advertise for, from WindowsAdvertiseSettings. Zero leaves
+        // the advertisement up, matching what Android does with its own timeout.
+        // Unlike Android this applies on the extended path too, since a Windows
+        // publisher has no per-set duration to end it instead.
+        auto timeout = ReadInt(arguments, "windowstimeout").value_or(0);
+        advertise_timeout_ = std::chrono::milliseconds(std::max<std::int64_t>(timeout, 0));
 
         // `manufacturerDataBytes` is the same payload as `manufacturerData`, sent as
         // a byte buffer rather than a list of ints.
@@ -395,6 +390,49 @@ namespace flutter_ble_peripheral {
                 "Windows can only advertise manufacturerData and serviceData, "
                 "one of which has to be set");
         }
+
+        ApplyWindowsSettings(arguments);
+    }
+
+    // The WindowsAdvertiseSettings fields, which sit on the publisher rather than
+    // on the advertisement. Each is a no-op on a build of Windows that predates
+    // it, and the calls throw there rather than returning a status, so a failure
+    // is swallowed instead of taking the whole advertisement down with it.
+    void FlutterBlePeripheralPlugin::ApplyWindowsSettings(const EncodableMap& arguments) {
+        if (auto flags = ReadInt(arguments, "windowsflags")) {
+            bluetoothLEPublisher.Advertisement().Flags(
+                static_cast<BluetoothLEAdvertisementFlags>(*flags));
+        }
+
+        // Extended advertising is what lifts the legacy payload limits, so it has
+        // to be set before anything that only fits in an extended advertisement.
+        if (ReadBool(arguments, "windowsuseExtendedAdvertisement").value_or(false)) {
+            try {
+                bluetoothLEPublisher.UseExtendedAdvertisement(true);
+            }
+            catch (...) {
+                // Unsupported on this build of Windows.
+            }
+        }
+
+        if (auto txPower = ReadInt(arguments, "windowspreferredTransmitPowerLevel")) {
+            try {
+                bluetoothLEPublisher.PreferredTransmitPowerLevelInDBm(
+                    static_cast<std::int16_t>(*txPower));
+            }
+            catch (...) {
+                // Unsupported on this build of Windows.
+            }
+        }
+
+        if (ReadBool(arguments, "includeTxPowerLevel").value_or(false)) {
+            try {
+                bluetoothLEPublisher.IncludeTransmitPowerLevel(true);
+            }
+            catch (...) {
+                // Unsupported on this build of Windows.
+            }
+        }
     }
 
     void FlutterBlePeripheralPlugin::HandleMethodCall(
@@ -404,7 +442,6 @@ namespace flutter_ble_peripheral {
             try {
                 if (!bluetoothLEPublisher) {
                     bluetoothLEPublisher = BluetoothLEAdvertisementPublisher();
-//                    bluetoothLEPublisher.UseExtendedAdvertisement(true);
                     bluetoothLEPublisherStatusChangedToken = bluetoothLEPublisher.StatusChanged(
                         { this, &FlutterBlePeripheralPlugin::BluetoothLEPublisher_StatusChanged });
                 }

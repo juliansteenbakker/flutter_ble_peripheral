@@ -16,7 +16,7 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
     
     private var eventSink: FlutterEventSink?
     
-    var state: FlutterBlePeripheralState = FlutterBlePeripheralState.idle
+    var state: PeripheralState = PeripheralState.idle
     
     private let eventChannel: FlutterEventChannel
     
@@ -32,7 +32,7 @@ public class StateChangedHandler: NSObject, FlutterStreamHandler {
         eventChannel.setStreamHandler(self)
     }
     
-    func publishPeripheralState(state: FlutterBlePeripheralState) {
+    func publishPeripheralState(state: PeripheralState) {
         self.state = state
         if let eventSink = self.eventSink {
             eventSink(state.rawValue)
