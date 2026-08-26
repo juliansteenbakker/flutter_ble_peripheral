@@ -29,6 +29,8 @@
 #include <vector>
 #include <map>
 #include <memory>
+#include <mutex>
+#include <optional>
 
 namespace flutter_ble_peripheral {
 
@@ -70,19 +72,31 @@ namespace flutter_ble_peripheral {
             const flutter::MethodCall<flutter::EncodableValue>& method_call,
             std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result);
 
-        // Builds the advertisement payload from the arguments Dart sent.
-        void BuildAdvertisement(const EncodableMap& arguments);
+        // Builds the advertisement payload from the arguments Dart sent, and
+        // reports whether the publisher ended up with anything to carry. It can
+        // come out empty only when a GATT service is served alongside it, which
+        // puts itself on air.
+        bool BuildAdvertisement(const EncodableMap& arguments, bool serving_gatt);
 
         // Applies the WindowsAdvertiseSettings fields, which sit on the publisher
         // rather than on the advertisement.
         void ApplyWindowsSettings(const EncodableMap& arguments);
 
         // Serves the GATT service Dart asked for, with its TX and RX
-        // characteristics, and advertises it as connectable.
-        winrt::fire_and_forget StartGattServer(
-            const std::string& service_uuid,
-            const std::string& tx_uuid,
-            const std::string& rx_uuid);
+        // characteristics, and advertises it as connectable. Reports whether it
+        // came up.
+        IAsyncOperation<bool> CreateGattServer(
+            uint32_t token,
+            winrt::guid service_uuid,
+            winrt::guid tx_uuid,
+            winrt::guid rx_uuid);
+
+        // Serves the requested GATT service and then issues the advertisement,
+        // answering the start() that asked for both. The service has to be up
+        // before start() can report success, so the answer is deferred until it
+        // is rather than sent while it is still being built.
+        winrt::fire_and_forget StartGattServerAndAdvertise(
+            std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
 
         // Tears the GATT service down and stops advertising it.
         void StopGattServer();
@@ -113,12 +127,32 @@ namespace flutter_ble_peripheral {
         winrt::event_token gatt_write_token_;
         winrt::event_token gatt_subscribers_token_;
 
+        // Whether the service is on air. Tracked here rather than read back from
+        // the provider, which goes on reporting Started after a StopAdvertising
+        // and whose AdvertisementStatusChanged arrives out of order.
+        bool gatt_advertising_ = false;
+
         // The payload sendData was given last, handed back to a central that
-        // reads the TX characteristic.
+        // reads the TX characteristic. A read is answered off the UI thread,
+        // where sendData replaces it, so it is guarded.
         std::vector<uint8_t> gatt_last_sent_;
+        std::mutex gatt_last_sent_mutex_;
 
         // The last subscription state published, so only changes are sent.
         bool gatt_subscribed_ = false;
+
+        // The service to serve, kept so that a start() held back while the radio
+        // was down still brings it up once the radio comes on.
+        struct GattRequest {
+            winrt::guid service_uuid;
+            winrt::guid tx_uuid;
+            winrt::guid rx_uuid;
+        };
+        std::optional<GattRequest> gatt_request_;
+
+        // Identifies the service a start still in flight is building, so that one
+        // finishing after a stop does not bring the service back up.
+        uint32_t gatt_token_ = 0;
 
         std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> state_changed_sink_;
 
@@ -154,7 +188,8 @@ namespace flutter_ble_peripheral {
         winrt::fire_and_forget StopAfterTimeout(std::chrono::milliseconds timeout, uint32_t token);
 
         // Starts the advertisement the publisher is holding, reporting the state it
-        // leaves the peripheral in.
+        // leaves the peripheral in. With nothing for the publisher to carry it only
+        // arms the timeout, the GATT service being what is on air.
         BluetoothPeripheralState StartAdvertising();
 
         PeripheralState peripheral_state_{ PeripheralState::Unknown };
@@ -162,6 +197,10 @@ namespace flutter_ble_peripheral {
         // Set when start() is called before the radio is up, so that the
         // advertisement can be issued once it comes on rather than being dropped.
         bool advertisement_pending_ = false;
+
+        // Whether the publisher has a payload to carry. False when the GATT
+        // service is the only thing being advertised.
+        bool advertisement_has_payload_ = false;
 
         // How long the advertisement runs for, or zero to leave it up.
         std::chrono::milliseconds advertise_timeout_{ 0 };

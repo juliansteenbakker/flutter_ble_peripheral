@@ -141,7 +141,8 @@ platform carries all of them:
   about 10 bytes.
 - Android ignores `localName`; use `AndroidAdvertiseData.includeDeviceName` to
   broadcast the system name instead.
-- Windows carries only the manufacturer data and the service data. A legacy Windows
+- Windows carries only the manufacturer data and the service data, one of which has
+  to be set unless a `gattServer` is served alongside it. A legacy Windows
   advertisement refuses to start at all when it sets a local name or service uuids,
   so both are validated and then left off the air.
 
@@ -220,7 +221,11 @@ sent last.
 
 On Windows the service is advertised by the GATT service provider rather than by the
 advertisement publisher, which is also what makes the peripheral connectable there and
-puts the service uuid on air; a legacy Windows advertisement cannot carry one.
+puts the service uuid on air; a legacy Windows advertisement cannot carry one. Because
+the service carries itself, this is also the one case where Windows accepts an
+advertisement without manufacturer data or service data. The advertise timeout ends
+what the service has on air along with the publisher, leaving it serving whoever is
+already connected, the same as an Android advertise timeout does.
 
 ### Streams
 
