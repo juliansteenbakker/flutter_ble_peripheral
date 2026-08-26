@@ -221,6 +221,10 @@ class FlutterBlePeripheral {
   }
 
   /// Returns `true` if advertising or false if not advertising
+  ///
+  /// A connected central does not end the advertisement, so this stays `true`
+  /// while one is attached, unlike [onPeripheralStateChanged], which moves to
+  /// [PeripheralState.connected].
   Future<bool> get isAdvertising async {
     return await _methodChannel.invokeMethod<bool>('isAdvertising') ?? false;
   }

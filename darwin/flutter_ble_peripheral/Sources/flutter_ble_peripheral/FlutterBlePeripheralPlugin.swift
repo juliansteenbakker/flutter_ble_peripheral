@@ -127,7 +127,10 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         case "hasPermission", "requestPermission":
             result(flutterBlePeripheralManager.permissionState.rawValue)
         case "isAdvertising":
-            result(stateChangedHandler.state == PeripheralState.advertising)
+            // Core Bluetooth answers this directly. The published state cannot,
+            // since a connected central moves it off advertising while the
+            // advertisement is still running.
+            result(flutterBlePeripheralManager.peripheralManager.isAdvertising)
         case "isSupported":
             isSupported(result)
         case "isConnected":

@@ -445,6 +445,11 @@ class FlutterBlePeripheralPlugin :
         if (advertisingSetCallback != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ) {
             flutterBlePeripheralManager?.stopSet(advertisingSetCallback!!)
         }
+
+        // stopAdvertising does not call back, so nothing else reports the stop and
+        // the state would sit on advertising, the way the Apple side publishes it.
+        peripheralStateChangedHandler.publish(PeripheralState.idle)
+
         safeResult(result) {
             result.success(PeripheralBluetoothState.Ready.ordinal)
         }
@@ -462,7 +467,12 @@ class FlutterBlePeripheralPlugin :
 
     private fun handleIsAdvertising(result: MethodChannel.Result) {
         safeResult(result) {
-            result.success(peripheralStateChangedHandler.state == PeripheralState.advertising)
+            // A central connecting does not end the advertisement, so both states
+            // mean the advertiser is still running.
+            val state = peripheralStateChangedHandler.state
+            result.success(
+                state == PeripheralState.advertising || state == PeripheralState.connected
+            )
         }
     }
 
