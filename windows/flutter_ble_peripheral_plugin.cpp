@@ -197,11 +197,17 @@ namespace flutter_ble_peripheral {
         // Until this has run there is no radio to report on, so a listener that
         // attached in the meantime is still sitting on unknown, and a start() is
         // still waiting on a radio that had not been found yet.
-        auto state = bluetoothRadio ? StateOf(bluetoothRadio.State()) : PeripheralState::Unsupported;
-        co_await ui_thread_;
-        if (!*alive) co_return;
-        if (!StartPendingAdvertisement()) {
-            PublishState(state);
+        auto state = CurrentState();
+        try {
+            co_await ui_thread_;
+            if (!*alive) co_return;
+            if (!StartPendingAdvertisement()) {
+                PublishState(state);
+            }
+        }
+        catch (...) {
+            // An exception leaving here would take the process with it, and there
+            // is nothing left to report to anyway.
         }
     }
 
@@ -1058,6 +1064,17 @@ namespace flutter_ble_peripheral {
         }
     }
 
+    PeripheralState FlutterBlePeripheralPlugin::CurrentState() const {
+        try {
+            return bluetoothRadio ? StateOf(bluetoothRadio.State())
+                                  : PeripheralState::Unsupported;
+        }
+        catch (...) {
+            // The radio went away between finding it and reading it.
+            return PeripheralState::Unsupported;
+        }
+    }
+
     PeripheralState FlutterBlePeripheralPlugin::StateOf(RadioState radio_state) const {
         switch (radio_state) {
             case RadioState::On:
@@ -1073,13 +1090,18 @@ namespace flutter_ble_peripheral {
     }
 
     bool FlutterBlePeripheralPlugin::StartPendingAdvertisement() {
-        if (!advertisement_pending_ || !bluetoothLEPublisher || !bluetoothRadio ||
-            bluetoothRadio.State() != RadioState::On) {
+        if (!advertisement_pending_ || !bluetoothLEPublisher || !bluetoothRadio) {
             return false;
         }
 
-        advertisement_pending_ = false;
         try {
+            // Reading the state throws once the radio has gone away, which leaves
+            // the advertisement pending rather than issuing it into nothing.
+            if (bluetoothRadio.State() != RadioState::On) {
+                return false;
+            }
+
+            advertisement_pending_ = false;
             // The service was held back with the advertisement, since nothing can
             // be served while the radio is down. It issues the advertisement
             // itself once it is up, with nobody left waiting on the answer.

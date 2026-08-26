@@ -181,6 +181,9 @@ namespace flutter_ble_peripheral {
         // The state a Bluetooth radio in this state puts the peripheral in.
         PeripheralState StateOf(RadioState radio_state) const;
 
+        // The state the radio is in now, or unsupported when it cannot be read.
+        PeripheralState CurrentState() const;
+
         // Issues an advertisement held back while the radio was down, reporting
         // whether it went out; the publisher reports the resulting state itself.
         bool StartPendingAdvertisement();
