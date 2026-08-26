@@ -563,10 +563,6 @@ namespace flutter_ble_peripheral {
         }
     }
 
-    // PeripheralState enum values from Dart:
-    // 0: unknown, 1: unsupported, 2: unauthorized, 3: poweredOff,
-    // 4: idle, 5: advertising, 6: connected, 7: shouldShowRequestPermissionRationale
-
     winrt::fire_and_forget FlutterBlePeripheralPlugin::BluetoothLEPublisher_StatusChanged(
         BluetoothLEAdvertisementPublisher sender,
         BluetoothLEAdvertisementPublisherStatusChangedEventArgs args)
