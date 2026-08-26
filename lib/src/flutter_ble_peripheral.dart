@@ -254,8 +254,11 @@ class FlutterBlePeripheral {
   /// Send data to the subscribed centrals over the GATT server.
   ///
   /// The payload is queued per central, so back-to-back calls are delivered in
-  /// order rather than overwriting each other. It is dropped when no central is
-  /// subscribed; see [isSubscribed] and [onSubscriptionChanged].
+  /// order rather than overwriting each other.
+  ///
+  /// Throws a [PlatformException] with code `SEND_FAILED` when no central is
+  /// subscribed, and `NOT_INITIALIZED` when no GATT server is running; see
+  /// [isSubscribed] and [onSubscriptionChanged] for how to know beforehand.
   ///
   /// A central that reads the TX characteristic gets the payload sent last.
   Future<void> sendData(Uint8List data) async {

@@ -213,10 +213,10 @@ GATT database between connections and a characteristic uuid that moves breaks th
 link.
 
 `sendData` only reaches a central that subscribed to TX, which is not the same as one
-that merely connected. Watch `onSubscriptionChanged`, or check `isSubscribed`, to know
-when it can deliver. Payloads are queued per central, so back-to-back calls arrive in
-order rather than overwriting each other, and a central that reads TX gets the payload
-sent last.
+that merely connected, and throws a `PlatformException` when none has. Watch
+`onSubscriptionChanged`, or check `isSubscribed`, to know when it can deliver.
+Payloads are queued per central, so back-to-back calls arrive in order rather than
+overwriting each other, and a central that reads TX gets the payload sent last.
 
 Not supported on Windows yet.
 
