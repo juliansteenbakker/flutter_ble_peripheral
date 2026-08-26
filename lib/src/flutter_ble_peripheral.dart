@@ -368,6 +368,9 @@ class FlutterBlePeripheral {
   }
 
   /// Returns Stream of MTU updates.
+  ///
+  /// This is the ATT MTU, which is three bytes larger than the largest payload
+  /// a notification can carry.
   Stream<int> get onMtuChanged {
     _mtuState ??= _mtuChangedEventChannel
         .receiveBroadcastStream()

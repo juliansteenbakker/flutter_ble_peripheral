@@ -114,8 +114,8 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
 
         if characteristic.uuid == txCharacteristic?.uuid {
             // Update MTU
-            self.mtu = central.maximumUpdateValueLength
-            print("[flutter_ble_peripheral] MTU updated: \(mtu)")
+            self.maximumNotificationSize = central.maximumUpdateValueLength
+            print("[flutter_ble_peripheral] MTU updated: \(maximumNotificationSize + 3)")
 
             // Add to subscriptions and connected centrals
             txSubscriptions.insert(central.identifier)
