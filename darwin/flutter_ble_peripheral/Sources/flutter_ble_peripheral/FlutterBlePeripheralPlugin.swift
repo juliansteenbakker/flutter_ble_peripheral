@@ -31,15 +31,38 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
     /// Handler that publishes peripheral state changes (e.g., idle, advertising, connected) to Flutter event channels.
     private let stateChangedHandler: StateChangedHandler
 
-    /**
-     Initializes the plugin with the state handler.
+    /// Handler that publishes TX subscription changes to Flutter event channels.
+    private let subscriptionChangedHandler: SubscriptionChangedHandler
 
-     - Parameter stateChangedHandler: Handles and publishes peripheral state updates.
+    /// Handler that publishes MTU (Maximum Transmission Unit) changes to Flutter event channels.
+    private let mtuChangedHandler: MtuChangedHandler
+
+    /// Handler that publishes received GATT data from central devices to Flutter event channels.
+    private let dataReceivedHandler: DataReceivedHandler
+
+    /**
+     Initializes the plugin with state, MTU, and data handlers.
+
+     - Parameters:
+       - stateChangedHandler: Handles and publishes peripheral state updates.
+       - mtuChangedHandler: Handles and publishes MTU change events.
+       - dataReceivedHandler: Handles and publishes data received from connected devices.
      */
-    init(stateChangedHandler: StateChangedHandler) {
+    init(
+        stateChangedHandler: StateChangedHandler,
+        mtuChangedHandler: MtuChangedHandler,
+        dataReceivedHandler: DataReceivedHandler,
+        subscriptionChangedHandler: SubscriptionChangedHandler
+    ) {
         self.stateChangedHandler = stateChangedHandler
+        self.mtuChangedHandler = mtuChangedHandler
+        self.dataReceivedHandler = dataReceivedHandler
+        self.subscriptionChangedHandler = subscriptionChangedHandler
         self.flutterBlePeripheralManager = FlutterBlePeripheralManager(
-            stateChangedHandler: stateChangedHandler
+            stateChangedHandler: stateChangedHandler,
+            dataReceivedHandler: dataReceivedHandler,
+            mtuChangedHandler: mtuChangedHandler,
+            subscriptionChangedHandler: subscriptionChangedHandler
         )
         super.init()
     }
@@ -52,9 +75,15 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
      */
     public static func register(with registrar: FlutterPluginRegistrar) {
         let stateChangedHandler = StateChangedHandler(registrar: registrar)
+        let mtuChangedHandler = MtuChangedHandler(registrar: registrar)
+        let dataReceivedHandler = DataReceivedHandler(registrar: registrar)
+        let subscriptionChangedHandler = SubscriptionChangedHandler(registrar: registrar)
 
         let instance = FlutterBlePeripheralPlugin(
-            stateChangedHandler: stateChangedHandler
+            stateChangedHandler: stateChangedHandler,
+            mtuChangedHandler: mtuChangedHandler,
+            dataReceivedHandler: dataReceivedHandler,
+            subscriptionChangedHandler: subscriptionChangedHandler
         )
 
 #if os(iOS)
@@ -81,6 +110,7 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
      - `"isConnected"` → Returns whether a central device is connected.
      - `"isBluetoothOn"` → Returns whether the Bluetooth adapter is powered on.
      - `"openBluetoothSettings"` → Opens system Bluetooth settings.
+     - `"sendData"` → Sends data to connected central devices over GATT.
      */
     public func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
         switch call.method {
@@ -101,12 +131,16 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         case "isSupported":
             isSupported(result)
         case "isConnected":
-            result(stateChangedHandler.state == PeripheralState.connected)
+            result(flutterBlePeripheralManager.hasConnectedDevices())
+        case "isSubscribed":
+            result(flutterBlePeripheralManager.hasSubscribedCentrals())
         case "isBluetoothOn":
             result(flutterBlePeripheralManager.peripheralManager.state == .poweredOn)
         case "enableBluetooth":
             // Bluetooth cannot be enabled programmatically on iOS/macOS.
             result(false)
+        case "sendData":
+            sendData(call, result)
         default:
             result(FlutterMethodNotImplemented)
         }
@@ -168,7 +202,10 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
 
             // Advertising while the radio is still coming up is dropped by Core
             // Bluetooth, so the manager queues it until then.
-            flutterBlePeripheralManager.startWithAdvertisementData(advertisementData: advertisementData)
+            flutterBlePeripheralManager.startWithAdvertisementData(
+                advertisementData: advertisementData,
+                gattService: try GattServiceRequest.from(map)
+            )
             result(flutterBlePeripheralManager.bluetoothState.rawValue)
         } catch let error as FlutterBlePeripheralError {
             result(FlutterError(code: error.code, message: error.message, details: "startAdvertising"))
@@ -224,6 +261,43 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             result(true)
         } else {
             result(false)
+        }
+    }
+
+    /**
+     Sends binary data to connected central devices over GATT.
+
+     Validates the input data and passes it to the peripheral manager for transmission.
+     If no devices are connected or the GATT server is uninitialized, an error is returned.
+
+     - Parameters:
+       - call: The method call containing a byte array to send.
+       - result: The Flutter result callback used to return success or error state.
+     */
+    private func sendData(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
+        guard let flutterData = call.arguments as? FlutterStandardTypedData else {
+            print("[flutter_ble_peripheral] Send data error: arguments is not FlutterStandardTypedData")
+            result(FlutterError(
+                code: "INVALID_ARGUMENT",
+                message: "Data must be a byte array",
+                details: nil
+            ))
+            return
+        }
+
+        print("[flutter_ble_peripheral] Trying to send \(flutterData.data.count) bytes")
+        let success = flutterBlePeripheralManager.sendData(data: flutterData.data)
+
+        if success {
+            print("[flutter_ble_peripheral] Data sent successfully")
+            result(nil)
+        } else {
+            print("[flutter_ble_peripheral] Failed to send data")
+            result(FlutterError(
+                code: "SEND_FAILED",
+                message: "Failed to send data. GATT server may not be initialized or no devices connected",
+                details: nil
+            ))
         }
     }
 }

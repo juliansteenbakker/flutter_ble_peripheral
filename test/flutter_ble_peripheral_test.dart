@@ -322,6 +322,72 @@ void main() {
     });
   });
 
+  group('gatt server', () {
+    // The characteristic uuids are the contract with the central, so they are
+    // always sent from Dart. Deriving them natively made them differ per
+    // platform, and change on every launch on Apple.
+    test('sends the default characteristic uuids', () async {
+      await blePeripheral.start(
+        advertiseData: const AdvertiseDataCore(serviceUuid: 'abcd'),
+        gattServer: const GattServerSettings(),
+      );
+
+      final gatt = argumentsOf(calls.single);
+      expect(gatt['gattServiceUuid'], 'abcd');
+      expect(gatt['gattTxCharacteristicUuid'], defaultTxCharacteristicUuid);
+      expect(gatt['gattRxCharacteristicUuid'], defaultRxCharacteristicUuid);
+    });
+
+    test('the defaults are the Nordic UART Service characteristics', () {
+      const nus = '6e40000';
+      const suffix = '-b5a3-f393-e0a9-e50e24dcca9e';
+      expect(nordicUartServiceUuid, '${nus}1$suffix');
+      expect(defaultRxCharacteristicUuid, '${nus}2$suffix');
+      expect(defaultTxCharacteristicUuid, '${nus}3$suffix');
+    });
+
+    test('honours explicit uuids', () async {
+      await blePeripheral.start(
+        advertiseData: const AdvertiseDataCore(serviceUuid: 'abcd'),
+        gattServer: const GattServerSettings(
+          serviceUuid: 'ef01',
+          txCharacteristicUuid: 'ef02',
+          rxCharacteristicUuid: 'ef03',
+        ),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      // The served service may differ from the advertised one.
+      expect(arguments['serviceUuid'], 'abcd');
+      expect(arguments['gattServiceUuid'], 'ef01');
+      expect(arguments['gattTxCharacteristicUuid'], 'ef02');
+      expect(arguments['gattRxCharacteristicUuid'], 'ef03');
+    });
+
+    test('sends no gatt keys when no server is asked for', () async {
+      await blePeripheral.start(
+        advertiseData: const AdvertiseDataCore(serviceUuid: 'abcd'),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(
+        arguments.keys.where((k) => (k! as String).startsWith('gatt')),
+        isEmpty,
+      );
+    });
+
+    test('rejects a server with no uuid to serve', () async {
+      await expectLater(
+        blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(),
+          gattServer: const GattServerSettings(),
+        ),
+        throwsArgumentError,
+      );
+      expect(calls, isEmpty);
+    });
+  });
+
   group('stop', () {
     test('maps the response to a state', () async {
       response = 5;
@@ -346,11 +412,13 @@ void main() {
       expect(await blePeripheral.isAdvertising, true);
       expect(await blePeripheral.isSupported, true);
       expect(await blePeripheral.isConnected, true);
+      expect(await blePeripheral.isSubscribed, true);
       expect(await blePeripheral.isBluetoothOn, true);
       expect(calls.map((c) => c.method), [
         'isAdvertising',
         'isSupported',
         'isConnected',
+        'isSubscribed',
         'isBluetoothOn',
       ]);
     });
@@ -359,6 +427,7 @@ void main() {
       expect(await blePeripheral.isAdvertising, false);
       expect(await blePeripheral.isSupported, false);
       expect(await blePeripheral.isConnected, false);
+      expect(await blePeripheral.isSubscribed, false);
       expect(await blePeripheral.isBluetoothOn, false);
     });
   });

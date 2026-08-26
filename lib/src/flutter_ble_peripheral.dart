@@ -15,6 +15,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_ble_peripheral/src/core/enums/peripheral_bluetooth_state.dart';
 import 'package:flutter_ble_peripheral/src/core/enums/peripheral_state.dart';
 import 'package:flutter_ble_peripheral/src/core/models/advertise_data_core.dart';
+import 'package:flutter_ble_peripheral/src/core/models/gatt_server_settings.dart';
 import 'package:flutter_ble_peripheral/src/platform/android/models/android_advertise_data.dart';
 import 'package:flutter_ble_peripheral/src/platform/android/models/android_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/platform/darwin/models/darwin_advertise_settings.dart';
@@ -49,8 +50,20 @@ class FlutterBlePeripheral {
     'dev.steenbakker.flutter_ble_peripheral/ble_state_changed',
   );
 
+  /// Event Channel used to receive data
+  final EventChannel _dataReceivedEventChannel = const EventChannel(
+    'dev.steenbakker.flutter_ble_peripheral/ble_data_received',
+  );
+
+  /// Event Channel for TX subscription changes
+  final EventChannel _subscriptionChangedEventChannel = const EventChannel(
+    'dev.steenbakker.flutter_ble_peripheral/ble_subscription_changed',
+  );
+
   Stream<int>? _mtuState;
   Stream<PeripheralState>? _peripheralState;
+  Stream<Uint8List>? _dataReceived;
+  Stream<bool>? _subscriptionChanged;
 
   /// Start advertising.
   ///
@@ -74,6 +87,10 @@ class FlutterBlePeripheral {
   Future<PeripheralBluetoothState> start({
     required AdvertiseDataCore advertiseData,
 
+    /// Serve a GATT service alongside the advertisement. Leave this null to
+    /// advertise only.
+    GattServerSettings? gattServer,
+
     // Platform-specific settings
     AndroidAdvertiseSettings? androidSettings,
     DarwinAdvertiseSettings? darwinSettings,
@@ -89,6 +106,19 @@ class FlutterBlePeripheral {
 
     if (advertiseData.serviceUuids != null) {
       parameters['serviceUuids'] = advertiseData.serviceUuids;
+    }
+
+    if (gattServer != null) {
+      final serviceUuid = gattServer.serviceUuid ?? advertiseData.serviceUuid;
+      if (serviceUuid == null) {
+        throw ArgumentError(
+          'A GATT service needs a uuid. Set either '
+          'AdvertiseDataCore.serviceUuid or GattServerSettings.serviceUuid.',
+        );
+      }
+      parameters['gattServiceUuid'] = serviceUuid;
+      parameters['gattTxCharacteristicUuid'] = gattServer.txCharacteristicUuid;
+      parameters['gattRxCharacteristicUuid'] = gattServer.rxCharacteristicUuid;
     }
 
     // Android settings
@@ -199,9 +229,21 @@ class FlutterBlePeripheral {
   Future<bool> get isSupported async =>
       await _methodChannel.invokeMethod<bool>('isSupported') ?? false;
 
-  /// Returns `true` if device is connected
+  /// Returns `true` while at least one central holds a connection.
+  ///
+  /// This is not the same as being able to send: a central has to subscribe
+  /// before it can be notified, which is what [isSubscribed] reports.
+  ///
+  /// On iOS and macOS this is approximate. CoreBluetooth never reports a bare
+  /// connection, so a central only becomes visible once it subscribes, reads or
+  /// writes.
   Future<bool> get isConnected async =>
       await _methodChannel.invokeMethod<bool>('isConnected') ?? false;
+
+  /// Returns `true` while at least one central is subscribed to the TX
+  /// characteristic, which is the state in which [sendData] can deliver.
+  Future<bool> get isSubscribed async =>
+      await _methodChannel.invokeMethod<bool>('isSubscribed') ?? false;
 
   /// Returns `true` if Bluetooth is turned on.
   ///
@@ -209,7 +251,13 @@ class FlutterBlePeripheral {
   Future<bool> get isBluetoothOn async =>
       await _methodChannel.invokeMethod<bool>('isBluetoothOn') ?? false;
 
-  /// Send data to the connected centrals over the GATT server.
+  /// Send data to the subscribed centrals over the GATT server.
+  ///
+  /// The payload is queued per central, so back-to-back calls are delivered in
+  /// order rather than overwriting each other. It is dropped when no central is
+  /// subscribed; see [isSubscribed] and [onSubscriptionChanged].
+  ///
+  /// A central that reads the TX characteristic gets the payload sent last.
   Future<void> sendData(Uint8List data) async {
     await _methodChannel.invokeMethod('sendData', data);
   }
@@ -337,5 +385,29 @@ class FlutterBlePeripheral {
           (dynamic event) => PeripheralState.values[event as int],
         );
     return _peripheralState!;
+  }
+
+  /// Returns Stream of data received from connected centrals.
+  ///
+  /// After listening to this Stream, you'll be notified when data is written to
+  /// the RX characteristic by a connected central device.
+  Stream<Uint8List> get onDataReceived {
+    _dataReceived ??= _dataReceivedEventChannel
+        .receiveBroadcastStream()
+        .map((dynamic event) => event as Uint8List);
+    return _dataReceived!;
+  }
+
+  /// Returns a Stream of whether a central is subscribed to the TX
+  /// characteristic.
+  ///
+  /// Emits `true` once the first central subscribes and `false` when the last
+  /// one goes away, which brackets the window in which [sendData] can deliver.
+  Stream<bool> get onSubscriptionChanged {
+    _subscriptionChanged ??= _subscriptionChangedEventChannel
+        .receiveBroadcastStream()
+        .map((dynamic event) => event as bool)
+        .distinct();
+    return _subscriptionChanged!;
   }
 }

@@ -2,6 +2,7 @@ export 'src/core/enums/peripheral_bluetooth_state.dart';
 export 'src/core/enums/peripheral_state.dart';
 export 'src/core/models/advertise_data.dart';
 export 'src/core/models/advertise_data_core.dart';
+export 'src/core/models/gatt_server_settings.dart';
 export 'src/flutter_ble_peripheral.dart';
 export 'src/platform/android/enums/advertise_mode.dart';
 export 'src/platform/android/models/advertise_set_parameters.dart';
