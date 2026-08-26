@@ -234,9 +234,10 @@ class FlutterBlePeripheral {
   /// This is not the same as being able to send: a central has to subscribe
   /// before it can be notified, which is what [isSubscribed] reports.
   ///
-  /// On iOS and macOS this is approximate. CoreBluetooth never reports a bare
-  /// connection, so a central only becomes visible once it subscribes, reads or
-  /// writes.
+  /// Only Android answers this exactly. CoreBluetooth never reports a bare
+  /// connection, so on iOS and macOS a central becomes visible once it
+  /// subscribes, reads or writes. Windows reports subscribers only, so there
+  /// this is the same answer as [isSubscribed].
   Future<bool> get isConnected async =>
       await _methodChannel.invokeMethod<bool>('isConnected') ?? false;
 

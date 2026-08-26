@@ -90,7 +90,7 @@ await FlutterBlePeripheral().sendData(Uint8List.fromList([1, 2, 3]));
 | Android | yes | yes |
 | iOS | yes | yes |
 | macOS | yes | yes |
-| Windows | yes | not yet |
+| Windows | yes | yes |
 
 ## Notes
 
@@ -101,6 +101,8 @@ await FlutterBlePeripheral().sendData(Uint8List.fromList([1, 2, 3]));
   late can still pick it up.
 - Several centrals can connect at once. The example is written around a single
   one, but `sendData` notifies every subscriber.
-- On iOS and macOS `isConnected` is approximate: CoreBluetooth never reports a
-  bare connection, so a central only becomes visible once it subscribes, reads
-  or writes.
+- Only Android answers `isConnected` exactly. On iOS and macOS a central becomes
+  visible once it subscribes, reads or writes, since CoreBluetooth never reports
+  a bare connection; on Windows it is the same answer as `isSubscribed`.
+- Windows advertises the service through the GATT service provider rather than
+  the advertisement publisher, which is also what makes it connectable there.

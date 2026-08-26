@@ -76,7 +76,65 @@ namespace flutter_ble_peripheral {
                 });
         event_state_changed->SetStreamHandler(std::move(state_handler));
 
+        auto event_data_received =
+            std::make_unique<flutter::EventChannel<flutter::EncodableValue>>(
+                registrar->messenger(),
+                "dev.steenbakker.flutter_ble_peripheral/ble_data_received",
+                &flutter::StandardMethodCodec::GetInstance());
+        event_data_received->SetStreamHandler(
+            std::make_unique<flutter::StreamHandlerFunctions<>>(
+                [plugin_pointer = plugin.get()](
+                    const flutter::EncodableValue*,
+                    std::unique_ptr<flutter::EventSink<>>&& events)
+                -> std::unique_ptr<flutter::StreamHandlerError<>> {
+                    plugin_pointer->data_received_sink_ = std::move(events);
+                    return nullptr;
+                },
+                [plugin_pointer = plugin.get()](const flutter::EncodableValue*)
+                    -> std::unique_ptr<flutter::StreamHandlerError<>> {
+                    plugin_pointer->data_received_sink_ = nullptr;
+                    return nullptr;
+                }));
 
+        auto event_mtu_changed =
+            std::make_unique<flutter::EventChannel<flutter::EncodableValue>>(
+                registrar->messenger(),
+                "dev.steenbakker.flutter_ble_peripheral/ble_mtu_changed",
+                &flutter::StandardMethodCodec::GetInstance());
+        event_mtu_changed->SetStreamHandler(
+            std::make_unique<flutter::StreamHandlerFunctions<>>(
+                [plugin_pointer = plugin.get()](
+                    const flutter::EncodableValue*,
+                    std::unique_ptr<flutter::EventSink<>>&& events)
+                -> std::unique_ptr<flutter::StreamHandlerError<>> {
+                    plugin_pointer->mtu_changed_sink_ = std::move(events);
+                    return nullptr;
+                },
+                [plugin_pointer = plugin.get()](const flutter::EncodableValue*)
+                    -> std::unique_ptr<flutter::StreamHandlerError<>> {
+                    plugin_pointer->mtu_changed_sink_ = nullptr;
+                    return nullptr;
+                }));
+
+        auto event_subscription =
+            std::make_unique<flutter::EventChannel<flutter::EncodableValue>>(
+                registrar->messenger(),
+                "dev.steenbakker.flutter_ble_peripheral/ble_subscription_changed",
+                &flutter::StandardMethodCodec::GetInstance());
+        event_subscription->SetStreamHandler(
+            std::make_unique<flutter::StreamHandlerFunctions<>>(
+                [plugin_pointer = plugin.get()](
+                    const flutter::EncodableValue*,
+                    std::unique_ptr<flutter::EventSink<>>&& events)
+                -> std::unique_ptr<flutter::StreamHandlerError<>> {
+                    plugin_pointer->subscription_sink_ = std::move(events);
+                    return nullptr;
+                },
+                [plugin_pointer = plugin.get()](const flutter::EncodableValue*)
+                    -> std::unique_ptr<flutter::StreamHandlerError<>> {
+                    plugin_pointer->subscription_sink_ = nullptr;
+                    return nullptr;
+                }));
 
         registrar->AddPlugin(std::move(plugin));
     }
@@ -102,6 +160,9 @@ namespace flutter_ble_peripheral {
                     bluetoothLEPublisher.Stop();
                 }
             }
+            // Same reason: a read, write or subscription event arriving after
+            // this would run against a destroyed plugin.
+            StopGattServer();
         }
         catch (...) {
             // Nothing useful to do while tearing down.
@@ -308,7 +369,8 @@ namespace flutter_ble_peripheral {
     // service uuids, whether through the properties or as data sections of their
     // own. Both are still validated, so that a malformed uuid is reported the way
     // Android and Apple report it, but neither reaches the air.
-    void FlutterBlePeripheralPlugin::BuildAdvertisement(const EncodableMap& arguments) {
+    bool FlutterBlePeripheralPlugin::BuildAdvertisement(
+        const EncodableMap& arguments, bool serving_gatt) {
         auto advertisement = bluetoothLEPublisher.Advertisement();
 
         // Rebuild from scratch, so repeated calls do not stack up.
@@ -383,15 +445,18 @@ namespace flutter_ble_peripheral {
         }
 
         // The publisher fails to start on an empty payload, with an error that says
-        // nothing about why.
-        if (advertisement.ManufacturerData().Size() == 0 &&
-            advertisement.DataSections().Size() == 0) {
+        // nothing about why. A GATT service advertises itself, so with one there is
+        // still something on air and the publisher is simply left alone.
+        bool has_payload = advertisement.ManufacturerData().Size() > 0 ||
+            advertisement.DataSections().Size() > 0;
+        if (!has_payload && !serving_gatt) {
             throw InvalidArgument(
                 "Windows can only advertise manufacturerData and serviceData, "
                 "one of which has to be set");
         }
 
         ApplyWindowsSettings(arguments);
+        return has_payload;
     }
 
     // The WindowsAdvertiseSettings fields, which sit on the publisher rather than
@@ -435,6 +500,288 @@ namespace flutter_ble_peripheral {
         }
     }
 
+
+    // MARK: - GATT server
+
+    /**
+     * Serves the requested service and advertises it.
+     *
+     * A Windows GATT service advertises itself through the service provider
+     * rather than through the advertisement publisher, and that is also the only
+     * way to put a service uuid on air here and be connectable, since the
+     * publisher refuses a legacy advertisement carrying one.
+     */
+    IAsyncOperation<bool> FlutterBlePeripheralPlugin::CreateGattServer(
+        uint32_t token,
+        winrt::guid service_uuid,
+        winrt::guid tx_uuid,
+        winrt::guid rx_uuid) {
+        auto lifetime = alive_;
+
+        // Built into locals and only committed to the plugin once it is whole, so
+        // that a stop or a teardown arriving while this is in flight leaves nothing
+        // half-served behind.
+        auto provider_result = co_await GattServiceProvider::CreateAsync(service_uuid);
+        if (provider_result.Error() != BluetoothError::Success) {
+            co_return false;
+        }
+        auto provider = provider_result.ServiceProvider();
+
+        // TX: what sendData notifies on. Read as well, so a central that
+        // subscribes late can still pick up the payload sent last.
+        GattLocalCharacteristicParameters tx_parameters;
+        tx_parameters.CharacteristicProperties(
+            GattCharacteristicProperties::Read |
+            GattCharacteristicProperties::Notify |
+            GattCharacteristicProperties::Indicate);
+        tx_parameters.ReadProtectionLevel(GattProtectionLevel::Plain);
+
+        auto tx_result =
+            co_await provider.Service().CreateCharacteristicAsync(tx_uuid, tx_parameters);
+        if (tx_result.Error() != BluetoothError::Success) {
+            co_return false;
+        }
+        auto tx = tx_result.Characteristic();
+
+        // RX: what a central writes to.
+        GattLocalCharacteristicParameters rx_parameters;
+        rx_parameters.CharacteristicProperties(
+            GattCharacteristicProperties::Write |
+            GattCharacteristicProperties::WriteWithoutResponse);
+        rx_parameters.WriteProtectionLevel(GattProtectionLevel::Plain);
+
+        auto rx_result =
+            co_await provider.Service().CreateCharacteristicAsync(rx_uuid, rx_parameters);
+        if (rx_result.Error() != BluetoothError::Success) {
+            co_return false;
+        }
+        auto rx = rx_result.Characteristic();
+
+        // The plugin is only touched on the UI thread, and only while it is still
+        // the service this start was asked for.
+        co_await ui_thread_;
+        if (!lifetime->load() || token != gatt_token_) co_return false;
+
+        gatt_provider_ = provider;
+        gatt_tx_ = tx;
+        gatt_rx_ = rx;
+
+        gatt_read_token_ = gatt_tx_.ReadRequested(
+            { this, &FlutterBlePeripheralPlugin::OnReadRequested });
+        gatt_subscribers_token_ = gatt_tx_.SubscribedClientsChanged(
+            { this, &FlutterBlePeripheralPlugin::OnSubscribersChanged });
+        gatt_write_token_ = gatt_rx_.WriteRequested(
+            { this, &FlutterBlePeripheralPlugin::OnWriteRequested });
+
+        GattServiceProviderAdvertisingParameters advertising_parameters;
+        advertising_parameters.IsConnectable(true);
+        advertising_parameters.IsDiscoverable(true);
+        gatt_provider_.StartAdvertising(advertising_parameters);
+        gatt_advertising_ = true;
+        co_return true;
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::StartGattServerAndAdvertise(
+        std::shared_ptr<std::unique_ptr<flutter::MethodResult<EncodableValue>>> result) {
+        auto lifetime = alive_;
+        auto request = *gatt_request_;
+
+        StopGattServer();
+        auto token = ++gatt_token_;
+
+        bool served = false;
+        try {
+            served = co_await CreateGattServer(
+                token, request.service_uuid, request.tx_uuid, request.rx_uuid);
+        }
+        catch (...) {
+            // A coroutine that lets an exception escape takes the process with it,
+            // so a radio that fails mid-build is reported instead.
+            served = false;
+        }
+
+        co_await ui_thread_;
+        if (!lifetime->load()) co_return;
+
+        // There is no result to answer when the radio came up on its own and the
+        // held advertisement is being issued rather than a start() waiting on it.
+        auto* answer = (result && *result) ? result->get() : nullptr;
+
+        // A stop or a newer start arrived while this one was still building. What
+        // it left behind is not this call's to undo, so only the answer is left.
+        if (token != gatt_token_) {
+            if (answer) {
+                if (gatt_request_) {
+                    // A newer start took over and answers its own caller.
+                    answer->Success(static_cast<int>(BluetoothPeripheralState::Ready));
+                }
+                else {
+                    answer->Error(
+                        "start_cancelled", "Stopped before the GATT service came up");
+                }
+            }
+            co_return;
+        }
+
+        if (!served) {
+            StopGattServer();
+            gatt_request_.reset();
+            if (answer) answer->Error("start_failed", "Failed to serve the GATT service");
+            co_return;
+        }
+
+        try {
+            auto state = StartAdvertising();
+            if (answer) answer->Success(static_cast<int>(state));
+        }
+        catch (...) {
+            StopGattServer();
+            gatt_request_.reset();
+            if (answer) answer->Error("start_failed", "Failed to start advertising");
+        }
+    }
+
+    bool FlutterBlePeripheralPlugin::IsAdvertising() const {
+        try {
+            // A GATT service is advertised by its own provider, so with one there
+            // can be something on air without the publisher.
+            return gatt_advertising_ ||
+                (bluetoothLEPublisher &&
+                    bluetoothLEPublisher.Status() ==
+                        BluetoothLEAdvertisementPublisherStatus::Started);
+        }
+        catch (...) {
+            return false;
+        }
+    }
+
+    void FlutterBlePeripheralPlugin::StopGattServer() {
+        // Anything still being built belongs to an earlier start, and must not
+        // come up behind this.
+        gatt_token_++;
+        if (gatt_tx_) {
+            gatt_tx_.ReadRequested(gatt_read_token_);
+            gatt_tx_.SubscribedClientsChanged(gatt_subscribers_token_);
+        }
+        if (gatt_rx_) {
+            gatt_rx_.WriteRequested(gatt_write_token_);
+        }
+        if (gatt_provider_) {
+            try {
+                gatt_provider_.StopAdvertising();
+            }
+            catch (...) {
+                // Already stopped, or the radio went away underneath it.
+            }
+        }
+        gatt_advertising_ = false;
+        gatt_provider_ = nullptr;
+        gatt_tx_ = nullptr;
+        gatt_rx_ = nullptr;
+        {
+            std::lock_guard<std::mutex> guard(gatt_last_sent_mutex_);
+            gatt_last_sent_.clear();
+        }
+        if (gatt_subscribed_) {
+            gatt_subscribed_ = false;
+            if (subscription_sink_) subscription_sink_->Success(EncodableValue(false));
+        }
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::OnReadRequested(
+        GattLocalCharacteristic const&,
+        GattReadRequestedEventArgs const& args) {
+        auto lifetime = alive_;
+        auto deferral = args.GetDeferral();
+        auto request = co_await args.GetRequestAsync();
+        if (request && lifetime->load()) {
+            // A value longer than the MTU is fetched in pieces, each with a
+            // larger offset, so only the tail is answered each time. This runs off
+            // the UI thread, where sendData replaces the payload, so the tail is
+            // taken under the lock rather than answered from the payload itself.
+            auto offset = static_cast<size_t>(request.Offset());
+            std::optional<std::vector<uint8_t>> tail;
+            {
+                std::lock_guard<std::mutex> guard(gatt_last_sent_mutex_);
+                if (offset <= gatt_last_sent_.size()) {
+                    tail.emplace(gatt_last_sent_.begin() + offset, gatt_last_sent_.end());
+                }
+            }
+
+            if (!tail) {
+                request.RespondWithProtocolError(GattProtocolError::InvalidOffset());
+            }
+            else {
+                DataWriter writer;
+                writer.WriteBytes(*tail);
+                request.RespondWithValue(writer.DetachBuffer());
+            }
+        }
+        deferral.Complete();
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::OnWriteRequested(
+        GattLocalCharacteristic const&,
+        GattWriteRequestedEventArgs const& args) {
+        auto lifetime = alive_;
+        auto deferral = args.GetDeferral();
+        auto request = co_await args.GetRequestAsync();
+        if (request) {
+            auto reader = DataReader::FromBuffer(request.Value());
+            std::vector<uint8_t> bytes(reader.UnconsumedBufferLength());
+            reader.ReadBytes(bytes);
+
+            if (request.Option() == GattWriteOption::WriteWithResponse) {
+                request.Respond();
+            }
+
+            co_await ui_thread_;
+            if (lifetime->load() && data_received_sink_ && !bytes.empty()) {
+                data_received_sink_->Success(EncodableValue(bytes));
+            }
+        }
+        deferral.Complete();
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::OnSubscribersChanged(
+        GattLocalCharacteristic const& characteristic,
+        winrt::Windows::Foundation::IInspectable const&) {
+        auto lifetime = alive_;
+        auto clients = characteristic.SubscribedClients();
+        bool subscribed = clients.Size() > 0;
+
+        // The MTU is per client; the smallest is what a notification to all of
+        // them has to fit in.
+        int mtu = 0;
+        for (auto const& client : clients) {
+            auto size = static_cast<int>(client.MaxNotificationSize());
+            if (mtu == 0 || size < mtu) mtu = size;
+        }
+
+        co_await ui_thread_;
+        if (!lifetime->load()) co_return;
+
+        if (subscribed != gatt_subscribed_) {
+            gatt_subscribed_ = subscribed;
+            if (subscription_sink_) {
+                subscription_sink_->Success(EncodableValue(subscribed));
+            }
+            // Windows reports subscribers and never a bare connection, so a
+            // subscription is as close as it gets to one, the way Apple reports it.
+            if (subscribed) {
+                PublishState(PeripheralState::Connected);
+            }
+            else if (IsAdvertising()) {
+                PublishState(PeripheralState::Advertising);
+            }
+        }
+        // Windows reports the payload size; Dart reports the MTU, which is three
+        // bytes larger for the ATT header, matching what Android sends.
+        if (mtu > 0 && mtu_changed_sink_) {
+            mtu_changed_sink_->Success(EncodableValue(mtu + 3));
+        }
+    }
+
     void FlutterBlePeripheralPlugin::HandleMethodCall(
         const flutter::MethodCall<flutter::EncodableValue>& method_call,
         std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> result) {
@@ -452,13 +799,50 @@ namespace flutter_ble_peripheral {
                     return;
                 }
 
-                BuildAdvertisement(*arguments);
+                // A Windows GATT service advertises itself, separately from the
+                // publisher, and that is also what makes the peripheral
+                // connectable and puts the service uuid on air. The uuids are
+                // parsed here rather than where the service is built, since that
+                // runs as a coroutine, where a throw would take the process down
+                // instead of reaching Dart.
+                gatt_request_.reset();
+                if (auto service_uuid = ReadString(*arguments, "gattServiceUuid")) {
+                    auto tx = ReadString(*arguments, "gattTxCharacteristicUuid");
+                    auto rx = ReadString(*arguments, "gattRxCharacteristicUuid");
+                    if (!tx || !rx) {
+                        throw InvalidArgument(
+                            "gattServiceUuid needs a gattTxCharacteristicUuid and a "
+                            "gattRxCharacteristicUuid");
+                    }
+                    gatt_request_ = GattRequest{
+                        ParseServiceUuid(*service_uuid).guid,
+                        ParseServiceUuid(*tx).guid,
+                        ParseServiceUuid(*rx).guid,
+                    };
+                }
+
+                advertisement_has_payload_ =
+                    BuildAdvertisement(*arguments, gatt_request_.has_value());
+
+                // Nothing can be served while the radio is down; the service comes
+                // up with the held advertisement once it is back.
+                if (gatt_request_ && bluetoothRadio &&
+                    bluetoothRadio.State() == RadioState::On) {
+                    auto shared = std::make_shared<
+                        std::unique_ptr<flutter::MethodResult<EncodableValue>>>(std::move(result));
+                    StartGattServerAndAdvertise(shared);
+                    return;
+                }
+
+                StopGattServer();
                 result->Success(static_cast<int>(StartAdvertising()));
             }
             catch (const InvalidArgument& error) {
+                gatt_request_.reset();
                 result->Error("invalid_arguments", error.what());
             }
             catch (...) {
+                gatt_request_.reset();
                 result->Error("start_failed", "Failed to start advertising");
             }
         }
@@ -466,6 +850,7 @@ namespace flutter_ble_peripheral {
             try {
                 advertisement_pending_ = false;
                 advertisement_token_++;
+                gatt_request_.reset();
                 if (bluetoothLEPublisher) {
                     bluetoothLEPublisher.Advertisement().ManufacturerData().Clear();
                     bluetoothLEPublisher.Advertisement().ServiceUuids().Clear();
@@ -473,21 +858,19 @@ namespace flutter_ble_peripheral {
                     bluetoothLEPublisher.Advertisement().LocalName(L"");
                     bluetoothLEPublisher.Stop();
                 }
+                StopGattServer();
+                if (!advertisement_has_payload_) {
+                    // Nothing was on the publisher to report its own stop.
+                    PublishState(PeripheralState::Idle);
+                }
+                advertisement_has_payload_ = false;
                 result->Success(static_cast<int>(BluetoothPeripheralState::Ready));
             }
             catch (...) {
                 result->Error("stop_failed", "Failed to stop advertising");
             }
         } else if (method_call.method_name().compare("isAdvertising") == 0) {
-            bool isAdvertising = false;
-            try {
-                isAdvertising = bluetoothLEPublisher &&
-                    bluetoothLEPublisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started;
-            }
-            catch (...) {
-                isAdvertising = false;
-            }
-            result->Success(isAdvertising);
+            result->Success(IsAdvertising());
         }
         else if (method_call.method_name().compare("isSupported") == 0) {
             bool supported = bluetoothRadio != nullptr &&
@@ -507,8 +890,44 @@ namespace flutter_ble_peripheral {
             result->Success(isOn);
         }
         else if (method_call.method_name().compare("isConnected") == 0) {
-            // Windows has no GATT server yet, so nothing can be connected to it.
-            result->Success(false);
+            // Windows reports subscribers rather than connections, so this is the
+            // same answer as isSubscribed. Documented as such on the Dart side.
+            result->Success(gatt_tx_ ? gatt_tx_.SubscribedClients().Size() > 0 : false);
+        }
+        else if (method_call.method_name().compare("isSubscribed") == 0) {
+            result->Success(gatt_tx_ ? gatt_tx_.SubscribedClients().Size() > 0 : false);
+        }
+        else if (method_call.method_name().compare("sendData") == 0) {
+            if (!gatt_tx_) {
+                result->Error("NOT_INITIALIZED", "No GATT server is running");
+                return;
+            }
+            const auto* bytes = std::get_if<std::vector<uint8_t>>(method_call.arguments());
+            if (!bytes) {
+                result->Error("INVALID_ARGUMENT", "Data must be a byte array");
+                return;
+            }
+            if (gatt_tx_.SubscribedClients().Size() == 0) {
+                result->Error(
+                    "SEND_FAILED",
+                    "No central is subscribed to the TX characteristic");
+                return;
+            }
+            try {
+                {
+                    std::lock_guard<std::mutex> guard(gatt_last_sent_mutex_);
+                    gatt_last_sent_ = *bytes;
+                }
+                DataWriter writer;
+                writer.WriteBytes(*bytes);
+                // Windows queues this itself, so there is no backpressure to
+                // handle the way Android and Apple need it.
+                gatt_tx_.NotifyValueAsync(writer.DetachBuffer());
+                result->Success();
+            }
+            catch (...) {
+                result->Error("SEND_FAILED", "Failed to notify the subscribed centrals");
+            }
         }
         else if (method_call.method_name().compare("openAppSettings") == 0) {
             // A Flutter app on Windows is unpackaged and has no settings page of
@@ -665,6 +1084,13 @@ namespace flutter_ble_peripheral {
 
         advertisement_pending_ = false;
         try {
+            // The service was held back with the advertisement, since nothing can
+            // be served while the radio is down. It issues the advertisement
+            // itself once it is up, with nobody left waiting on the answer.
+            if (gatt_request_) {
+                StartGattServerAndAdvertise(nullptr);
+                return true;
+            }
             bluetoothLEPublisher.Start();
             ArmAdvertiseTimeout();
             return true;
@@ -697,6 +1123,16 @@ namespace flutter_ble_peripheral {
                 bluetoothLEPublisher.Status() == BluetoothLEAdvertisementPublisherStatus::Started) {
                 bluetoothLEPublisher.Stop();
             }
+            // The service keeps serving whoever is already connected, the same as
+            // an Android advertise timeout leaves its GATT server up; only what is
+            // on air ends here.
+            if (gatt_provider_ && gatt_advertising_) {
+                gatt_provider_.StopAdvertising();
+                gatt_advertising_ = false;
+                if (!advertisement_has_payload_) {
+                    PublishState(PeripheralState::Idle);
+                }
+            }
         }
         catch (...) {
             // Nothing useful to do; the advertisement stays up.
@@ -719,7 +1155,14 @@ namespace flutter_ble_peripheral {
         }
 
         advertisement_pending_ = false;
-        bluetoothLEPublisher.Start();
+        if (advertisement_has_payload_) {
+            bluetoothLEPublisher.Start();
+        }
+        else {
+            // Only the publisher reports its own status, so with the GATT service
+            // as the one thing on air the state is reported here instead.
+            PublishState(PeripheralState::Advertising);
+        }
         ArmAdvertiseTimeout();
         return BluetoothPeripheralState::Ready;
     }
@@ -811,6 +1254,12 @@ namespace flutter_ble_peripheral {
 
             co_await ui_thread_;
             if (!*alive) co_return;
+
+            // A radio going down takes the service advertisement with it, which
+            // the provider does not report.
+            if (radioState != RadioState::On) {
+                gatt_advertising_ = false;
+            }
 
             if (!StartPendingAdvertisement()) {
                 PublishState(StateOf(radioState));
