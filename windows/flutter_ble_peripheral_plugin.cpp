@@ -641,6 +641,20 @@ namespace flutter_ble_peripheral {
         }
     }
 
+    bool FlutterBlePeripheralPlugin::IsAdvertising() const {
+        try {
+            // A GATT service is advertised by its own provider, so with one there
+            // can be something on air without the publisher.
+            return gatt_advertising_ ||
+                (bluetoothLEPublisher &&
+                    bluetoothLEPublisher.Status() ==
+                        BluetoothLEAdvertisementPublisherStatus::Started);
+        }
+        catch (...) {
+            return false;
+        }
+    }
+
     void FlutterBlePeripheralPlugin::StopGattServer() {
         // Anything still being built belongs to an earlier start, and must not
         // come up behind this.
@@ -752,6 +766,14 @@ namespace flutter_ble_peripheral {
             if (subscription_sink_) {
                 subscription_sink_->Success(EncodableValue(subscribed));
             }
+            // Windows reports subscribers and never a bare connection, so a
+            // subscription is as close as it gets to one, the way Apple reports it.
+            if (subscribed) {
+                PublishState(PeripheralState::Connected);
+            }
+            else if (IsAdvertising()) {
+                PublishState(PeripheralState::Advertising);
+            }
         }
         // Windows reports the payload size; Dart reports the MTU, which is three
         // bytes larger for the ATT header, matching what Android sends.
@@ -848,19 +870,7 @@ namespace flutter_ble_peripheral {
                 result->Error("stop_failed", "Failed to stop advertising");
             }
         } else if (method_call.method_name().compare("isAdvertising") == 0) {
-            bool isAdvertising = false;
-            try {
-                // A GATT service is advertised by its own provider, so with one
-                // there can be something on air without the publisher.
-                isAdvertising = gatt_advertising_ ||
-                    (bluetoothLEPublisher &&
-                        bluetoothLEPublisher.Status() ==
-                            BluetoothLEAdvertisementPublisherStatus::Started);
-            }
-            catch (...) {
-                isAdvertising = false;
-            }
-            result->Success(isAdvertising);
+            result->Success(IsAdvertising());
         }
         else if (method_call.method_name().compare("isSupported") == 0) {
             bool supported = bluetoothRadio != nullptr &&

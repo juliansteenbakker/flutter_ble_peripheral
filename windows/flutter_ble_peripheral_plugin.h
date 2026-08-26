@@ -98,6 +98,9 @@ namespace flutter_ble_peripheral {
         winrt::fire_and_forget StartGattServerAndAdvertise(
             std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
 
+        // Whether anything is on air, from either the publisher or the service.
+        bool IsAdvertising() const;
+
         // Tears the GATT service down and stops advertising it.
         void StopGattServer();
 
