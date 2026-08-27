@@ -7,7 +7,6 @@
 
 import Foundation
 import CoreBluetooth
-import CoreLocation
 
 extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
     

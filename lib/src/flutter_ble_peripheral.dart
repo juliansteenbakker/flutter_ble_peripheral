@@ -229,7 +229,11 @@ class FlutterBlePeripheral {
     return await _methodChannel.invokeMethod<bool>('isAdvertising') ?? false;
   }
 
-  /// Returns `true` if advertising over BLE is supported
+  /// Returns `true` if advertising over BLE is supported by this device.
+  ///
+  /// This reports hardware capability only. It stays `true` when Bluetooth is
+  /// off or permission has not been granted yet, which
+  /// [PeripheralBluetoothState] and [hasPermission] report instead.
   Future<bool> get isSupported async =>
       await _methodChannel.invokeMethod<bool>('isSupported') ?? false;
 
