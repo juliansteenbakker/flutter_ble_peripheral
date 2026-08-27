@@ -25,6 +25,7 @@
 
 #include <atomic>
 #include <chrono>
+#include <functional>
 #include <string>
 #include <vector>
 #include <map>
@@ -188,6 +189,12 @@ namespace flutter_ble_peripheral {
         // whether it went out; the publisher reports the resulting state itself.
         bool StartPendingAdvertisement();
 
+        // Runs work that needs the radio, once InitializeAsync has looked it up.
+        // A call arriving before that would read a null radio and report the
+        // peripheral role missing when it is only late, the way start() is held
+        // back rather than dropped.
+        void WhenRadioReady(std::function<void()> work);
+
         // Starts the countdown that ends the advertisement just started, if the
         // settings asked for one.
         void ArmAdvertiseTimeout();
@@ -203,6 +210,11 @@ namespace flutter_ble_peripheral {
         // Set when start() is called before the radio is up, so that the
         // advertisement can be issued once it comes on rather than being dropped.
         bool advertisement_pending_ = false;
+
+        // Whether InitializeAsync has finished. Both this and the queue are only
+        // touched on the UI thread, so neither needs a lock.
+        bool radio_looked_up_ = false;
+        std::vector<std::function<void()>> waiting_on_radio_;
 
         // Whether the publisher has a payload to carry. False when the GATT
         // service is the only thing being advertised.

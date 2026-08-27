@@ -204,11 +204,24 @@ namespace flutter_ble_peripheral {
             if (!StartPendingAdvertisement()) {
                 PublishState(state);
             }
+
+            radio_looked_up_ = true;
+            auto waiting = std::move(waiting_on_radio_);
+            waiting_on_radio_.clear();
+            for (auto& work : waiting) work();
         }
         catch (...) {
             // An exception leaving here would take the process with it, and there
             // is nothing left to report to anyway.
         }
+    }
+
+    void FlutterBlePeripheralPlugin::WhenRadioReady(std::function<void()> work) {
+        if (radio_looked_up_) {
+            work();
+            return;
+        }
+        waiting_on_radio_.push_back(std::move(work));
     }
 
 
@@ -879,21 +892,27 @@ namespace flutter_ble_peripheral {
             result->Success(IsAdvertising());
         }
         else if (method_call.method_name().compare("isSupported") == 0) {
-            bool supported = bluetoothRadio != nullptr &&
-                bluetoothRadio.State() != RadioState::Disabled;
-            result->Success(supported);
+            WhenRadioReady([this, shared = std::shared_ptr(std::move(result))]() {
+                bool supported = bluetoothRadio != nullptr &&
+                    bluetoothRadio.State() != RadioState::Disabled;
+                shared->Success(supported);
+            });
+            return;
         }
         else if (method_call.method_name().compare("isBluetoothOn") == 0) {
-            bool isOn = false;
-            try {
-                if (bluetoothRadio) {
-                    isOn = (bluetoothRadio.State() == RadioState::On);
+            WhenRadioReady([this, shared = std::shared_ptr(std::move(result))]() {
+                bool isOn = false;
+                try {
+                    if (bluetoothRadio) {
+                        isOn = (bluetoothRadio.State() == RadioState::On);
+                    }
                 }
-            }
-            catch (...) {
-                isOn = false;
-            }
-            result->Success(isOn);
+                catch (...) {
+                    isOn = false;
+                }
+                shared->Success(isOn);
+            });
+            return;
         }
         else if (method_call.method_name().compare("isConnected") == 0) {
             // Windows reports subscribers rather than connections, so this is the
