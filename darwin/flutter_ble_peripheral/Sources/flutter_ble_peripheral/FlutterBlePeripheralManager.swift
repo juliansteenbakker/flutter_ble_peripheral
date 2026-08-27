@@ -7,7 +7,6 @@
 
 import Foundation
 import CoreBluetooth
-import CoreLocation
 
 /**
  The `FlutterBlePeripheralManager` class manages BLE peripheral functionality

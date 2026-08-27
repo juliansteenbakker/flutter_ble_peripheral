@@ -5,7 +5,6 @@ import UIKit
 import FlutterMacOS
 import AppKit
 #endif
-import CoreLocation
 import CoreBluetooth
 
 /**
@@ -259,12 +258,16 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
 #endif
     }
 
+    /**
+     Reports whether this device supports BLE peripheral mode.
+
+     Core Bluetooth only rules peripheral mode out with `.unsupported`; every
+     other state is a condition that can change (Bluetooth off, permission not
+     granted yet) rather than missing support. `.unknown` is the state before
+     the first `peripheralManagerDidUpdateState`, so it counts as supported too.
+     */
     private func isSupported(_ result: @escaping FlutterResult) {
-        if CLLocationManager.isMonitoringAvailable(for: CLBeaconRegion.self) {
-            result(true)
-        } else {
-            result(false)
-        }
+        result(flutterBlePeripheralManager.peripheralManager.state != .unsupported)
     }
 
     /**
