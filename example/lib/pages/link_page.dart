@@ -4,6 +4,7 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
 import 'package:flutter_ble_peripheral_example/peripheral_controller.dart';
@@ -153,7 +154,8 @@ class _AdvertiseDataPanelState extends State<_AdvertiseDataPanel> {
       footnote: locked
           ? 'Stop advertising to change what is broadcast.'
           : 'Apple broadcasts the service uuid and the local name only. '
-                'Everything else is Android and Windows.',
+                'Everything else is Android and Windows, and neither of them '
+                'puts a local name on the air.',
       children: [
         TextField(
           controller: _service,
@@ -165,11 +167,37 @@ class _AdvertiseDataPanelState extends State<_AdvertiseDataPanel> {
         ),
         TextField(
           controller: _name,
-          enabled: !locked,
+          // Greyed off Apple rather than hidden, so the page says which
+          // platforms carry a name of their own and which do not.
+          enabled: !locked && PeripheralController.carriesLocalName,
           style: context.tokens.readout,
-          decoration: const InputDecoration(labelText: 'LOCAL NAME'),
+          decoration: InputDecoration(
+            labelText: 'LOCAL NAME · APPLE',
+            helperText: PeripheralController.carriesLocalName
+                ? null
+                : 'Not broadcast on ${defaultTargetPlatform.name}',
+          ),
           onChanged: (value) =>
               _controller.update(() => _controller.localName = value),
+        ),
+        SwitchListTile.adaptive(
+          contentPadding: EdgeInsets.zero,
+          value: _controller.includeDeviceName,
+          onChanged: locked
+              ? null
+              : (value) => _controller.update(
+                  () => _controller.includeDeviceName = value,
+                ),
+          title: Text(
+            'Include device name · Android',
+            style: context.texts.labelLarge,
+          ),
+          subtitle: Text(
+            'Broadcasts the system Bluetooth name, the only name Android can '
+            'advertise. It goes in the scan response, since the advertisement '
+            'has no room left for it.',
+            style: context.texts.bodySmall,
+          ),
         ),
         TextField(
           controller: _manufacturerId,
