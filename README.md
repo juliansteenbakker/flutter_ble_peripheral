@@ -259,9 +259,9 @@ already connected, the same as an Android advertise timeout does.
 
 ## Example
 
-The [example app](example/lib/main.dart) covers permission handling, adapter state,
-advertising with custom data and the GATT server. Run it with
-`cd example && flutter run`.
+The [example app](example/README.md) covers advertising, the GATT server, permissions
+and adapter state, laid out over four pages, and hosts a game of pong over the link it
+serves. Run it with `cd example && flutter run`.
 
 It is the peripheral half of a pair. Run the
 [flutter_ble_central](https://github.com/juliansteenbakker/flutter_ble_central)

@@ -106,6 +106,38 @@ jobs:
       - name: Lint Code
         run: flutter analyze ${{ matrix.analyze-paths }}
 
+  shared_example_code:
+    name: Shared Example Code
+    needs: analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          path: peripheral
+
+      - name: Checkout flutter_ble_central
+        uses: actions/checkout@v7
+        with:
+          repository: juliansteenbakker/flutter_ble_central
+          ref: develop
+          path: central
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # The two example apps share their shell and their game verbatim. The
+      # comparison tool lives in flutter_ble_central, which is the copy of
+      # record; a change made here has to be copied back there.
+      - name: Compare Shared Files
+        working-directory: central
+        run: dart run tool/sync_example_shell.dart --peripheral-path=../peripheral
+
   formatting:
     name: Formatting
     needs: analysis
