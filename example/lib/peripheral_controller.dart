@@ -53,8 +53,32 @@ final class PeripheralController extends ChangeNotifier implements RadioAccess {
   /// The uuid of the advertised service, which is also the GATT service.
   String serviceUuid = exampleServiceUuid;
 
-  /// The name broadcast alongside it.
+  /// The name broadcast alongside it, on the platforms that carry one.
+  ///
+  /// Apple is the only one: Android has no way to put a name of its own in an
+  /// advertisement, and a legacy Windows advertisement refuses to start with
+  /// one set. See [carriesLocalName] and [includeDeviceName].
   String localName = exampleLocalName;
+
+  /// Whether Android broadcasts the system Bluetooth name.
+  ///
+  /// The only name Android can advertise. `AdvertiseData.Builder` takes no
+  /// name of its own, and the stack fills this one in from the adapter, so it
+  /// is whatever the device is called in Settings rather than [localName].
+  ///
+  /// It goes in the scan response rather than the advertisement, which has no
+  /// room for it: flags and a 128-bit service uuid come to 21 of the 31 bytes
+  /// a legacy advertisement holds, the manufacturer data below takes the other
+  /// 10, and a name Android refuses to truncate needs its length plus two.
+  /// Asking for it in the advertisement fails the whole call with
+  /// `ADVERTISE_FAILED_DATA_TOO_LARGE`. The scan response is a second 31 bytes,
+  /// which is what it is for.
+  bool includeDeviceName = false;
+
+  /// Whether this platform puts [localName] on the air.
+  static bool get carriesLocalName =>
+      defaultTargetPlatform == TargetPlatform.iOS ||
+      defaultTargetPlatform == TargetPlatform.macOS;
 
   /// The manufacturer identifier, or null to advertise none.
   int? manufacturerId = 1234;
@@ -192,6 +216,11 @@ final class PeripheralController extends ChangeNotifier implements RadioAccess {
             timeout: timeout,
             connectable: connectable,
           ),
+          // The name goes here rather than in the advertisement, which is
+          // already full. See [includeDeviceName].
+          advertiseResponseData: includeDeviceName
+              ? const AndroidAdvertiseData(includeDeviceName: true)
+              : null,
         ),
         darwinSettings: DarwinAdvertiseSettings(
           overflowServiceUuids: useOverflowArea ? [serviceUuid] : null,
@@ -205,7 +234,13 @@ final class PeripheralController extends ChangeNotifier implements RadioAccess {
         _say('Cannot advertise: ${state.access.label}', isError: true);
         return;
       }
-      _say('Advertising $localName');
+      // Only say the name where it is actually on the air, rather than
+      // reporting one the platform dropped.
+      _say(
+        carriesLocalName && localName.isNotEmpty
+            ? 'Advertising $localName'
+            : 'Advertising $serviceUuid',
+      );
     } on PlatformException catch (error) {
       _say('Advertising failed: ${error.message}', isError: true);
     }
