@@ -76,9 +76,6 @@ class FlutterBlePeripheral {
   /// - iOS/macOS: [darwinSettings]
   /// - Windows: [windowsSettings]
   ///
-  /// For backward compatibility, the deprecated `AdvertiseData` is also
-  /// accepted.
-  ///
   /// Returns [PeripheralBluetoothState.ready] once the advertisement is on air.
   /// On Apple platforms a state such as [PeripheralBluetoothState.turnedOff] is
   /// returned when the radio is not up yet; the advertisement is queued and
