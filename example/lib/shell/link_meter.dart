@@ -35,6 +35,8 @@ final class LinkTelemetry extends ChangeNotifier {
   String _caption = 'idle';
   int _inbound = 0;
   int _outbound = 0;
+  bool _pending = false;
+  bool _disposed = false;
 
   /// How good the link is.
   SignalGrade get grade => _grade;
@@ -65,7 +67,7 @@ final class LinkTelemetry extends ChangeNotifier {
     _grade = grade;
     _caption = caption;
     _level = level;
-    notifyListeners();
+    _notify();
   }
 
   /// Counts [count] packets that went [direction].
@@ -76,11 +78,37 @@ final class LinkTelemetry extends ChangeNotifier {
       case PacketDirection.outbound:
         _outbound += count;
     }
-    notifyListeners();
+    _notify();
   }
 
   /// Drops the trace back to idle, keeping the counts.
   void clear() => report(grade: SignalGrade.none, caption: 'idle');
+
+  @override
+  void dispose() {
+    _disposed = true;
+    super.dispose();
+  }
+
+  /// Notifies, waiting for the end of the frame if the tree is locked.
+  ///
+  /// A page reports from its own `dispose`, which runs while the framework is
+  /// finalizing the tree and nothing may be marked dirty. The meter and the
+  /// readout beside it listen from above that page, so the report has to wait
+  /// for the frame to end.
+  void _notify() {
+    if (SchedulerBinding.instance.schedulerPhase !=
+        SchedulerPhase.persistentCallbacks) {
+      notifyListeners();
+      return;
+    }
+    if (_pending) return;
+    _pending = true;
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      _pending = false;
+      if (!_disposed) notifyListeners();
+    });
+  }
 }
 
 /// The one bold element in the shell: a live plot of the radio link.
