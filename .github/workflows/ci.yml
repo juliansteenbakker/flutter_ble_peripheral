@@ -106,6 +106,52 @@ jobs:
       - name: Lint Code
         run: flutter analyze ${{ matrix.analyze-paths }}
 
+  shared_example_code:
+    name: Shared Example Code
+    needs: analysis
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v7
+        with:
+          path: peripheral
+
+      # A change to the shared files lands as a pair of pull requests on the
+      # same branch name. Compare against that branch when it exists, so the
+      # two sides can be reviewed together; against develop otherwise.
+      - name: Resolve the branch to compare against
+        id: peer
+        run: |
+          remote=https://github.com/juliansteenbakker/flutter_ble_central.git
+          ref="${{ github.head_ref || github.ref_name }}"
+          if ! git ls-remote --exit-code --heads "$remote" "$ref" >/dev/null 2>&1; then
+            ref=develop
+          fi
+          echo "Comparing against flutter_ble_central@$ref"
+          echo "ref=$ref" >> "$GITHUB_OUTPUT"
+
+      - name: Checkout flutter_ble_central
+        uses: actions/checkout@v7
+        with:
+          repository: juliansteenbakker/flutter_ble_central
+          ref: ${{ steps.peer.outputs.ref }}
+          path: central
+
+      - name: Set Up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      # The two example apps share their shell and their game verbatim. The
+      # comparison tool lives in flutter_ble_central, which is the copy of
+      # record; a change made here has to be copied back there.
+      - name: Compare Shared Files
+        working-directory: central
+        run: dart run tool/sync_example_shell.dart --peripheral-path=../peripheral
+
   formatting:
     name: Formatting
     needs: analysis
