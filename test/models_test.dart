@@ -71,33 +71,6 @@ void main() {
     });
   });
 
-  // The deprecated AdvertiseData keeps its old constructor names, so that code
-  // written against it keeps working until it is removed. includePowerLevel is
-  // now an alias for the core includeTxPowerLevel.
-  group('AdvertiseData', () {
-    test('maps includePowerLevel onto includeTxPowerLevel', () {
-      // Exercising the deprecated class on purpose.
-      // ignore: deprecated_member_use_from_same_package
-      final data = AdvertiseData(includePowerLevel: true);
-
-      expect(data.includePowerLevel, true);
-      expect(data.includeTxPowerLevel, true);
-      expect(data.toJson()['includeTxPowerLevel'], true);
-    });
-
-    test('still carries the manufacturer data', () {
-      // Exercising the deprecated class on purpose.
-      // ignore: deprecated_member_use_from_same_package
-      final data = AdvertiseData(
-        manufacturerId: 1234,
-        manufacturerData: Uint8List.fromList([1, 2, 3]),
-      );
-
-      expect(data.toJson()['manufacturerId'], 1234);
-      expect(data.toJson()['manufacturerData'], const [1, 2, 3]);
-    });
-  });
-
   group('AdvertiseSettings', () {
     // These numbers are the wire format shared with the Android side, so they
     // must not drift.
