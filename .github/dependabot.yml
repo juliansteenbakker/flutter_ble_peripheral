@@ -1,23 +1,35 @@
 version: 2
+
+# Applies to every ecosystem below.
+#
+# A "<type>(scope): ..." prefix is required, otherwise semantic-pr.yml rejects
+# Dependabot's default "Bump x from y to z" titles.
+#
+# Ecosystems that ship to plugin consumers (the plugin's own Android/pub
+# dependencies) use "deps", which release-please renders under a "Dependencies"
+# changelog heading. Dev-only ecosystems (CI actions, the example app) use
+# "chore" so they stay out of the changelog. Reviewers are not listed:
+# CODEOWNERS already requests review on everything, and the key is deprecated.
+#
+# The cooldown lets a release settle before it is proposed, so that a version
+# superseded within days never costs a PR. Security updates ignore it.
+#
+# There is no swift ecosystem entry: darwin/flutter_ble_peripheral/Package.swift
+# only depends on the local FlutterFramework path package, so there is nothing
+# for Dependabot to bump. The Windows plugin has no external dependencies
+# either, it links against the Windows SDK/WinRT directly.
 updates:
-  # A "<type>(scope): ..." prefix is required on every ecosystem here, otherwise
-  # semantic-pr.yml rejects Dependabot's default "Bump x from y to z" titles.
-  #
-  # Ecosystems that ship to plugin consumers (the plugin's own Android/pub
-  # dependencies) use "deps", which release-please renders under a
-  # "Dependencies" changelog heading. Dev-only ecosystems (CI actions, the
-  # example app) use "chore" so they stay out of the changelog.
-  #
-  # There is no swift ecosystem entry: darwin/flutter_ble_peripheral/Package.swift
-  # only depends on the local FlutterFramework path package, so there is nothing
-  # for Dependabot to bump. The Windows plugin has no external dependencies
-  # either -- it links against the Windows SDK/WinRT directly.
   - package-ecosystem: github-actions
     directory: /
     schedule:
       interval: weekly
-    reviewers:
-      - juliansteenbakker
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      github-actions:
+        patterns:
+          - "*"
     commit-message:
       prefix: chore
       include: scope
@@ -26,38 +38,51 @@ updates:
     directory: /android
     schedule:
       interval: weekly
-    reviewers:
-      - juliansteenbakker
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     commit-message:
       prefix: deps
-      include: scope
 
   - package-ecosystem: gradle
     directory: /example/android
     schedule:
       interval: weekly
-    reviewers:
-      - juliansteenbakker
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      example-android:
+        patterns:
+          - "*"
     commit-message:
       prefix: chore
       include: scope
 
+  # prefix-development keeps a bump of a dev_dependency, which no consumer of
+  # the package resolves, out of the "Dependencies" changelog section.
   - package-ecosystem: pub
     directory: /
     schedule:
       interval: weekly
-    reviewers:
-      - juliansteenbakker
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
     commit-message:
       prefix: deps
-      include: scope
+      prefix-development: chore
 
   - package-ecosystem: pub
     directory: /example
     schedule:
       interval: weekly
-    reviewers:
-      - juliansteenbakker
+    cooldown:
+      default-days: 7
+      semver-major-days: 14
+    groups:
+      example-dart:
+        patterns:
+          - "*"
     commit-message:
       prefix: chore
       include: scope

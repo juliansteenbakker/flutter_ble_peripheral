@@ -31,3 +31,11 @@ migrate_working_dir/
 .flutter-plugins-dependencies
 /build/
 /coverage/
+
+# Swift Package Manager and Xcode. Package.resolved is deliberately not
+# committed: this is a library, so the resolved versions come from the app that
+# consumes it, and pinning the example app would work against the CI jobs that
+# prove the plugin still builds against current versions.
+Package.resolved
+**/ios/**/xcshareddata/swiftpm/
+**/macos/**/xcshareddata/swiftpm/
