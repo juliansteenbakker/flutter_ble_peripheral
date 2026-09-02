@@ -207,6 +207,13 @@ void main() {
       );
       expect(PeripheralBluetoothState.values, hasLength(9));
     });
+
+    test('the BluetoothPeripheralState alias resolves to it', () {
+      // Exercising the deprecated alias is the point of this test.
+      // ignore: deprecated_member_use_from_same_package
+      const state = BluetoothPeripheralState.ready;
+      expect(state, PeripheralBluetoothState.ready);
+    });
   });
 
   group('PeripheralState', () {

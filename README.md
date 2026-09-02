@@ -26,6 +26,8 @@ advertisement as public.
 flutter pub add flutter_ble_peripheral
 ```
 
+Upgrading from 2.x? See [MIGRATION.md](MIGRATION.md).
+
 ## Platform setup
 
 ### Android
