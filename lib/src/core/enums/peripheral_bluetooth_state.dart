@@ -1,0 +1,65 @@
+/*
+ * Copyright (c) 2023. Julian Steenbakker.
+ * All rights reserved. Use of this source code is governed by a
+ * BSD-style license that can be found in the LICENSE file.
+ */
+
+import 'package:json_annotation/json_annotation.dart';
+
+/// The result of a call that reaches the platform, covering both permission
+/// state and whether the adapter can be used.
+///
+/// The index of each entry is the value the platform sends back, so the order
+/// must not change.
+enum PeripheralBluetoothState {
+  /// The user granted access to the requested feature.
+  @JsonValue(0)
+  granted,
+
+  /// The user denied access to the requested feature, permission needs to be
+  /// asked first.
+  @JsonValue(1)
+  denied,
+
+  /// Permission to the requested feature is permanently denied, the permission
+  /// dialog will not be shown when requesting this permission. The user may
+  /// still change the permission status in the settings.
+  @JsonValue(2)
+  permanentlyDenied,
+
+  /// The OS denied access to the requested feature. The user cannot change this
+  /// app's status, possibly due to active restrictions such as parental
+  /// controls being in place.
+  ///
+  /// Only supported on iOS.
+  @JsonValue(3)
+  restricted,
+
+  /// User has authorized this application for limited access. Only supported on
+  /// iOS (iOS14+).
+  @JsonValue(4)
+  limited,
+
+  /// Bluetooth is turned off
+  @JsonValue(5)
+  turnedOff,
+
+  /// Bluetooth is not supported on this device.
+  @JsonValue(6)
+  unsupported,
+
+  /// The status is unknown
+  @JsonValue(7)
+  unknown,
+
+  /// Bluetooth is ready to be used.
+  @JsonValue(8)
+  ready,
+}
+
+/// Former name of [PeripheralBluetoothState].
+@Deprecated(
+  'Renamed to PeripheralBluetoothState so it no longer collides with the '
+  'central package. Will be removed in the next breaking release.',
+)
+typedef BluetoothPeripheralState = PeripheralBluetoothState;

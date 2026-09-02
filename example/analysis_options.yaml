@@ -1,1 +1,20 @@
-include: package:lint/analysis_options.yaml
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+
+linter:
+  rules:
+    # The example is an app, not a published API, so its widgets and their
+    # members do not need doc comments.
+    public_member_api_docs: false
+    # Firing a future from a button callback without awaiting it is the normal
+    # shape of a Flutter event handler.
+    discarded_futures: false

@@ -1,1 +1,20 @@
-include: package:lint/analysis_options_package.yaml
+include: package:very_good_analysis/analysis_options.yaml
+
+analyzer:
+  exclude:
+    - build/**
+    - android/**
+    - ios/**
+    - web/**
+    - windows/**
+    - macos/**
+    - linux/**
+    # json_serializable output; not ours to lint or document.
+    - "**/*.g.dart"
+
+linter:
+  rules:
+    # The rename alias in PeripheralBluetoothState is deliberately deprecated
+    # for one breaking release, so 2.x call sites get a warning before the old
+    # name disappears rather than a compile error on upgrade.
+    remove_deprecations_in_breaking_versions: false

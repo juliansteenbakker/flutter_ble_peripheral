@@ -4,14 +4,17 @@ import android.bluetooth.le.AdvertisingSet
 import android.bluetooth.le.AdvertisingSetCallback
 import android.bluetooth.le.BluetoothLeAdvertiser
 import android.os.Build
+import android.os.Handler
+import android.os.Looper
 import androidx.annotation.RequiresApi
-import dev.steenbakker.flutter_ble_peripheral.handlers.StateChangedHandler
+import dev.steenbakker.flutter_ble_peripheral.handlers.PeripheralStateChangedHandler
+import dev.steenbakker.flutter_ble_peripheral.models.PeripheralBluetoothState
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import io.flutter.plugin.common.MethodChannel
 
 @RequiresApi(Build.VERSION_CODES.O)
-class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result, private val stateChangedHandler: StateChangedHandler): AdvertisingSetCallback() {
+class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result, private val peripheralStateChangedHandler: PeripheralStateChangedHandler): AdvertisingSetCallback() {
     /**
      * Callback triggered in response to {@link BluetoothLeAdvertiser#startAdvertisingSet}
      * indicating result of the operation. If status is ADVERTISE_SUCCESS, then advertisingSet
@@ -33,40 +36,44 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
         var statusText = ""
         when (status) {
             ADVERTISE_SUCCESS -> {
-                stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+                peripheralStateChangedHandler.publish(PeripheralState.advertising)
             }
             ADVERTISE_FAILED_ALREADY_STARTED -> {
                 statusText = "ADVERTISE_FAILED_ALREADY_STARTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+                peripheralStateChangedHandler.publish(PeripheralState.advertising)
             }
             ADVERTISE_FAILED_FEATURE_UNSUPPORTED -> {
                 statusText = "ADVERTISE_FAILED_FEATURE_UNSUPPORTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unsupported)
+                peripheralStateChangedHandler.publish(PeripheralState.unsupported)
             }
             ADVERTISE_FAILED_INTERNAL_ERROR -> {
                 statusText = "ADVERTISE_FAILED_INTERNAL_ERROR"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                peripheralStateChangedHandler.publish(PeripheralState.idle)
             }
             ADVERTISE_FAILED_TOO_MANY_ADVERTISERS -> {
                 statusText = "ADVERTISE_FAILED_TOO_MANY_ADVERTISERS"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                peripheralStateChangedHandler.publish(PeripheralState.idle)
             }
             ADVERTISE_FAILED_DATA_TOO_LARGE -> {
                 statusText = "ADVERTISE_FAILED_DATA_TOO_LARGE"
-                stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+                peripheralStateChangedHandler.publish(PeripheralState.idle)
             }
             else -> {
                 statusText = "UNDOCUMENTED"
-                stateChangedHandler.publishPeripheralState(PeripheralState.unknown)
+                peripheralStateChangedHandler.publish(PeripheralState.unknown)
             }
 
         }
-        if (status != ADVERTISE_SUCCESS) {
-            result.error(status.toString(), statusText, "startAdvertisingSet")
-        } else {
-            result.success(0)
+        // The thread this callback arrives on is not part of the contract, and a
+        // result may only be sent from the main thread.
+        val message = statusText
+        Handler(Looper.getMainLooper()).post {
+            if (status != ADVERTISE_SUCCESS) {
+                result.error(status.toString(), message, "startAdvertisingSet")
+            } else {
+                result.success(PeripheralBluetoothState.Ready.ordinal)
+            }
         }
-
     }
 
     /**
@@ -78,7 +85,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
     override fun onAdvertisingSetStopped(advertisingSet: AdvertisingSet?) {
         Log.i("FlutterBlePeripheral", "onAdvertisingSetStopped() status: $advertisingSet")
         super.onAdvertisingSetStopped(advertisingSet)
-        stateChangedHandler.publishPeripheralState(PeripheralState.idle)
+        peripheralStateChangedHandler.publish(PeripheralState.idle)
     }
 
     /**
@@ -96,7 +103,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
     ) {
         Log.i("FlutterBlePeripheral", "onAdvertisingEnabled() status: $advertisingSet, enable $enable, status $status")
         super.onAdvertisingEnabled(advertisingSet, enable, status)
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        peripheralStateChangedHandler.publish(PeripheralState.advertising)
     }
 
     /**
@@ -109,7 +116,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
     override fun onAdvertisingDataSet(advertisingSet: AdvertisingSet?, status: Int) {
         Log.i("FlutterBlePeripheral", "onAdvertisingDataSet() status: $advertisingSet, status $status")
         super.onAdvertisingDataSet(advertisingSet, status)
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        peripheralStateChangedHandler.publish(PeripheralState.advertising)
     }
 
     /**
@@ -122,7 +129,7 @@ class PeripheralAdvertisingSetCallback(private val result: MethodChannel.Result,
     override fun onScanResponseDataSet(advertisingSet: AdvertisingSet?, status: Int) {
         Log.i("FlutterBlePeripheral", "onScanResponseDataSet() status: $advertisingSet, status $status")
         super.onAdvertisingDataSet(advertisingSet, status)
-        stateChangedHandler.publishPeripheralState(PeripheralState.advertising)
+        peripheralStateChangedHandler.publish(PeripheralState.advertising)
     }
 
     /**

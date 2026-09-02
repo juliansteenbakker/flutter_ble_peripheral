@@ -3,8 +3,8 @@ description: Demonstrates how to use the flutter_ble_peripheral plugin.
 publish_to: 'none'
 
 environment:
-  sdk: '>=2.15.0 <3.0.0'
-  flutter: ">=1.10.0"
+  sdk: ^3.8.0
+  flutter: ">=3.32.0"
 
 dependencies:
   flutter:
@@ -15,7 +15,19 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  lint: ^2.0.1
+  very_good_analysis: ^10.0.0
 
 flutter:
   uses-material-design: true
+
+  fonts:
+    # One variable file carries both roles: Archivo for UI text and, at a wider
+    # wdth axis, the expanded face used for panel labels.
+    - family: Archivo
+      fonts:
+        - asset: assets/fonts/Archivo.ttf
+    - family: IBM Plex Mono
+      fonts:
+        - asset: assets/fonts/IBMPlexMono-Regular.ttf
+        - asset: assets/fonts/IBMPlexMono-SemiBold.ttf
+          weight: 600
