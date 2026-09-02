@@ -56,3 +56,10 @@ enum PeripheralBluetoothState {
   @JsonValue(8)
   ready,
 }
+
+/// Former name of [PeripheralBluetoothState].
+@Deprecated(
+  'Renamed to PeripheralBluetoothState so it no longer collides with the '
+  'central package. Will be removed in the next breaking release.',
+)
+typedef BluetoothPeripheralState = PeripheralBluetoothState;
