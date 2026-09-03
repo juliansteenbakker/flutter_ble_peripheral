@@ -5,6 +5,8 @@
 //  Created by Julian Steenbakker on 25/03/2022.
 //
 
+import CoreBluetooth
+
 #if os(iOS)
 import Flutter
 import UIKit
@@ -36,10 +38,14 @@ public class DataReceivedHandler: NSObject, FlutterStreamHandler {
         eventChannel.setStreamHandler(self)
     }
 
-    func publishData(data: Data) {
+    func publishData(characteristicUuid: CBUUID, data: Data) {
+        let event: [String: Any] = [
+            "characteristicUuid": FlutterBlePeripheralManager.fullUuid(characteristicUuid),
+            "data": FlutterStandardTypedData(bytes: data),
+        ]
         DispatchQueue.main.async {
             if let eventSink = self.eventSink {
-                eventSink(FlutterStandardTypedData(bytes: data))
+                eventSink(event)
             }
         }
     }

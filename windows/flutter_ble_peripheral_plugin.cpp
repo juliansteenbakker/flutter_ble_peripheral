@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <cstdio>
 #include <chrono>
 #include <map>
 #include <memory>
@@ -296,6 +297,19 @@ namespace flutter_ble_peripheral {
         };
     }
 
+    // The canonical lowercase 128 bit form, which is what Dart is told a write
+    // or a subscription landed on. Android and Apple report the same spelling.
+    std::string FormatUuid(const winrt::guid& uuid) {
+        char text[37];
+        snprintf(
+            text, sizeof(text),
+            "%08x-%04x-%04x-%02x%02x-%02x%02x%02x%02x%02x%02x",
+            uuid.Data1, uuid.Data2, uuid.Data3,
+            uuid.Data4[0], uuid.Data4[1], uuid.Data4[2], uuid.Data4[3],
+            uuid.Data4[4], uuid.Data4[5], uuid.Data4[6], uuid.Data4[7]);
+        return std::string(text);
+    }
+
     // The little endian uuid a service data section carries ahead of the data,
     // along with the advertising data type matching its width.
     std::vector<uint8_t> ServiceDataPrefix(const ServiceUuid& uuid, uint8_t& data_type) {
@@ -355,6 +369,14 @@ namespace flutter_ble_peripheral {
             return bytes;
         }
         throw InvalidArgument(std::string("Expected a byte payload for ") + key);
+    }
+
+    // The byte payload under `key`, without the int-list conversion ReadBytes
+    // does, so that a large sendData payload is not copied twice.
+    const std::vector<uint8_t>* ReadRawBytes(const EncodableMap& arguments, const char* key) {
+        auto it = arguments.find(EncodableValue(key));
+        if (it == arguments.end()) return nullptr;
+        return std::get_if<std::vector<uint8_t>>(&it->second);
     }
 
     std::optional<std::string> ReadString(const EncodableMap& arguments, const char* key) {
@@ -533,8 +555,7 @@ namespace flutter_ble_peripheral {
     IAsyncOperation<bool> FlutterBlePeripheralPlugin::CreateGattServer(
         uint32_t token,
         winrt::guid service_uuid,
-        winrt::guid tx_uuid,
-        winrt::guid rx_uuid) {
+        std::vector<GattCharacteristicRequest> characteristics) {
         auto lifetime = alive_;
 
         // Built into locals and only committed to the plugin once it is whole, so
@@ -546,35 +567,55 @@ namespace flutter_ble_peripheral {
         }
         auto provider = provider_result.ServiceProvider();
 
-        // TX: what sendData notifies on. Read as well, so a central that
-        // subscribes late can still pick up the payload sent last.
-        GattLocalCharacteristicParameters tx_parameters;
-        tx_parameters.CharacteristicProperties(
-            GattCharacteristicProperties::Read |
-            GattCharacteristicProperties::Notify |
-            GattCharacteristicProperties::Indicate);
-        tx_parameters.ReadProtectionLevel(GattProtectionLevel::Plain);
+        std::vector<ServedCharacteristic> served;
+        for (const auto& wanted : characteristics) {
+            GattCharacteristicProperties properties = GattCharacteristicProperties::None;
+            if (wanted.properties & GattCharacteristicRequest::kRead) {
+                properties |= GattCharacteristicProperties::Read;
+            }
+            if (wanted.properties & GattCharacteristicRequest::kWrite) {
+                properties |= GattCharacteristicProperties::Write;
+            }
+            if (wanted.properties & GattCharacteristicRequest::kWriteWithoutResponse) {
+                properties |= GattCharacteristicProperties::WriteWithoutResponse;
+            }
+            if (wanted.properties & GattCharacteristicRequest::kNotify) {
+                properties |= GattCharacteristicProperties::Notify;
+            }
+            if (wanted.properties & GattCharacteristicRequest::kIndicate) {
+                properties |= GattCharacteristicProperties::Indicate;
+            }
 
-        auto tx_result =
-            co_await provider.Service().CreateCharacteristicAsync(tx_uuid, tx_parameters);
-        if (tx_result.Error() != BluetoothError::Success) {
-            co_return false;
+            // A characteristic that notifies is readable as well, so that a
+            // central which subscribes late can still pick up the payload sent
+            // last.
+            if (wanted.CanNotify()) {
+                properties |= GattCharacteristicProperties::Read;
+            }
+
+            GattLocalCharacteristicParameters parameters;
+            parameters.CharacteristicProperties(properties);
+            if ((properties & GattCharacteristicProperties::Read) !=
+                GattCharacteristicProperties::None) {
+                parameters.ReadProtectionLevel(GattProtectionLevel::Plain);
+            }
+            if (wanted.CanWrite()) {
+                parameters.WriteProtectionLevel(GattProtectionLevel::Plain);
+            }
+
+            auto result =
+                co_await provider.Service().CreateCharacteristicAsync(wanted.uuid, parameters);
+            if (result.Error() != BluetoothError::Success) {
+                co_return false;
+            }
+
+            ServedCharacteristic entry;
+            entry.uuid = wanted.uuid;
+            entry.characteristic = result.Characteristic();
+            entry.notifies = wanted.CanNotify();
+            entry.writable = wanted.CanWrite();
+            served.push_back(std::move(entry));
         }
-        auto tx = tx_result.Characteristic();
-
-        // RX: what a central writes to.
-        GattLocalCharacteristicParameters rx_parameters;
-        rx_parameters.CharacteristicProperties(
-            GattCharacteristicProperties::Write |
-            GattCharacteristicProperties::WriteWithoutResponse);
-        rx_parameters.WriteProtectionLevel(GattProtectionLevel::Plain);
-
-        auto rx_result =
-            co_await provider.Service().CreateCharacteristicAsync(rx_uuid, rx_parameters);
-        if (rx_result.Error() != BluetoothError::Success) {
-            co_return false;
-        }
-        auto rx = rx_result.Characteristic();
 
         // The plugin is only touched on the UI thread, and only while it is still
         // the service this start was asked for.
@@ -582,15 +623,22 @@ namespace flutter_ble_peripheral {
         if (!lifetime->load() || token != gatt_token_) co_return false;
 
         gatt_provider_ = provider;
-        gatt_tx_ = tx;
-        gatt_rx_ = rx;
-
-        gatt_read_token_ = gatt_tx_.ReadRequested(
-            { this, &FlutterBlePeripheralPlugin::OnReadRequested });
-        gatt_subscribers_token_ = gatt_tx_.SubscribedClientsChanged(
-            { this, &FlutterBlePeripheralPlugin::OnSubscribersChanged });
-        gatt_write_token_ = gatt_rx_.WriteRequested(
-            { this, &FlutterBlePeripheralPlugin::OnWriteRequested });
+        {
+            std::lock_guard<std::mutex> guard(gatt_characteristics_mutex_);
+            gatt_characteristics_ = std::move(served);
+            for (auto& entry : gatt_characteristics_) {
+                if (entry.notifies) {
+                    entry.read_token = entry.characteristic.ReadRequested(
+                        { this, &FlutterBlePeripheralPlugin::OnReadRequested });
+                    entry.subscribers_token = entry.characteristic.SubscribedClientsChanged(
+                        { this, &FlutterBlePeripheralPlugin::OnSubscribersChanged });
+                }
+                if (entry.writable) {
+                    entry.write_token = entry.characteristic.WriteRequested(
+                        { this, &FlutterBlePeripheralPlugin::OnWriteRequested });
+                }
+            }
+        }
 
         GattServiceProviderAdvertisingParameters advertising_parameters;
         advertising_parameters.IsConnectable(true);
@@ -611,7 +659,7 @@ namespace flutter_ble_peripheral {
         bool served = false;
         try {
             served = co_await CreateGattServer(
-                token, request.service_uuid, request.tx_uuid, request.rx_uuid);
+                token, request.service_uuid, request.characteristics);
         }
         catch (...) {
             // A coroutine that lets an exception escape takes the process with it,
@@ -674,17 +722,50 @@ namespace flutter_ble_peripheral {
         }
     }
 
+    FlutterBlePeripheralPlugin::ServedCharacteristic*
+        FlutterBlePeripheralPlugin::FindCharacteristic(winrt::guid uuid) {
+        for (auto& entry : gatt_characteristics_) {
+            if (entry.uuid == uuid) return &entry;
+        }
+        return nullptr;
+    }
+
+    bool FlutterBlePeripheralPlugin::AnySubscribed() const {
+        for (const auto& entry : gatt_characteristics_) {
+            if (entry.subscribed) return true;
+        }
+        return false;
+    }
+
     void FlutterBlePeripheralPlugin::StopGattServer() {
         // Anything still being built belongs to an earlier start, and must not
         // come up behind this.
         gatt_token_++;
-        if (gatt_tx_) {
-            gatt_tx_.ReadRequested(gatt_read_token_);
-            gatt_tx_.SubscribedClientsChanged(gatt_subscribers_token_);
+
+        // Taken out from under the lock first, and only then unregistered:
+        // revoking an event waits for a handler that is already running, and that
+        // handler may be waiting for this lock to read its payload.
+        std::vector<ServedCharacteristic> served;
+        std::vector<winrt::guid> was_subscribed;
+        {
+            std::lock_guard<std::mutex> guard(gatt_characteristics_mutex_);
+            served = std::move(gatt_characteristics_);
+            gatt_characteristics_.clear();
         }
-        if (gatt_rx_) {
-            gatt_rx_.WriteRequested(gatt_write_token_);
+
+        for (auto& entry : served) {
+            if (entry.subscribed) was_subscribed.push_back(entry.uuid);
+            if (entry.read_token) {
+                entry.characteristic.ReadRequested(entry.read_token);
+            }
+            if (entry.subscribers_token) {
+                entry.characteristic.SubscribedClientsChanged(entry.subscribers_token);
+            }
+            if (entry.write_token) {
+                entry.characteristic.WriteRequested(entry.write_token);
+            }
         }
+
         if (gatt_provider_) {
             try {
                 gatt_provider_.StopAdvertising();
@@ -695,22 +776,24 @@ namespace flutter_ble_peripheral {
         }
         gatt_advertising_ = false;
         gatt_provider_ = nullptr;
-        gatt_tx_ = nullptr;
-        gatt_rx_ = nullptr;
-        {
-            std::lock_guard<std::mutex> guard(gatt_last_sent_mutex_);
-            gatt_last_sent_.clear();
-        }
-        if (gatt_subscribed_) {
-            gatt_subscribed_ = false;
-            if (subscription_sink_) subscription_sink_->Success(EncodableValue(false));
+
+        // Nothing is served any more, so anything that was subscribed is not.
+        if (subscription_sink_) {
+            for (const auto& uuid : was_subscribed) {
+                subscription_sink_->Success(EncodableValue(EncodableMap{
+                    { EncodableValue("characteristicUuid"), EncodableValue(FormatUuid(uuid)) },
+                    { EncodableValue("subscribed"), EncodableValue(false) },
+                    { EncodableValue("anySubscribed"), EncodableValue(false) },
+                }));
+            }
         }
     }
 
     winrt::fire_and_forget FlutterBlePeripheralPlugin::OnReadRequested(
-        GattLocalCharacteristic const&,
+        GattLocalCharacteristic const& characteristic,
         GattReadRequestedEventArgs const& args) {
         auto lifetime = alive_;
+        auto uuid = characteristic.Uuid();
         auto deferral = args.GetDeferral();
         auto request = co_await args.GetRequestAsync();
         if (request && lifetime->load()) {
@@ -721,9 +804,10 @@ namespace flutter_ble_peripheral {
             auto offset = static_cast<size_t>(request.Offset());
             std::optional<std::vector<uint8_t>> tail;
             {
-                std::lock_guard<std::mutex> guard(gatt_last_sent_mutex_);
-                if (offset <= gatt_last_sent_.size()) {
-                    tail.emplace(gatt_last_sent_.begin() + offset, gatt_last_sent_.end());
+                std::lock_guard<std::mutex> guard(gatt_characteristics_mutex_);
+                const auto* entry = FindCharacteristic(uuid);
+                if (entry && offset <= entry->last_sent.size()) {
+                    tail.emplace(entry->last_sent.begin() + offset, entry->last_sent.end());
                 }
             }
 
@@ -740,9 +824,10 @@ namespace flutter_ble_peripheral {
     }
 
     winrt::fire_and_forget FlutterBlePeripheralPlugin::OnWriteRequested(
-        GattLocalCharacteristic const&,
+        GattLocalCharacteristic const& characteristic,
         GattWriteRequestedEventArgs const& args) {
         auto lifetime = alive_;
+        auto uuid = characteristic.Uuid();
         auto deferral = args.GetDeferral();
         auto request = co_await args.GetRequestAsync();
         if (request) {
@@ -756,7 +841,10 @@ namespace flutter_ble_peripheral {
 
             co_await ui_thread_;
             if (lifetime->load() && data_received_sink_ && !bytes.empty()) {
-                data_received_sink_->Success(EncodableValue(bytes));
+                data_received_sink_->Success(EncodableValue(EncodableMap{
+                    { EncodableValue("characteristicUuid"), EncodableValue(FormatUuid(uuid)) },
+                    { EncodableValue("data"), EncodableValue(bytes) },
+                }));
             }
         }
         deferral.Complete();
@@ -766,6 +854,7 @@ namespace flutter_ble_peripheral {
         GattLocalCharacteristic const& characteristic,
         winrt::Windows::Foundation::IInspectable const&) {
         auto lifetime = alive_;
+        auto uuid = characteristic.Uuid();
         auto clients = characteristic.SubscribedClients();
         bool subscribed = clients.Size() > 0;
 
@@ -780,14 +869,28 @@ namespace flutter_ble_peripheral {
         co_await ui_thread_;
         if (!lifetime->load()) co_return;
 
-        if (subscribed != gatt_subscribed_) {
-            gatt_subscribed_ = subscribed;
+        bool changed = false;
+        bool any_subscribed = false;
+        {
+            std::lock_guard<std::mutex> guard(gatt_characteristics_mutex_);
+            if (auto* entry = FindCharacteristic(uuid)) {
+                changed = entry->subscribed != subscribed;
+                entry->subscribed = subscribed;
+            }
+            any_subscribed = AnySubscribed();
+        }
+
+        if (changed) {
             if (subscription_sink_) {
-                subscription_sink_->Success(EncodableValue(subscribed));
+                subscription_sink_->Success(EncodableValue(EncodableMap{
+                    { EncodableValue("characteristicUuid"), EncodableValue(FormatUuid(uuid)) },
+                    { EncodableValue("subscribed"), EncodableValue(subscribed) },
+                    { EncodableValue("anySubscribed"), EncodableValue(any_subscribed) },
+                }));
             }
             // Windows reports subscribers and never a bare connection, so a
             // subscription is as close as it gets to one, the way Apple reports it.
-            if (subscribed) {
+            if (any_subscribed) {
                 PublishState(PeripheralState::Connected);
             }
             else if (IsAdvertising()) {
@@ -826,17 +929,44 @@ namespace flutter_ble_peripheral {
                 // instead of reaching Dart.
                 gatt_request_.reset();
                 if (auto service_uuid = ReadString(*arguments, "gattServiceUuid")) {
-                    auto tx = ReadString(*arguments, "gattTxCharacteristicUuid");
-                    auto rx = ReadString(*arguments, "gattRxCharacteristicUuid");
-                    if (!tx || !rx) {
-                        throw InvalidArgument(
-                            "gattServiceUuid needs a gattTxCharacteristicUuid and a "
-                            "gattRxCharacteristicUuid");
+                    auto entry = arguments->find(EncodableValue("gattCharacteristics"));
+                    const flutter::EncodableList* list = entry == arguments->end()
+                        ? nullptr
+                        : std::get_if<flutter::EncodableList>(&entry->second);
+                    if (!list || list->empty()) {
+                        throw InvalidArgument("gattServiceUuid needs gattCharacteristics");
                     }
+
+                    std::vector<GattCharacteristicRequest> characteristics;
+                    for (const auto& value : *list) {
+                        const auto* map = std::get_if<EncodableMap>(&value);
+                        if (!map) {
+                            throw InvalidArgument("A gatt characteristic must be a map");
+                        }
+                        auto uuid = ReadString(*map, "uuid");
+                        if (!uuid) {
+                            throw InvalidArgument("A gatt characteristic needs a uuid");
+                        }
+                        int bits = 0;
+                        auto properties = map->find(EncodableValue("properties"));
+                        if (properties != map->end()) {
+                            if (const auto* small = std::get_if<std::int32_t>(&properties->second)) {
+                                bits = *small;
+                            }
+                            else if (const auto* large =
+                                std::get_if<std::int64_t>(&properties->second)) {
+                                bits = static_cast<int>(*large);
+                            }
+                        }
+                        characteristics.push_back(GattCharacteristicRequest{
+                            ParseServiceUuid(*uuid).guid,
+                            bits,
+                        });
+                    }
+
                     gatt_request_ = GattRequest{
                         ParseServiceUuid(*service_uuid).guid,
-                        ParseServiceUuid(*tx).guid,
-                        ParseServiceUuid(*rx).guid,
+                        std::move(characteristics),
                     };
                 }
 
@@ -917,37 +1047,95 @@ namespace flutter_ble_peripheral {
         else if (method_call.method_name().compare("isConnected") == 0) {
             // Windows reports subscribers rather than connections, so this is the
             // same answer as isSubscribed. Documented as such on the Dart side.
-            result->Success(gatt_tx_ ? gatt_tx_.SubscribedClients().Size() > 0 : false);
+            std::lock_guard<std::mutex> guard(gatt_characteristics_mutex_);
+            result->Success(AnySubscribed());
         }
         else if (method_call.method_name().compare("isSubscribed") == 0) {
-            result->Success(gatt_tx_ ? gatt_tx_.SubscribedClients().Size() > 0 : false);
-        }
-        else if (method_call.method_name().compare("sendData") == 0) {
-            if (!gatt_tx_) {
-                result->Error("NOT_INITIALIZED", "No GATT server is running");
+            // A uuid asks about one characteristic; without one the answer covers
+            // every characteristic that can notify.
+            const auto* named = std::get_if<std::string>(method_call.arguments());
+            std::lock_guard<std::mutex> guard(gatt_characteristics_mutex_);
+            if (!named) {
+                result->Success(AnySubscribed());
                 return;
             }
-            const auto* bytes = std::get_if<std::vector<uint8_t>>(method_call.arguments());
+            try {
+                const auto* entry = FindCharacteristic(ParseServiceUuid(*named).guid);
+                result->Success(entry && entry->subscribed);
+            }
+            catch (const InvalidArgument&) {
+                result->Success(false);
+            }
+        }
+        else if (method_call.method_name().compare("sendData") == 0) {
+            const auto* arguments = std::get_if<EncodableMap>(method_call.arguments());
+            const auto* bytes = arguments ? ReadRawBytes(*arguments, "data") : nullptr;
             if (!bytes) {
                 result->Error("INVALID_ARGUMENT", "Data must be a byte array");
                 return;
             }
-            if (gatt_tx_.SubscribedClients().Size() == 0) {
-                result->Error(
-                    "SEND_FAILED",
-                    "No central is subscribed to the TX characteristic");
-                return;
-            }
-            try {
-                {
-                    std::lock_guard<std::mutex> guard(gatt_last_sent_mutex_);
-                    gatt_last_sent_ = *bytes;
+
+            auto named = ReadString(*arguments, "characteristicUuid");
+
+            GattLocalCharacteristic target{ nullptr };
+            {
+                std::lock_guard<std::mutex> guard(gatt_characteristics_mutex_);
+
+                std::vector<ServedCharacteristic*> notifying;
+                for (auto& entry : gatt_characteristics_) {
+                    if (entry.notifies) notifying.push_back(&entry);
                 }
+                if (notifying.empty()) {
+                    result->Error("NOT_INITIALIZED", "No GATT server is running");
+                    return;
+                }
+
+                ServedCharacteristic* entry = nullptr;
+                if (named) {
+                    try {
+                        entry = FindCharacteristic(ParseServiceUuid(*named).guid);
+                    }
+                    catch (const InvalidArgument& error) {
+                        result->Error("INVALID_ARGUMENT", error.what());
+                        return;
+                    }
+                    if (!entry || !entry->notifies) {
+                        result->Error(
+                            "SEND_FAILED",
+                            "The GATT service does not notify on that characteristic");
+                        return;
+                    }
+                }
+                else if (notifying.size() == 1) {
+                    // Without a uuid there is an answer only while the service
+                    // notifies on exactly one characteristic, which is the case for
+                    // the default pair.
+                    entry = notifying.front();
+                }
+                else {
+                    result->Error(
+                        "SEND_FAILED",
+                        "The GATT service has several notifying characteristics; name one");
+                    return;
+                }
+
+                if (entry->characteristic.SubscribedClients().Size() == 0) {
+                    result->Error(
+                        "SEND_FAILED",
+                        "No central is subscribed to that characteristic");
+                    return;
+                }
+
+                entry->last_sent = *bytes;
+                target = entry->characteristic;
+            }
+
+            try {
                 DataWriter writer;
                 writer.WriteBytes(*bytes);
                 // Windows queues this itself, so there is no backpressure to
                 // handle the way Android and Apple need it.
-                gatt_tx_.NotifyValueAsync(writer.DetachBuffer());
+                target.NotifyValueAsync(writer.DetachBuffer());
                 result->Success();
             }
             catch (...) {

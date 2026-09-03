@@ -16,6 +16,7 @@ import 'package:flutter_ble_peripheral/src/core/enums/peripheral_bluetooth_state
 import 'package:flutter_ble_peripheral/src/core/enums/peripheral_state.dart';
 import 'package:flutter_ble_peripheral/src/core/models/advertise_data_core.dart';
 import 'package:flutter_ble_peripheral/src/core/models/gatt_server_settings.dart';
+import 'package:flutter_ble_peripheral/src/core/models/gatt_write.dart';
 import 'package:flutter_ble_peripheral/src/platform/android/models/android_advertise_data.dart';
 import 'package:flutter_ble_peripheral/src/platform/android/models/android_advertise_settings.dart';
 import 'package:flutter_ble_peripheral/src/platform/darwin/models/darwin_advertise_settings.dart';
@@ -62,7 +63,9 @@ class FlutterBlePeripheral {
 
   Stream<int>? _mtuState;
   Stream<PeripheralState>? _peripheralState;
+  Stream<GattWrite>? _gattWrites;
   Stream<Uint8List>? _dataReceived;
+  Stream<GattSubscription>? _characteristicSubscriptions;
   Stream<bool>? _subscriptionChanged;
 
   /// Start advertising.
@@ -113,9 +116,21 @@ class FlutterBlePeripheral {
           'AdvertiseDataCore.serviceUuid or GattServerSettings.serviceUuid.',
         );
       }
+      final characteristics = gattServer.effectiveCharacteristics;
+      if (characteristics.any((c) => c.properties.isEmpty)) {
+        throw ArgumentError(
+          'A GATT characteristic needs at least one property.',
+        );
+      }
+      final uuids = characteristics.map((c) => c.uuid.toLowerCase()).toSet();
+      if (uuids.length != characteristics.length) {
+        throw ArgumentError(
+          'A GATT service cannot serve the same characteristic uuid twice.',
+        );
+      }
       parameters['gattServiceUuid'] = serviceUuid;
-      parameters['gattTxCharacteristicUuid'] = gattServer.txCharacteristicUuid;
-      parameters['gattRxCharacteristicUuid'] = gattServer.rxCharacteristicUuid;
+      parameters['gattCharacteristics'] =
+          characteristics.map((c) => c.toJson()).toList();
     }
 
     // Android settings
@@ -246,10 +261,26 @@ class FlutterBlePeripheral {
   Future<bool> get isConnected async =>
       await _methodChannel.invokeMethod<bool>('isConnected') ?? false;
 
-  /// Returns `true` while at least one central is subscribed to the TX
-  /// characteristic, which is the state in which [sendData] can deliver.
+  /// Returns `true` while at least one central is subscribed to any
+  /// notifying characteristic, which is the state in which [sendData] can
+  /// deliver.
+  ///
+  /// With a layout of several notifying characteristics, use
+  /// [isSubscribedTo] to ask about one of them.
   Future<bool> get isSubscribed async =>
       await _methodChannel.invokeMethod<bool>('isSubscribed') ?? false;
+
+  /// Returns `true` while at least one central is subscribed to the
+  /// characteristic [characteristicUuid].
+  ///
+  /// Answers `false` for a characteristic this service does not serve, or one
+  /// that cannot notify.
+  Future<bool> isSubscribedTo(String characteristicUuid) async =>
+      await _methodChannel.invokeMethod<bool>(
+        'isSubscribed',
+        characteristicUuid,
+      ) ??
+      false;
 
   /// Returns `true` if Bluetooth is turned on.
   ///
@@ -262,13 +293,22 @@ class FlutterBlePeripheral {
   /// The payload is queued per central, so back-to-back calls are delivered in
   /// order rather than overwriting each other.
   ///
+  /// [characteristicUuid] names which characteristic to notify on. It may be
+  /// left out only where the service serves a single notifying characteristic,
+  /// which is the case for the default TX and RX pair.
+  ///
   /// Throws a [PlatformException] with code `SEND_FAILED` when no central is
-  /// subscribed, and `NOT_INITIALIZED` when no GATT server is running; see
+  /// subscribed, when the characteristic is not one this service notifies on,
+  /// or when the service has several notifying characteristics and none was
+  /// named; and `NOT_INITIALIZED` when no GATT server is running. See
   /// [isSubscribed] and [onSubscriptionChanged] for how to know beforehand.
   ///
-  /// A central that reads the TX characteristic gets the payload sent last.
-  Future<void> sendData(Uint8List data) async {
-    await _methodChannel.invokeMethod('sendData', data);
+  /// A central that reads the characteristic gets the payload sent last on it.
+  Future<void> sendData(Uint8List data, {String? characteristicUuid}) async {
+    await _methodChannel.invokeMethod('sendData', <String, dynamic>{
+      'data': data,
+      'characteristicUuid': characteristicUuid,
+    });
   }
 
   /// Enable Bluetooth programmatically.
@@ -399,27 +439,63 @@ class FlutterBlePeripheral {
     return _peripheralState!;
   }
 
+  /// Returns a Stream of what centrals write, with the characteristic each
+  /// write landed on.
+  ///
+  /// Use this over [onDataReceived] where the service serves more than one
+  /// characteristic a central can write to.
+  Stream<GattWrite> get onGattWrite {
+    _gattWrites ??= _dataReceivedEventChannel.receiveBroadcastStream().map(
+          (dynamic event) => GattWrite(
+            characteristicUuid:
+                (event as Map)['characteristicUuid'] as String? ?? '',
+            data: event['data'] as Uint8List,
+          ),
+        );
+    return _gattWrites!;
+  }
+
   /// Returns Stream of data received from connected centrals.
   ///
   /// After listening to this Stream, you'll be notified when data is written to
-  /// the RX characteristic by a connected central device.
+  /// a characteristic a central may write to. It reports the bytes alone; see
+  /// [onGattWrite] for which characteristic they arrived on.
   Stream<Uint8List> get onDataReceived {
     _dataReceived ??= _dataReceivedEventChannel
         .receiveBroadcastStream()
-        .map((dynamic event) => event as Uint8List);
+        .map((dynamic event) => (event as Map)['data'] as Uint8List);
     return _dataReceived!;
   }
 
-  /// Returns a Stream of whether a central is subscribed to the TX
+  /// Returns a Stream of whether a central is subscribed to any notifying
   /// characteristic.
   ///
   /// Emits `true` once the first central subscribes and `false` when the last
   /// one goes away, which brackets the window in which [sendData] can deliver.
+  /// See [onCharacteristicSubscriptionChanged] for which characteristic a
+  /// central subscribed to.
   Stream<bool> get onSubscriptionChanged {
     _subscriptionChanged ??= _subscriptionChangedEventChannel
         .receiveBroadcastStream()
-        .map((dynamic event) => event as bool)
+        .map((dynamic event) => (event as Map)['anySubscribed'] as bool)
         .distinct();
     return _subscriptionChanged!;
+  }
+
+  /// Returns a Stream of per-characteristic subscription changes.
+  ///
+  /// Emits whenever a characteristic gains its first subscribed central or
+  /// loses its last one, which is what decides whether [sendData] can deliver
+  /// on that one.
+  Stream<GattSubscription> get onCharacteristicSubscriptionChanged {
+    _characteristicSubscriptions ??=
+        _subscriptionChangedEventChannel.receiveBroadcastStream().map(
+              (dynamic event) => GattSubscription(
+                characteristicUuid:
+                    (event as Map)['characteristicUuid'] as String? ?? '',
+                subscribed: event['subscribed'] as bool? ?? false,
+              ),
+            );
+    return _characteristicSubscriptions!;
   }
 }

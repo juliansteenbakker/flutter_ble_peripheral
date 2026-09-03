@@ -30,7 +30,7 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
             // A relaunch into the background comes back with the advertisement
             // already on air, and possibly with a central still subscribed, so idle
             // would be wrong here.
-            if txSubscribed {
+            if anySubscribed {
                 state = .connected
             } else if peripheral.isAdvertising {
                 state = .advertising
@@ -68,8 +68,8 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
 
         stateChangedHandler.publishPeripheralState(state: .advertising)
 
-        // Immediately set to connected if the tx Characteristic is already subscribed
-        if txSubscribed {
+        // Immediately set to connected if a central is already subscribed
+        if anySubscribed {
             stateChangedHandler.publishPeripheralState(state: .connected)
         }
     }
@@ -111,13 +111,16 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
                 return
             }
 
-            // Check if this is the RX characteristic (accept writes)
-            if characteristic.uuid == rxCharacteristic?.uuid {
-                print("[flutter_ble_peripheral] Received data on RX characteristic: \(data.count) bytes")
+            // Only a characteristic Dart asked to be writable takes a write.
+            if writableUuids.contains(characteristic.uuid) {
+                print("[flutter_ble_peripheral] Received \(data.count) bytes on \(characteristic.uuid)")
 
                 if data.count > 0 {
                     // Publish received data to Flutter
-                    dataReceivedHandler?.publishData(data: data)
+                    dataReceivedHandler?.publishData(
+                        characteristicUuid: characteristic.uuid,
+                        data: data
+                    )
                 }
 
                 // Respond with success
@@ -133,39 +136,56 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didSubscribeTo characteristic: CBCharacteristic) {
         print("[flutter_ble_peripheral] didSubscribeTo:", central.identifier, characteristic.uuid)
 
-        if characteristic.uuid == txCharacteristic?.uuid {
-            // Update MTU
-            self.maximumNotificationSize = central.maximumUpdateValueLength
-            print("[flutter_ble_peripheral] MTU updated: \(maximumNotificationSize + 3)")
+        guard notifyingUuids.contains(characteristic.uuid) else { return }
 
-            // Add to subscriptions and connected centrals
-            txSubscriptions.insert(central.identifier)
-            connectedCentrals.insert(central.identifier)
+        // Update MTU
+        self.maximumNotificationSize = central.maximumUpdateValueLength
+        print("[flutter_ble_peripheral] MTU updated: \(maximumNotificationSize + 3)")
 
-            txSubscribed = !txSubscriptions.isEmpty
+        // Add to subscriptions and connected centrals
+        subscriptions[characteristic.uuid, default: []].insert(central.identifier)
+        connectedCentrals.insert(central.identifier)
+        publishSubscription(characteristic.uuid)
 
-            print("[flutter_ble_peripheral] txSubscriptions count: \(txSubscriptions.count)")
-        }
+        let count = subscriptions[characteristic.uuid]?.count ?? 0
+        print("[flutter_ble_peripheral] \(characteristic.uuid) subscriber count: \(count)")
     }
 
     func peripheralManager(_ peripheral: CBPeripheralManager, central: CBCentral, didUnsubscribeFrom characteristic: CBCharacteristic) {
         print("[flutter_ble_peripheral] didUnsubscribeFrom:", central.identifier, characteristic.uuid)
 
-        if characteristic.uuid == txCharacteristic?.uuid {
-            // Remove from subscriptions and connected centrals
-            txSubscriptions.remove(central.identifier)
-            connectedCentrals.remove(central.identifier)
+        guard notifyingUuids.contains(characteristic.uuid) else { return }
 
-            txSubscribed = !txSubscriptions.isEmpty
+        // Remove from subscriptions and connected centrals
+        subscriptions[characteristic.uuid]?.remove(central.identifier)
+        connectedCentrals.remove(central.identifier)
+        publishSubscription(characteristic.uuid)
 
-            print("[flutter_ble_peripheral] txSubscriptions count: \(txSubscriptions.count)")
+        let count = subscriptions[characteristic.uuid]?.count ?? 0
+        print("[flutter_ble_peripheral] \(characteristic.uuid) subscriber count: \(count)")
 
-            // Update state based on remaining connections
-            if !txSubscribed && peripheralManager.isAdvertising {
-                stateChangedHandler.publishPeripheralState(state: .advertising)
-            } else if !txSubscribed && !peripheralManager.isAdvertising {
-                stateChangedHandler.publishPeripheralState(state: .idle)
-            }
+        // Nothing subscribed anywhere leaves the peripheral where it was before a
+        // central turned up.
+        if !anySubscribed && !peripheralManager.isAdvertising {
+            stateChangedHandler.publishPeripheralState(state: .idle)
+        }
+    }
+
+    /**
+     Reports a service that Core Bluetooth refused.
+
+     Without this a rejected service simply never appears, and the peripheral
+     advertises a service uuid it does not actually serve.
+     */
+    func peripheralManager(
+        _ peripheral: CBPeripheralManager,
+        didAdd service: CBService,
+        error: (any Error)?
+    ) {
+        if let error = error {
+            print("[flutter_ble_peripheral] Failed to add service \(service.uuid):", error)
+        } else {
+            print("[flutter_ble_peripheral] Serving \(service.uuid)")
         }
     }
 
@@ -177,6 +197,6 @@ extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
      */
     func peripheralManagerIsReady(toUpdateSubscribers peripheral: CBPeripheralManager) {
         print("[flutter_ble_peripheral] ready to update subscribers")
-        drainNotifyQueue()
+        drainNotifyQueues()
     }
 }

@@ -61,11 +61,14 @@ class FlutterBlePeripheralManager: NSObject {
     /// The currently active GATT service.
     var currentService: CBMutableService?
 
-    /// The transmit (TX) characteristic for sending data to centrals.
-    var txCharacteristic: CBMutableCharacteristic?
+    /// The characteristics being served, by uuid.
+    var servedCharacteristics: [CBUUID: CBMutableCharacteristic] = [:]
 
-    /// The receive (RX) characteristic for receiving data from centrals.
-    var rxCharacteristic: CBMutableCharacteristic?
+    /// The uuids `sendData` can deliver on.
+    var notifyingUuids: Set<CBUUID> = []
+
+    /// The uuids a central may write to.
+    var writableUuids: Set<CBUUID> = []
 
     /// The GATT service to add once the peripheral manager powers on.
     var pendingGattService: GattServiceRequest?
@@ -77,8 +80,14 @@ class FlutterBlePeripheralManager: NSObject {
 
     // MARK: - Connection Tracking
 
-    /// Set of UUIDs representing centrals subscribed to the TX characteristic.
-    var txSubscriptions = Set<UUID>()
+    /**
+     The centrals subscribed to each notifying characteristic.
+
+     Per characteristic rather than one set, since a central may take one
+     characteristic of a service and leave another, and `sendData` may only
+     notify those that asked for the one it is sending on.
+     */
+    var subscriptions: [CBUUID: Set<UUID>] = [:]
 
     /// Set of UUIDs representing currently connected centrals.
     var connectedCentrals = Set<UUID>()
@@ -96,33 +105,45 @@ class FlutterBlePeripheralManager: NSObject {
         }
     }
 
-    /// Indicates whether any central has subscribed to TX notifications.
-    /// Updates the published peripheral state accordingly.
-    var txSubscribed = false {
-        didSet {
-            guard txSubscribed != oldValue else { return }
-            subscriptionChangedHandler?.publish(subscribed: txSubscribed)
-            if txSubscribed {
-                stateChangedHandler.publishPeripheralState(state: .connected)
-            } else if peripheralManager.isAdvertising {
-                stateChangedHandler.publishPeripheralState(state: .advertising)
-            }
+    /// Whether any central is subscribed to any notifying characteristic, which
+    /// is the state in which `sendData` can deliver at all.
+    var anySubscribed: Bool {
+        subscriptions.values.contains { !$0.isEmpty }
+    }
+
+    /**
+     Publishes the subscription state of one characteristic, and moves the
+     peripheral state with the aggregate.
+     */
+    func publishSubscription(_ uuid: CBUUID) {
+        let subscribed = !(subscriptions[uuid]?.isEmpty ?? true)
+        let any = anySubscribed
+        subscriptionChangedHandler?.publish(
+            characteristicUuid: uuid,
+            subscribed: subscribed,
+            anySubscribed: any
+        )
+        if any {
+            stateChangedHandler.publishPeripheralState(state: .connected)
+        } else if peripheralManager.isAdvertising {
+            stateChangedHandler.publishPeripheralState(state: .advertising)
         }
     }
 
     // MARK: - Notification Queue
 
     /**
-     Payloads waiting to go out.
+     Payloads waiting to go out, per characteristic.
 
      `updateValue` returns false when Core Bluetooth's transmit queue is full,
      and the payload is dropped; the queue is drained again from
      `peripheralManagerIsReadyToUpdateSubscribers`.
      */
-    private var notifyQueue: [Data] = []
+    private var notifyQueues: [CBUUID: [Data]] = [:]
 
-    /// The last payload `sendData` was given, returned to a central that reads TX.
-    private var lastSentValue: Data?
+    /// The last payload `sendData` was given per characteristic, returned to a
+    /// central that reads that one.
+    private var lastSentValues: [CBUUID: Data] = [:]
 
     // MARK: - Initialization
 
@@ -218,16 +239,12 @@ class FlutterBlePeripheralManager: NSObject {
      */
     func addService(_ request: GattServiceRequest) {
         let serviceUuid = request.serviceUuid
-        let txUuid = request.txCharacteristicUuid
-        let rxUuid = request.rxCharacteristicUuid
 
         // A restored service is already being served, and adding the same layout a
         // second time fails, so it is left alone. A different layout replaces it.
         if let existing = currentService {
-            let sameLayout =
-                FlutterBlePeripheralManager.parseServiceUuid(serviceUuid) == existing.uuid
-                && FlutterBlePeripheralManager.parseServiceUuid(txUuid) == txCharacteristic?.uuid
-                && FlutterBlePeripheralManager.parseServiceUuid(rxUuid) == rxCharacteristic?.uuid
+            let sameLayout = serviceUuid == existing.uuid
+                && Set(request.characteristics.map(\.uuid)) == Set(servedCharacteristics.keys)
             if sameLayout {
                 print("[flutter_ble_peripheral] GATT service \(serviceUuid) is already served")
                 return
@@ -235,33 +252,33 @@ class FlutterBlePeripheralManager: NSObject {
             peripheralManager.remove(existing)
         }
 
-        // TX characteristic: notify central devices of updates
-        let mutableTxCharacteristic = CBMutableCharacteristic(
-            type: CBUUID(string: txUuid),
-            properties: [.read, .notify, .indicate],
-            value: nil,
-            permissions: [.readable]
-        )
+        servedCharacteristics = [:]
+        notifyingUuids = []
+        writableUuids = []
 
-        // RX characteristic: receive data from central devices
-        let mutableRxCharacteristic = CBMutableCharacteristic(
-            type: CBUUID(string: rxUuid),
-            properties: [.write, .writeWithoutResponse],
-            value: nil,
-            permissions: [.writeable]
-        )
+        var characteristics: [CBMutableCharacteristic] = []
+        for wanted in request.characteristics {
+            let characteristic = CBMutableCharacteristic(
+                type: wanted.uuid,
+                properties: wanted.coreProperties,
+                value: nil,
+                permissions: wanted.corePermissions
+            )
+            characteristics.append(characteristic)
+            servedCharacteristics[wanted.uuid] = characteristic
+            if wanted.canNotify { notifyingUuids.insert(wanted.uuid) }
+            if wanted.canWrite { writableUuids.insert(wanted.uuid) }
+        }
 
-        // Create and add service
-        let service = CBMutableService(type: CBUUID(string: serviceUuid), primary: true)
-        service.characteristics = [mutableTxCharacteristic, mutableRxCharacteristic]
+        let service = CBMutableService(type: serviceUuid, primary: true)
+        service.characteristics = characteristics
 
         peripheralManager.add(service)
 
         self.currentService = service
-        self.txCharacteristic = mutableTxCharacteristic
-        self.rxCharacteristic = mutableRxCharacteristic
 
-        print("[flutter_ble_peripheral] GATT service added: \(serviceUuid) with TX: \(txUuid), RX: \(rxUuid)")
+        print("[flutter_ble_peripheral] GATT service added: \(serviceUuid) with "
+              + "\(characteristics.count) characteristic(s)")
     }
 
     // MARK: - Data Transmission
@@ -272,23 +289,39 @@ class FlutterBlePeripheralManager: NSObject {
      - Parameter data: The binary payload to send.
      - Returns: `true` if the data was successfully transmitted, otherwise `false`.
      */
-    func sendData(data: Data) -> Bool {
+    func sendData(data: Data, characteristicUuid: CBUUID? = nil) -> SendResult {
         print("[flutter_ble_peripheral] Send data: \(data.count) bytes")
 
-        guard txCharacteristic != nil else {
-            print("[flutter_ble_peripheral] Cannot send data: No TX characteristic")
-            return false
+        guard !notifyingUuids.isEmpty else {
+            print("[flutter_ble_peripheral] Cannot send data: no GATT server is running")
+            return .noServer
         }
 
-        guard txSubscribed else {
-            print("[flutter_ble_peripheral] Cannot send data: no central is subscribed")
-            return false
+        // Without a uuid there is an answer only while the service notifies on
+        // exactly one characteristic, which is the case for the default pair.
+        let uuid: CBUUID
+        if let named = characteristicUuid {
+            uuid = named
+        } else if notifyingUuids.count == 1, let only = notifyingUuids.first {
+            uuid = only
+        } else {
+            return .ambiguousCharacteristic
         }
 
-        lastSentValue = data
-        notifyQueue.append(data)
-        drainNotifyQueue()
-        return true
+        guard notifyingUuids.contains(uuid) else {
+            print("[flutter_ble_peripheral] Cannot send data: \(uuid) does not notify")
+            return .unknownCharacteristic
+        }
+
+        guard !(subscriptions[uuid]?.isEmpty ?? true) else {
+            print("[flutter_ble_peripheral] Cannot send data: nobody is subscribed to \(uuid)")
+            return .notSubscribed
+        }
+
+        lastSentValues[uuid] = data
+        notifyQueues[uuid, default: []].append(data)
+        drainNotifyQueue(for: uuid)
+        return .sent
     }
 
     /**
@@ -298,28 +331,40 @@ class FlutterBlePeripheralManager: NSObject {
      payload. Anything still queued waits for
      `peripheralManagerIsReadyToUpdateSubscribers`.
      */
-    func drainNotifyQueue() {
-        guard let characteristic = txCharacteristic else { return }
+    func drainNotifyQueue(for uuid: CBUUID) {
+        guard let characteristic = servedCharacteristics[uuid] else { return }
 
-        while let next = notifyQueue.first {
+        while let next = notifyQueues[uuid]?.first {
             let sent = peripheralManager.updateValue(
                 next,
                 for: characteristic,
                 onSubscribedCentrals: nil
             )
             if !sent {
-                print("[flutter_ble_peripheral] Transmit queue full, \(notifyQueue.count) payload(s) waiting")
+                let waiting = notifyQueues[uuid]?.count ?? 0
+                print("[flutter_ble_peripheral] Transmit queue full, \(waiting) payload(s) waiting")
                 return
             }
-            notifyQueue.removeFirst()
+            notifyQueues[uuid]?.removeFirst()
         }
     }
 
-    /// The value a central gets when it reads [uuid], or nil when it is not a
-    /// characteristic this peripheral serves a value for.
+    /**
+     Drains every characteristic's queue.
+
+     Core Bluetooth does not say which characteristic freed up when it reports it
+     can take more, so all of them are tried.
+     */
+    func drainNotifyQueues() {
+        for uuid in notifyQueues.keys {
+            drainNotifyQueue(for: uuid)
+        }
+    }
+
+    /// The value a central gets when it reads [uuid], or nil when nothing has
+    /// been sent on that characteristic.
     func readValue(for uuid: CBUUID) -> Data? {
-        guard uuid == txCharacteristic?.uuid else { return nil }
-        return lastSentValue
+        lastSentValues[uuid]
     }
 
     // MARK: - Lifecycle Management
@@ -339,14 +384,14 @@ class FlutterBlePeripheralManager: NSObject {
         }
 
         currentService = nil
-        txCharacteristic = nil
-        rxCharacteristic = nil
-        txSubscriptions.removeAll()
+        servedCharacteristics.removeAll()
+        notifyingUuids.removeAll()
+        writableUuids.removeAll()
+        subscriptions.removeAll()
         connectedCentrals.removeAll()
-        txSubscribed = false
         pendingGattService = nil
-        notifyQueue.removeAll()
-        lastSentValue = nil
+        notifyQueues.removeAll()
+        lastSentValues.removeAll()
 
         print("[flutter_ble_peripheral] Stopped advertising and removed services")
     }
@@ -361,11 +406,16 @@ class FlutterBlePeripheralManager: NSObject {
     }
 
     /**
-     Returns whether any central subscribed to the TX characteristic, which is
-     the state in which `sendData` can deliver.
+     Returns whether any central subscribed to a notifying characteristic, which
+     is the state in which `sendData` can deliver.
      */
     func hasSubscribedCentrals() -> Bool {
-        return !txSubscriptions.isEmpty
+        return anySubscribed
+    }
+
+    /// Returns whether any central is subscribed to [uuid].
+    func hasSubscribedCentrals(for uuid: CBUUID) -> Bool {
+        return !(subscriptions[uuid]?.isEmpty ?? true)
     }
 
     // MARK: - Bluetooth State and Permissions
@@ -483,6 +533,26 @@ class FlutterBlePeripheralManager: NSObject {
         }
     }
 
+    /**
+     The canonical lowercase 128 bit form, which is what Dart is told a write or
+     a subscription landed on.
+
+     A uuid configured as `"2a37"` comes back from Core Bluetooth in that short
+     form, and Android and Windows both report the long one, so it is expanded
+     here rather than leaving Dart to compare two spellings of one uuid.
+     */
+    static func fullUuid(_ uuid: CBUUID) -> String {
+        let text = uuid.uuidString.lowercased()
+        switch text.count {
+        case 4:
+            return "0000\(text)-0000-1000-8000-00805f9b34fb"
+        case 8:
+            return "\(text)-0000-1000-8000-00805f9b34fb"
+        default:
+            return text
+        }
+    }
+
     /// As `parseServiceUuid`, but throws rather than returning nil, so the failure
     /// reaches Dart as a PlatformException.
     static func requireServiceUuid(_ value: String) throws -> CBUUID {
@@ -505,37 +575,42 @@ class FlutterBlePeripheralManager: NSObject {
     func restoreState(_ state: [String: Any]) {
         let services = state[CBPeripheralManagerRestoredStateServicesKey] as? [CBMutableService] ?? []
 
-        for service in services {
-            let characteristics = service.characteristics?
-                .compactMap { $0 as? CBMutableCharacteristic } ?? []
+        guard let service = services.first else { return }
+        currentService = service
 
-            // The uuids are chosen by Dart and are not known here until it calls
-            // start again, but the properties are: TX is the notifying half of the
-            // pair and RX the written one.
-            let tx = characteristics.first { $0.properties.contains(.notify) }
-            let rx = characteristics.first {
-                $0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)
+        // The layout comes back with the service, so what each characteristic
+        // allows is read off its own properties rather than from Dart, which has
+        // not asked for anything yet at this point.
+        for characteristic in service.characteristics?
+            .compactMap({ $0 as? CBMutableCharacteristic }) ?? [] {
+            servedCharacteristics[characteristic.uuid] = characteristic
+
+            if characteristic.properties.contains(.notify)
+                || characteristic.properties.contains(.indicate) {
+                notifyingUuids.insert(characteristic.uuid)
+
+                // The centrals that were subscribed come back too, and that is
+                // what decides whether sendData can deliver.
+                let subscribed = characteristic.subscribedCentrals ?? []
+                subscriptions[characteristic.uuid] = Set(subscribed.map { $0.identifier })
+                connectedCentrals.formUnion(subscribed.map { $0.identifier })
+                if let central = subscribed.first {
+                    maximumNotificationSize = central.maximumUpdateValueLength
+                }
             }
-            guard tx != nil || rx != nil else { continue }
 
-            currentService = service
-            txCharacteristic = tx
-            rxCharacteristic = rx
-            break
+            if characteristic.properties.contains(.write)
+                || characteristic.properties.contains(.writeWithoutResponse) {
+                writableUuids.insert(characteristic.uuid)
+            }
         }
 
-        // The centrals that were subscribed come back too, and that is what decides
-        // whether sendData can deliver.
-        let subscribed = txCharacteristic?.subscribedCentrals ?? []
-        txSubscriptions = Set(subscribed.map { $0.identifier })
-        connectedCentrals.formUnion(txSubscriptions)
-        if let central = subscribed.first {
-            maximumNotificationSize = central.maximumUpdateValueLength
+        for uuid in notifyingUuids where !(subscriptions[uuid]?.isEmpty ?? true) {
+            publishSubscription(uuid)
         }
-        txSubscribed = !txSubscriptions.isEmpty
 
-        print("[flutter_ble_peripheral] Restored \(services.count) service(s), "
-              + "\(txSubscriptions.count) subscribed central(s)")
+        print("[flutter_ble_peripheral] Restored \(servedCharacteristics.count) characteristic(s), "
+              + "\(connectedCentrals.count) central(s)")
     }
 
     /// Issues the advertisement that was queued while the radio was still coming up.

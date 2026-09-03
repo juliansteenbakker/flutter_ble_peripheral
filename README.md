@@ -230,11 +230,52 @@ layout. They are never derived from the service uuid, because a central caches t
 GATT database between connections and a characteristic uuid that moves breaks the
 link.
 
-`sendData` only reaches a central that subscribed to TX, which is not the same as one
-that merely connected, and throws a `PlatformException` when none has. Watch
-`onSubscriptionChanged`, or check `isSubscribed`, to know when it can deliver.
+Pass `characteristics` to serve a layout of your own instead of the TX and RX pair,
+of any size and with the properties you choose. A heart rate peripheral is one
+notifying characteristic:
+
+```dart
+await peripheral.start(
+  advertiseData: const AdvertiseDataCore(serviceUuid: '180d'),
+  gattServer: const GattServerSettings(
+    characteristics: [
+      GattCharacteristic.notify('2a37'),
+    ],
+  ),
+);
+
+// The flags byte, then the bpm as a uint8.
+await peripheral.sendData(Uint8List.fromList([0x00, 72]));
+```
+
+`GattCharacteristic.notify` and `GattCharacteristic.write` are the two shapes the
+default pair uses; the unnamed constructor takes any set of
+`GattCharacteristicProperty` values, so one characteristic can be both notified on
+and written to. The 16 bit, 32 bit and 128 bit uuid forms are all accepted.
+
+With more than one notifying characteristic, `sendData` needs to be told which one it
+is delivering on, and answers with a `SEND_FAILED` `PlatformException` if it is not:
+
+```dart
+await peripheral.sendData(bytes, characteristicUuid: '2a37');
+```
+
+Which characteristic a write landed on comes through `onGattWrite`, and
+`onCharacteristicSubscriptionChanged` reports subscriptions per characteristic;
+`isSubscribedTo` asks about one of them. `onDataReceived`, `onSubscriptionChanged`
+and `isSubscribed` still answer for the service as a whole, so a peripheral serving
+one pair needs none of this.
+
+One service is served at a time. A second service cannot be added: on Windows a
+service is advertised by its own provider, and several providers on air at once is
+not something this package can promise.
+
+`sendData` only reaches a central that subscribed to the characteristic, which is not
+the same as one that merely connected, and throws a `PlatformException` when none has.
+Watch `onSubscriptionChanged`, or check `isSubscribed`, to know when it can deliver.
 Payloads are queued per central, so back-to-back calls arrive in order rather than
-overwriting each other, and a central that reads TX gets the payload sent last.
+overwriting each other, and a central that reads a characteristic gets the payload
+sent last on it.
 
 On Windows the service is advertised by the GATT service provider rather than by the
 advertisement publisher, which is also what makes the peripheral connectable there and
@@ -279,7 +320,9 @@ across it.
 | `onPeripheralStateChanged` | `PeripheralState` | Adapter and advertising state |
 | `onMtuChanged` | `int` | Negotiated MTU, after a central connects |
 | `onSubscriptionChanged` | `bool` | Whether a central is subscribed to TX |
-| `onDataReceived` | `Uint8List` | Bytes a central wrote to the RX characteristic |
+| `onDataReceived` | `Uint8List` | Bytes a central wrote to a writable characteristic |
+| `onGattWrite` | `GattWrite` | As above, with the characteristic it landed on |
+| `onCharacteristicSubscriptionChanged` | `GattSubscription` | Per-characteristic subscription changes |
 
 ## API
 
@@ -290,8 +333,9 @@ across it.
 | `isSupported` | `bool` | Whether BLE advertising is available on this device |
 | `isAdvertising` | `bool` | Whether an advertisement is running |
 | `isConnected` | `bool` | Whether a central is connected (Android and Apple) |
-| `isSubscribed` | `bool` | Whether a central subscribed to TX, so `sendData` can deliver |
-| `sendData(Uint8List)` | `void` | Notifies the subscribed centrals on the TX characteristic |
+| `isSubscribed` | `bool` | Whether a central subscribed to any notifying characteristic, so `sendData` can deliver |
+| `isSubscribedTo(uuid)` | `bool` | As above, for one characteristic |
+| `sendData(Uint8List, {characteristicUuid})` | `void` | Notifies the centrals subscribed to that characteristic |
 | `isBluetoothOn` | `bool` | Whether the adapter is powered on |
 | `hasPermission()` | `PeripheralBluetoothState` | Current permission and adapter state |
 | `requestPermission()` | `PeripheralBluetoothState` | Prompts for the required permissions |

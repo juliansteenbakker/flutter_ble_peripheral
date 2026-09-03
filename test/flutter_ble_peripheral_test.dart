@@ -334,8 +334,18 @@ void main() {
 
       final gatt = argumentsOf(calls.single);
       expect(gatt['gattServiceUuid'], 'abcd');
-      expect(gatt['gattTxCharacteristicUuid'], defaultTxCharacteristicUuid);
-      expect(gatt['gattRxCharacteristicUuid'], defaultRxCharacteristicUuid);
+      expect(gatt['gattCharacteristics'], [
+        {
+          'uuid': defaultTxCharacteristicUuid,
+          // read, notify and indicate
+          'properties': 1 | 8 | 16,
+        },
+        {
+          'uuid': defaultRxCharacteristicUuid,
+          // write and write without response
+          'properties': 2 | 4,
+        },
+      ]);
     });
 
     test('the defaults are the Nordic UART Service characteristics', () {
@@ -360,8 +370,91 @@ void main() {
       // The served service may differ from the advertised one.
       expect(arguments['serviceUuid'], 'abcd');
       expect(arguments['gattServiceUuid'], 'ef01');
-      expect(arguments['gattTxCharacteristicUuid'], 'ef02');
-      expect(arguments['gattRxCharacteristicUuid'], 'ef03');
+      expect(
+        (arguments['gattCharacteristics']! as List)
+            .map((dynamic c) => (c as Map)['uuid']),
+        ['ef02', 'ef03'],
+      );
+    });
+
+    test('serves a layout of its own in place of the tx and rx pair', () async {
+      await blePeripheral.start(
+        advertiseData: const AdvertiseDataCore(serviceUuid: '180d'),
+        gattServer: const GattServerSettings(
+          characteristics: [
+            GattCharacteristic.notify('2a37'),
+            GattCharacteristic(
+              uuid: '2a39',
+              properties: {GattCharacteristicProperty.write},
+            ),
+          ],
+        ),
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['gattServiceUuid'], '180d');
+      expect(arguments['gattCharacteristics'], [
+        {'uuid': '2a37', 'properties': 1 | 8 | 16},
+        {'uuid': '2a39', 'properties': 2},
+      ]);
+    });
+
+    test('rejects a characteristic with no properties', () async {
+      await expectLater(
+        blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(serviceUuid: '180d'),
+          gattServer: const GattServerSettings(
+            characteristics: [
+              GattCharacteristic(uuid: '2a37', properties: {}),
+            ],
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(calls, isEmpty);
+    });
+
+    test('rejects the same characteristic uuid twice', () async {
+      await expectLater(
+        blePeripheral.start(
+          advertiseData: const AdvertiseDataCore(serviceUuid: '180d'),
+          gattServer: const GattServerSettings(
+            characteristics: [
+              GattCharacteristic.notify('2A37'),
+              GattCharacteristic.write('2a37'),
+            ],
+          ),
+        ),
+        throwsArgumentError,
+      );
+      expect(calls, isEmpty);
+    });
+
+    test('sendData names the characteristic it delivers on', () async {
+      await blePeripheral.sendData(
+        Uint8List.fromList([1, 2, 3]),
+        characteristicUuid: '2a37',
+      );
+
+      final arguments = argumentsOf(calls.single);
+      expect(calls.single.method, 'sendData');
+      expect(arguments['data'], Uint8List.fromList([1, 2, 3]));
+      expect(arguments['characteristicUuid'], '2a37');
+    });
+
+    test('sendData leaves the characteristic to the platform by default',
+        () async {
+      await blePeripheral.sendData(Uint8List.fromList([4]));
+
+      final arguments = argumentsOf(calls.single);
+      expect(arguments['characteristicUuid'], isNull);
+    });
+
+    test('isSubscribedTo asks about one characteristic', () async {
+      response = true;
+      expect(await blePeripheral.isSubscribedTo('2a37'), isTrue);
+      expect(calls.single.method, 'isSubscribed');
+      expect(calls.single.arguments, '2a37');
     });
 
     test('sends no gatt keys when no server is asked for', () async {
@@ -439,7 +532,7 @@ void main() {
       await blePeripheral.sendData(data);
 
       expect(calls.single.method, 'sendData');
-      expect(calls.single.arguments, data);
+      expect(argumentsOf(calls.single)['data'], data);
     });
   });
 
