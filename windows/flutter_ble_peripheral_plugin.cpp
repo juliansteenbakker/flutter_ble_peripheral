@@ -570,7 +570,7 @@ namespace flutter_ble_peripheral {
         std::vector<ServedCharacteristic> served;
         for (const auto& wanted : characteristics) {
             GattCharacteristicProperties properties = GattCharacteristicProperties::None;
-            if (wanted.properties & GattCharacteristicRequest::kRead) {
+            if (wanted.CanRead()) {
                 properties |= GattCharacteristicProperties::Read;
             }
             if (wanted.properties & GattCharacteristicRequest::kWrite) {
@@ -584,13 +584,6 @@ namespace flutter_ble_peripheral {
             }
             if (wanted.properties & GattCharacteristicRequest::kIndicate) {
                 properties |= GattCharacteristicProperties::Indicate;
-            }
-
-            // A characteristic that notifies is readable as well, so that a
-            // central which subscribes late can still pick up the payload sent
-            // last.
-            if (wanted.CanNotify()) {
-                properties |= GattCharacteristicProperties::Read;
             }
 
             GattLocalCharacteristicParameters parameters;
@@ -614,6 +607,7 @@ namespace flutter_ble_peripheral {
             entry.characteristic = result.Characteristic();
             entry.notifies = wanted.CanNotify();
             entry.writable = wanted.CanWrite();
+            entry.readable = wanted.CanRead();
             served.push_back(std::move(entry));
         }
 
@@ -627,9 +621,14 @@ namespace flutter_ble_peripheral {
             std::lock_guard<std::mutex> guard(gatt_characteristics_mutex_);
             gatt_characteristics_ = std::move(served);
             for (auto& entry : gatt_characteristics_) {
-                if (entry.notifies) {
+                // A read goes unanswered without a handler, and the central
+                // waits out its own timeout, so anything declared readable gets
+                // one whether or not it also notifies.
+                if (entry.readable) {
                     entry.read_token = entry.characteristic.ReadRequested(
                         { this, &FlutterBlePeripheralPlugin::OnReadRequested });
+                }
+                if (entry.notifies) {
                     entry.subscribers_token = entry.characteristic.SubscribedClientsChanged(
                         { this, &FlutterBlePeripheralPlugin::OnSubscribersChanged });
                 }

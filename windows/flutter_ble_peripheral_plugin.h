@@ -100,6 +100,9 @@ namespace flutter_ble_peripheral {
             bool CanWrite() const {
                 return (properties & (kWrite | kWriteWithoutResponse)) != 0;
             }
+            // One that notifies is readable too, so a central which subscribes
+            // late can still pick up the payload sent last.
+            bool CanRead() const { return (properties & kRead) != 0 || CanNotify(); }
         };
 
         // A characteristic being served, with what it is subscribed to by and the
@@ -109,6 +112,7 @@ namespace flutter_ble_peripheral {
             GattLocalCharacteristic characteristic{ nullptr };
             bool notifies = false;
             bool writable = false;
+            bool readable = false;
             winrt::event_token read_token{};
             winrt::event_token write_token{};
             winrt::event_token subscribers_token{};

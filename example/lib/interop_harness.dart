@@ -43,6 +43,20 @@ const harnessComboUuidShort = 'ff01';
 /// [harnessComboUuidShort] as the platform reports it back.
 const harnessComboUuid = '0000ff01-0000-1000-8000-00805f9b34fb';
 
+/// A fourth characteristic, readable and nothing else.
+///
+/// The other three all notify, which on some platforms is what gets a read
+/// answered at all, so a characteristic that only reads is the one that proves
+/// a plain read is served on its own.
+const harnessReadOnlyUuidShort = 'ff02';
+
+/// [harnessReadOnlyUuidShort] as the platform reports it back.
+///
+/// Nothing seeds it: `sendData` only takes a characteristic that notifies, so
+/// what a read of it returns is the platform's own empty default. That a read
+/// is answered at all is the point of it.
+const harnessReadOnlyUuid = '0000ff02-0000-1000-8000-00805f9b34fb';
+
 void main() => runApp(const InteropHarnessApp());
 
 /// Names this platform the way the report does.
@@ -136,6 +150,10 @@ class _InteropHarnessAppState extends State<InteropHarnessApp> {
                 GattCharacteristicProperty.indicate,
               },
             ),
+            GattCharacteristic(
+              uuid: harnessReadOnlyUuidShort,
+              properties: {GattCharacteristicProperty.read},
+            ),
           ],
         ),
         androidSettings: const AndroidAdvertiseSettings(
@@ -149,6 +167,7 @@ class _InteropHarnessAppState extends State<InteropHarnessApp> {
         defaultTxCharacteristicUuid,
         defaultRxCharacteristicUuid,
         harnessComboUuid,
+        harnessReadOnlyUuid,
       ]);
 
       _record('READY', [platformName, harnessServiceUuid]);
