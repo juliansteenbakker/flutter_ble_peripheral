@@ -1,5 +1,20 @@
 # Changelog
 
+## [3.1.0](https://github.com/juliansteenbakker/flutter_ble_peripheral/compare/v3.0.0...v3.1.0) (2026-09-03)
+
+
+### Features
+
+* **android:** start advertising without an activity attached ([#326](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/326)) ([51421d0](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/51421d073937afd8d6b59e47b6dc262eeabf340e))
+* **apple:** restore the advertisement after a background relaunch ([#322](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/322)) ([ba77bc6](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/ba77bc6b62ce4c9b3f58cbeb40d3b05879562bc8))
+* serve several characteristics from one gatt service ([#324](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/324)) ([d002e51](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/d002e51542cac4c21b443b28b4b61502a29c1b5b))
+
+
+### Bug Fixes
+
+* **android:** accept short uuids for the gatt service and characteristics ([#323](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/323)) ([a0c2917](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/a0c2917b5cefc0aa9e597046ecb98f1ef570487f))
+* **windows:** answer a read on a characteristic that does not notify ([#328](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/328)) ([46585ba](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/46585ba8ab9f75815bf43126edcc4cdf1d7fae43))
+
 ## [3.0.0](https://github.com/juliansteenbakker/flutter_ble_peripheral/compare/v2.1.1...v3.0.0) (2026-09-02)
 
 
