@@ -484,6 +484,22 @@ class FlutterBlePeripheralManager(
     }
 
     /**
+     * Attempts to enable Bluetooth without an activity to ask through.
+     *
+     * Only the programmatic path is available here, which Android 13 removed, so
+     * from a service on Tiramisu and above the adapter has to already be on.
+     *
+     * @return Whether Bluetooth is on now.
+     */
+    fun enableBluetooth(): Boolean {
+        if (isBluetoothEnabled()) return true
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return false
+        @Suppress("DEPRECATION")
+        mBluetoothManager?.adapter?.enable()
+        return isBluetoothEnabled()
+    }
+
+    /**
      * Attempts to enable Bluetooth on the device.
      *
      * If [callback] is not null, shows the system dialog to request user approval.
@@ -618,6 +634,40 @@ class FlutterBlePeripheralManager(
      * @param onReady Callback executed if Bluetooth is ready
      * @param onError Callback executed with the error [PeripheralBluetoothState]
      */
+    /**
+     * Ensures Bluetooth is ready without an activity to ask through, which is the
+     * position a foreground service or any other background isolate is in.
+     *
+     * Nothing can be asked for here: a service cannot show the permission dialog
+     * or the enable-Bluetooth dialog, so what is already granted and already on is
+     * all there is. Advertising and the GATT server themselves need no activity,
+     * so a service that was started from a screen which took care of permissions
+     * can serve on its own.
+     */
+    fun ensureBluetoothReady(
+        context: Context,
+        onReady: () -> Unit,
+        onError: (PeripheralBluetoothState) -> Unit
+    ) {
+        if (getBluetoothState() == PeripheralBluetoothState.Unsupported) {
+            onError(PeripheralBluetoothState.Unsupported)
+            return
+        }
+
+        if (!hasRequiredPermissions(context)) {
+            Log.w(TAG, "Cannot start without an activity unless the permissions are already granted")
+            onError(PeripheralBluetoothState.Denied)
+            return
+        }
+
+        if (!enableBluetooth()) {
+            onError(PeripheralBluetoothState.TurnedOff)
+            return
+        }
+
+        onReady()
+    }
+
     fun ensureBluetoothReady(
         activity: Activity,
         onReady: () -> Unit,

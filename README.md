@@ -288,9 +288,18 @@ already connected, the same as an Android advertise timeout does.
 ### Background advertising
 
 On Android the advertisement belongs to the process, so it keeps going while the app
-sits in the background and ends when the system kills the process. Advertising from a
-service rather than from an activity is not supported yet: `start()` needs an activity
-to check permissions against, and answers with a `No activity` error without one.
+sits in the background and ends when the system kills the process.
+
+`start()` also works from a foreground service, or any other engine with no activity
+attached, since advertising and the GATT server need none. What does need one is asking
+the user for something, and a service cannot ask: the permissions have to be granted
+already, by a screen that ran earlier, and `start()` answers
+`PeripheralBluetoothState.denied` rather than prompting when they are not. Bluetooth
+has to be on for the same reason — below Android 13 `enableBluetooth()` can still turn
+it on without asking, and above it that was removed, so from a service it answers
+`false`. `hasPermission()` and `requestPermission()` both report what is granted
+without an activity, but cannot tell a first refusal from a permanent one, since that
+distinction comes from the rationale check an activity provides.
 
 On iOS the advertisement ends with the foreground unless the app declares the
 `bluetooth-peripheral` background mode. With it, Core Bluetooth keeps advertising, but
