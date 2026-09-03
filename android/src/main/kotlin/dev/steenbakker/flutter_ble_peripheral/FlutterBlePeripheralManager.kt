@@ -261,7 +261,7 @@ class FlutterBlePeripheralManager(
                 // A read gets the last value sendData pushed, so a central that
                 // subscribes late can still pick it up.
                 gattServerCallback!!.readCharacteristicValue = { uuid ->
-                    if (uuid.equals(txUuid, ignoreCase = true)) lastSentValue else null
+                    if (uuid == txUuid) lastSentValue else null
                 }
                 gattServerCallback!!.onNotificationSent = { device -> onNotificationSent(device) }
                 gattServerCallback!!.onSubscriptionChanged = { subscribed ->
@@ -277,7 +277,7 @@ class FlutterBlePeripheralManager(
 
             // Create TX characteristic (for sending data to central)
             txCharacteristic = BluetoothGattCharacteristic(
-                UUID.fromString(txUuid),
+                txUuid,
                 BluetoothGattCharacteristic.PROPERTY_READ or
                 BluetoothGattCharacteristic.PROPERTY_NOTIFY or
                 BluetoothGattCharacteristic.PROPERTY_INDICATE,
@@ -293,7 +293,7 @@ class FlutterBlePeripheralManager(
 
             // Create RX characteristic (for receiving data from central)
             rxCharacteristic = BluetoothGattCharacteristic(
-                UUID.fromString(rxUuid),
+                rxUuid,
                 BluetoothGattCharacteristic.PROPERTY_WRITE or
                 BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
                 BluetoothGattCharacteristic.PERMISSION_WRITE
@@ -301,7 +301,7 @@ class FlutterBlePeripheralManager(
 
             // Create service and add characteristics
             val service = BluetoothGattService(
-                UUID.fromString(serviceUuid),
+                serviceUuid,
                 BluetoothGattService.SERVICE_TYPE_PRIMARY
             )
             service.addCharacteristic(txCharacteristic)

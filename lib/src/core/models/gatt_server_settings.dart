@@ -37,7 +37,9 @@ const String defaultRxCharacteristicUuid =
 /// a different layout.
 ///
 /// The uuids are the contract between the two sides of the link and must be
-/// stable, so they are never derived from the service uuid.
+/// stable, so they are never derived from the service uuid. The 16 bit
+/// (`'180d'`), 32 bit and 128 bit forms are all accepted, and a short one is
+/// expanded onto the Bluetooth Base UUID by the platform.
 @JsonSerializable()
 class GattServerSettings {
   /// Creates the settings for the GATT service to serve.

@@ -20,6 +20,7 @@ import dev.steenbakker.flutter_ble_peripheral.handlers.PeripheralStateChangedHan
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import java.io.ByteArrayOutputStream
+import java.util.UUID
 
 /**
  * Bridges the GATT server between Android and Flutter.
@@ -34,13 +35,13 @@ class GattServerCallback(
     private val peripheralStateChangedHandler: PeripheralStateChangedHandler,
     private val dataReceivedHandler: DataReceivedHandler?,
     private val mtuChangedHandler: MtuChangedHandler?,
-    private val txCharacteristicUuid: String,
-    private val rxCharacteristicUuid: String
+    private val txCharacteristicUuid: UUID,
+    private val rxCharacteristicUuid: UUID
 ) : BluetoothGattServerCallback() {
 
     private companion object {
         /** Client Characteristic Configuration Descriptor. */
-        const val CCCD_UUID = "00002902-0000-1000-8000-00805f9b34fb"
+        val CCCD_UUID: UUID = UUID.fromString("00002902-0000-1000-8000-00805f9b34fb")
     }
 
     private val tag = "GattServerCallback"
@@ -51,14 +52,14 @@ class GattServerCallback(
      * Long writes arrive as a series of prepared chunks that only take effect on
      * execute, keyed here by device address and characteristic uuid.
      */
-    private val preparedWrites = mutableMapOf<Pair<String, String>, ByteArrayOutputStream>()
+    private val preparedWrites = mutableMapOf<Pair<String, UUID>, ByteArrayOutputStream>()
 
     /** Sends a response to a central. Set by the manager that owns the server. */
     var sendResponse: (device: BluetoothDevice?, requestId: Int, status: Int, offset: Int, value: ByteArray?) -> Unit =
             { _, _, _, _, _ -> }
 
     /** The current value of a characteristic, used to answer read requests. */
-    var readCharacteristicValue: (uuid: String) -> ByteArray? = { null }
+    var readCharacteristicValue: (uuid: UUID) -> ByteArray? = { null }
 
     /** Called when a notification has been acknowledged, so the next may be sent. */
     var onNotificationSent: (device: BluetoothDevice) -> Unit = { }
@@ -116,7 +117,7 @@ class GattServerCallback(
         super.onCharacteristicReadRequest(device, requestId, offset, characteristic)
         Log.i(tag, "Read request from ${device?.address} for characteristic ${characteristic?.uuid}")
 
-        val uuid = characteristic?.uuid?.toString()
+        val uuid = characteristic?.uuid
         if (uuid == null) {
             sendResponse(device, requestId, BluetoothGatt.GATT_FAILURE, 0, null)
             return
@@ -145,8 +146,8 @@ class GattServerCallback(
 
         Log.i(tag, "Write request from ${device?.address} for characteristic ${characteristic?.uuid}")
 
-        val uuid = characteristic?.uuid?.toString()
-        if (device == null || uuid == null || !uuid.equals(rxCharacteristicUuid, ignoreCase = true)) {
+        val uuid = characteristic?.uuid
+        if (device == null || uuid == null || uuid != rxCharacteristicUuid) {
             Log.w(tag, "Write to unsupported characteristic: $uuid")
             if (responseNeeded) {
                 sendResponse(device, requestId, BluetoothGatt.GATT_WRITE_NOT_PERMITTED, offset, null)
@@ -190,7 +191,7 @@ class GattServerCallback(
 
         // Report whether this central is subscribed, rather than the descriptor's
         // shared value, which is the same object for every central.
-        val isCccd = descriptor?.uuid?.toString().equals(CCCD_UUID, ignoreCase = true)
+        val isCccd = descriptor?.uuid == CCCD_UUID
         val value = if (isCccd && device != null && subscribedDevices.contains(device)) {
             BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         } else if (isCccd) {
@@ -215,9 +216,8 @@ class GattServerCallback(
         super.onDescriptorWriteRequest(device, requestId, descriptor, preparedWrite, responseNeeded, offset, value)
         Log.i(tag, "Descriptor write request from ${device?.address} for descriptor ${descriptor?.uuid}")
 
-        val isCccd = descriptor?.uuid?.toString().equals(CCCD_UUID, ignoreCase = true)
-        val isTx = descriptor?.characteristic?.uuid?.toString()
-                .equals(txCharacteristicUuid, ignoreCase = true)
+        val isCccd = descriptor?.uuid == CCCD_UUID
+        val isTx = descriptor?.characteristic?.uuid == txCharacteristicUuid
 
         if (isCccd && isTx && device != null && value != null && value.isNotEmpty()) {
             // Bit 0 is notify, bit 1 is indicate. Either means this central
