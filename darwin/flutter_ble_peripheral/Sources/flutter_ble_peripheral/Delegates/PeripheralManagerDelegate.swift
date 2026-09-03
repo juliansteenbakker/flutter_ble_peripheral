@@ -9,12 +9,34 @@ import Foundation
 import CoreBluetooth
 
 extension FlutterBlePeripheralManager: CBPeripheralManagerDelegate {
-    
+
+    /**
+     Core Bluetooth relaunched the app into the background and is handing back the
+     advertisement and services it kept running in the meantime.
+
+     This arrives before `peripheralManagerDidUpdateState`, and long before Dart has
+     attached to the event channels, which the handlers cover by replaying their last
+     value to a new listener.
+     */
+    func peripheralManager(_ peripheral: CBPeripheralManager, willRestoreState dict: [String: Any]) {
+        print("[flutter_ble_peripheral] willRestoreState:", dict)
+        restoreState(dict)
+    }
+
     func peripheralManagerDidUpdateState(_ peripheral: CBPeripheralManager) {
         var state: PeripheralState
         switch peripheral.state {
         case .poweredOn:
-            state = .idle
+            // A relaunch into the background comes back with the advertisement
+            // already on air, and possibly with a central still subscribed, so idle
+            // would be wrong here.
+            if txSubscribed {
+                state = .connected
+            } else if peripheral.isAdvertising {
+                state = .advertising
+            } else {
+                state = .idle
+            }
         case .poweredOff:
             state = .poweredOff
         case .resetting:
