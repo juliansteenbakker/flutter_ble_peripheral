@@ -83,14 +83,55 @@ namespace flutter_ble_peripheral {
         // rather than on the advertisement.
         void ApplyWindowsSettings(const EncodableMap& arguments);
 
-        // Serves the GATT service Dart asked for, with its TX and RX
-        // characteristics, and advertises it as connectable. Reports whether it
-        // came up.
+        // One characteristic Dart asked the peripheral to serve. `properties` is
+        // the bitmask this package defines in `GattCharacteristicProperty`, not
+        // WinRT's own, so that the three platforms decode the same numbers.
+        struct GattCharacteristicRequest {
+            winrt::guid uuid;
+            int properties;
+
+            static constexpr int kRead = 1;
+            static constexpr int kWrite = 2;
+            static constexpr int kWriteWithoutResponse = 4;
+            static constexpr int kNotify = 8;
+            static constexpr int kIndicate = 16;
+
+            bool CanNotify() const { return (properties & (kNotify | kIndicate)) != 0; }
+            bool CanWrite() const {
+                return (properties & (kWrite | kWriteWithoutResponse)) != 0;
+            }
+        };
+
+        // A characteristic being served, with what it is subscribed to by and the
+        // payload sent on it last.
+        struct ServedCharacteristic {
+            winrt::guid uuid{};
+            GattLocalCharacteristic characteristic{ nullptr };
+            bool notifies = false;
+            bool writable = false;
+            winrt::event_token read_token{};
+            winrt::event_token write_token{};
+            winrt::event_token subscribers_token{};
+
+            // The payload sendData was given last for this characteristic, handed
+            // back to a central that reads it. A read is answered off the UI
+            // thread, where sendData replaces it, so it is guarded.
+            std::vector<uint8_t> last_sent;
+
+            // The last subscription state published for it, so only changes are
+            // sent.
+            bool subscribed = false;
+        };
+
+        // Serves the GATT service Dart asked for, with its characteristics, and
+        // advertises it as connectable. Reports whether it came up.
         IAsyncOperation<bool> CreateGattServer(
             uint32_t token,
             winrt::guid service_uuid,
-            winrt::guid tx_uuid,
-            winrt::guid rx_uuid);
+            std::vector<GattCharacteristicRequest> characteristics);
+
+        // The characteristic being served under `uuid`, or nullptr.
+        ServedCharacteristic* FindCharacteristic(winrt::guid uuid);
 
         // Serves the requested GATT service and then issues the advertisement,
         // answering the start() that asked for both. The service has to be up
@@ -105,7 +146,10 @@ namespace flutter_ble_peripheral {
         // Tears the GATT service down and stops advertising it.
         void StopGattServer();
 
-        // Hands a central the value sendData sent last.
+        // Whether any central is subscribed to any notifying characteristic.
+        bool AnySubscribed() const;
+
+        // Hands a central the value sendData sent last on that characteristic.
         winrt::fire_and_forget OnReadRequested(
             GattLocalCharacteristic const& characteristic,
             GattReadRequestedEventArgs const& args);
@@ -125,32 +169,22 @@ namespace flutter_ble_peripheral {
         std::unique_ptr<flutter::EventSink<flutter::EncodableValue>> subscription_sink_;
 
         GattServiceProvider gatt_provider_{ nullptr };
-        GattLocalCharacteristic gatt_tx_{ nullptr };
-        GattLocalCharacteristic gatt_rx_{ nullptr };
-        winrt::event_token gatt_read_token_;
-        winrt::event_token gatt_write_token_;
-        winrt::event_token gatt_subscribers_token_;
+
+        // The characteristics being served. A vector rather than a map, since
+        // there are only ever a handful and winrt::guid needs no ordering here.
+        std::vector<ServedCharacteristic> gatt_characteristics_;
+        std::mutex gatt_characteristics_mutex_;
 
         // Whether the service is on air. Tracked here rather than read back from
         // the provider, which goes on reporting Started after a StopAdvertising
         // and whose AdvertisementStatusChanged arrives out of order.
         bool gatt_advertising_ = false;
 
-        // The payload sendData was given last, handed back to a central that
-        // reads the TX characteristic. A read is answered off the UI thread,
-        // where sendData replaces it, so it is guarded.
-        std::vector<uint8_t> gatt_last_sent_;
-        std::mutex gatt_last_sent_mutex_;
-
-        // The last subscription state published, so only changes are sent.
-        bool gatt_subscribed_ = false;
-
         // The service to serve, kept so that a start() held back while the radio
         // was down still brings it up once the radio comes on.
         struct GattRequest {
             winrt::guid service_uuid;
-            winrt::guid tx_uuid;
-            winrt::guid rx_uuid;
+            std::vector<GattCharacteristicRequest> characteristics;
         };
         std::optional<GattRequest> gatt_request_;
 

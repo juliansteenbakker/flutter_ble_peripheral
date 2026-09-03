@@ -17,6 +17,7 @@ import android.os.Looper
 import dev.steenbakker.flutter_ble_peripheral.handlers.DataReceivedHandler
 import dev.steenbakker.flutter_ble_peripheral.handlers.MtuChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.handlers.PeripheralStateChangedHandler
+import dev.steenbakker.flutter_ble_peripheral.models.GattCharacteristicRequest
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralState
 import io.flutter.Log
 import java.io.ByteArrayOutputStream
@@ -35,9 +36,16 @@ class GattServerCallback(
     private val peripheralStateChangedHandler: PeripheralStateChangedHandler,
     private val dataReceivedHandler: DataReceivedHandler?,
     private val mtuChangedHandler: MtuChangedHandler?,
-    private val txCharacteristicUuid: UUID,
-    private val rxCharacteristicUuid: UUID
+    characteristics: List<GattCharacteristicRequest>
 ) : BluetoothGattServerCallback() {
+
+    /** The uuids a central may write to. */
+    private val writableUuids: Set<UUID> =
+        characteristics.filter { it.canWrite }.map { it.uuid }.toSet()
+
+    /** The uuids a central may subscribe to. */
+    private val notifyingUuids: Set<UUID> =
+        characteristics.filter { it.canNotify }.map { it.uuid }.toSet()
 
     private companion object {
         /** Client Characteristic Configuration Descriptor. */
@@ -46,7 +54,15 @@ class GattServerCallback(
 
     private val tag = "GattServerCallback"
     private val connectedDevices = mutableSetOf<BluetoothDevice>()
-    private val subscribedDevices = mutableSetOf<BluetoothDevice>()
+
+    /**
+     * The centrals subscribed to each notifying characteristic.
+     *
+     * Per characteristic rather than one set, since a central may take one
+     * characteristic of a service and leave another, and `sendData` may only
+     * notify those that asked for the one it is sending on.
+     */
+    private val subscribedDevices = mutableMapOf<UUID, MutableSet<BluetoothDevice>>()
 
     /**
      * Long writes arrive as a series of prepared chunks that only take effect on
@@ -64,8 +80,12 @@ class GattServerCallback(
     /** Called when a notification has been acknowledged, so the next may be sent. */
     var onNotificationSent: (device: BluetoothDevice) -> Unit = { }
 
-    /** Called whenever the set of subscribed centrals becomes empty or non-empty. */
-    var onSubscriptionChanged: (subscribed: Boolean) -> Unit = { }
+    /**
+     * Called whenever a characteristic gains its first subscribed central or
+     * loses its last one, with whether anything is subscribed at all.
+     */
+    var onSubscriptionChanged: (uuid: UUID, subscribed: Boolean, anySubscribed: Boolean) -> Unit =
+            { _, _, _ -> }
 
     override fun onConnectionStateChange(device: BluetoothDevice?, status: Int, newState: Int) {
         super.onConnectionStateChange(device, status, newState)
@@ -91,10 +111,16 @@ class GattServerCallback(
             BluetoothProfile.STATE_DISCONNECTED -> {
                 Log.i(tag, "Device disconnected: ${device.address}")
                 connectedDevices.remove(device)
-                // A disconnected central cannot still be subscribed, and its
-                // half-finished long writes are gone with it.
-                if (subscribedDevices.remove(device)) {
-                    onSubscriptionChanged(subscribedDevices.isNotEmpty())
+                // A disconnected central cannot still be subscribed to anything,
+                // and its half-finished long writes are gone with it.
+                for ((uuid, subscribers) in subscribedDevices) {
+                    if (subscribers.remove(device)) {
+                        onSubscriptionChanged(
+                                uuid,
+                                subscribers.isNotEmpty(),
+                                hasSubscribedDevices()
+                        )
+                    }
                 }
                 preparedWrites.keys.filter { it.first == device.address }
                         .forEach { preparedWrites.remove(it) }
@@ -105,6 +131,21 @@ class GattServerCallback(
             BluetoothProfile.STATE_CONNECTING -> Log.i(tag, "Device connecting: ${device.address}")
             BluetoothProfile.STATE_DISCONNECTING -> Log.i(tag, "Device disconnecting: ${device.address}")
             else -> Log.w(tag, "Unknown connection state: $newState for device ${device.address}")
+        }
+    }
+
+    /**
+     * Reports a service the stack refused.
+     *
+     * Without this a rejected service simply never appears, and the peripheral
+     * advertises a service uuid it does not actually serve.
+     */
+    override fun onServiceAdded(status: Int, service: android.bluetooth.BluetoothGattService?) {
+        super.onServiceAdded(status, service)
+        if (status == BluetoothGatt.GATT_SUCCESS) {
+            Log.i(tag, "Serving ${service?.uuid}")
+        } else {
+            Log.e(tag, "Failed to add service ${service?.uuid}, status $status")
         }
     }
 
@@ -147,7 +188,7 @@ class GattServerCallback(
         Log.i(tag, "Write request from ${device?.address} for characteristic ${characteristic?.uuid}")
 
         val uuid = characteristic?.uuid
-        if (device == null || uuid == null || uuid != rxCharacteristicUuid) {
+        if (device == null || uuid == null || !writableUuids.contains(uuid)) {
             Log.w(tag, "Write to unsupported characteristic: $uuid")
             if (responseNeeded) {
                 sendResponse(device, requestId, BluetoothGatt.GATT_WRITE_NOT_PERMITTED, offset, null)
@@ -174,7 +215,7 @@ class GattServerCallback(
             return
         }
 
-        publishReceived(value)
+        publishReceived(uuid, value)
         if (responseNeeded) {
             sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, offset, value)
         }
@@ -192,7 +233,8 @@ class GattServerCallback(
         // Report whether this central is subscribed, rather than the descriptor's
         // shared value, which is the same object for every central.
         val isCccd = descriptor?.uuid == CCCD_UUID
-        val value = if (isCccd && device != null && subscribedDevices.contains(device)) {
+        val subscribers = descriptor?.characteristic?.uuid?.let { subscribedDevices[it] }
+        val value = if (isCccd && device != null && subscribers?.contains(device) == true) {
             BluetoothGattDescriptor.ENABLE_NOTIFICATION_VALUE
         } else if (isCccd) {
             BluetoothGattDescriptor.DISABLE_NOTIFICATION_VALUE
@@ -217,16 +259,22 @@ class GattServerCallback(
         Log.i(tag, "Descriptor write request from ${device?.address} for descriptor ${descriptor?.uuid}")
 
         val isCccd = descriptor?.uuid == CCCD_UUID
-        val isTx = descriptor?.characteristic?.uuid == txCharacteristicUuid
+        val characteristicUuid = descriptor?.characteristic?.uuid
+        val notifies = characteristicUuid != null && notifyingUuids.contains(characteristicUuid)
 
-        if (isCccd && isTx && device != null && value != null && value.isNotEmpty()) {
+        if (isCccd && notifies && device != null && value != null && value.isNotEmpty()) {
             // Bit 0 is notify, bit 1 is indicate. Either means this central
-            // wants what sendData sends.
+            // wants what sendData sends on this characteristic.
             val wants = value[0].toInt() and 0x03 != 0
-            val changed = if (wants) subscribedDevices.add(device) else subscribedDevices.remove(device)
-            Log.i(tag, "${device.address} ${if (wants) "subscribed to" else "unsubscribed from"} $txCharacteristicUuid")
+            val subscribers = subscribedDevices.getOrPut(characteristicUuid!!) { mutableSetOf() }
+            val changed = if (wants) subscribers.add(device) else subscribers.remove(device)
+            Log.i(tag, "${device.address} ${if (wants) "subscribed to" else "unsubscribed from"} $characteristicUuid")
             if (changed) {
-                onSubscriptionChanged(subscribedDevices.isNotEmpty())
+                onSubscriptionChanged(
+                        characteristicUuid,
+                        subscribers.isNotEmpty(),
+                        hasSubscribedDevices()
+                )
             }
         }
 
@@ -262,7 +310,7 @@ class GattServerCallback(
             for (key in keys) {
                 val buffer = preparedWrites.remove(key) ?: continue
                 if (execute) {
-                    publishReceived(buffer.toByteArray())
+                    publishReceived(key.second, buffer.toByteArray())
                 }
             }
         }
@@ -270,12 +318,12 @@ class GattServerCallback(
         sendResponse(device, requestId, BluetoothGatt.GATT_SUCCESS, 0, null)
     }
 
-    /** Forwards what a central wrote to the RX characteristic to Flutter. */
-    private fun publishReceived(data: ByteArray?) {
+    /** Forwards what a central wrote to a writable characteristic to Flutter. */
+    private fun publishReceived(uuid: UUID, data: ByteArray?) {
         if (data == null || data.isEmpty()) return
-        Log.i(tag, "Received data: ${data.size} bytes")
+        Log.i(tag, "Received ${data.size} bytes on $uuid")
         Handler(Looper.getMainLooper()).post {
-            dataReceivedHandler?.publish(data)
+            dataReceivedHandler?.publish(uuid, data)
         }
     }
 
@@ -283,8 +331,17 @@ class GattServerCallback(
 
     fun hasConnectedDevices(): Boolean = connectedDevices.isNotEmpty()
 
-    /** The centrals that asked to be notified, which is who `sendData` reaches. */
-    fun getSubscribedDevices(): Set<BluetoothDevice> = subscribedDevices.toSet()
+    /**
+     * The centrals subscribed to [uuid], which is who `sendData` reaches when it
+     * sends on that characteristic.
+     */
+    fun getSubscribedDevices(uuid: UUID): Set<BluetoothDevice> =
+            subscribedDevices[uuid]?.toSet() ?: emptySet()
 
-    fun hasSubscribedDevices(): Boolean = subscribedDevices.isNotEmpty()
+    /** The centrals subscribed to any characteristic of this service. */
+    fun getSubscribedDevices(): Set<BluetoothDevice> =
+            subscribedDevices.values.flatten().toSet()
+
+    fun hasSubscribedDevices(): Boolean =
+            subscribedDevices.values.any { it.isNotEmpty() }
 }

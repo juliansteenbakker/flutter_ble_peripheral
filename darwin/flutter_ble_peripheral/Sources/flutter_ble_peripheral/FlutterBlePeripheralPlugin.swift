@@ -135,7 +135,17 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
         case "isConnected":
             result(flutterBlePeripheralManager.hasConnectedDevices())
         case "isSubscribed":
-            result(flutterBlePeripheralManager.hasSubscribedCentrals())
+            // A uuid asks about one characteristic; without one the answer covers
+            // every characteristic that can notify.
+            if let uuid = call.arguments as? String {
+                guard let parsed = FlutterBlePeripheralManager.parseServiceUuid(uuid) else {
+                    result(false)
+                    return
+                }
+                result(flutterBlePeripheralManager.hasSubscribedCentrals(for: parsed))
+            } else {
+                result(flutterBlePeripheralManager.hasSubscribedCentrals())
+            }
         case "isBluetoothOn":
             result(flutterBlePeripheralManager.peripheralManager.state == .poweredOn)
         case "enableBluetooth":
@@ -281,8 +291,9 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
        - result: The Flutter result callback used to return success or error state.
      */
     private func sendData(_ call: FlutterMethodCall, _ result: @escaping FlutterResult) {
-        guard let flutterData = call.arguments as? FlutterStandardTypedData else {
-            print("[flutter_ble_peripheral] Send data error: arguments is not FlutterStandardTypedData")
+        let arguments = call.arguments as? [String: Any]
+        guard let flutterData = arguments?["data"] as? FlutterStandardTypedData else {
+            print("[flutter_ble_peripheral] Send data error: no data byte array in the arguments")
             result(FlutterError(
                 code: "INVALID_ARGUMENT",
                 message: "Data must be a byte array",
@@ -291,17 +302,50 @@ public class FlutterBlePeripheralPlugin: NSObject, FlutterPlugin {
             return
         }
 
-        print("[flutter_ble_peripheral] Trying to send \(flutterData.data.count) bytes")
-        let success = flutterBlePeripheralManager.sendData(data: flutterData.data)
+        var uuid: CBUUID?
+        if let named = arguments?["characteristicUuid"] as? String {
+            guard let parsed = FlutterBlePeripheralManager.parseServiceUuid(named) else {
+                result(FlutterError(
+                    code: "INVALID_ARGUMENT",
+                    message: "\(named) is not a characteristic uuid",
+                    details: nil
+                ))
+                return
+            }
+            uuid = parsed
+        }
 
-        if success {
+        print("[flutter_ble_peripheral] Trying to send \(flutterData.data.count) bytes")
+
+        switch flutterBlePeripheralManager.sendData(
+            data: flutterData.data,
+            characteristicUuid: uuid
+        ) {
+        case .sent:
             print("[flutter_ble_peripheral] Data sent successfully")
             result(nil)
-        } else {
-            print("[flutter_ble_peripheral] Failed to send data")
+        case .noServer:
+            result(FlutterError(
+                code: "NOT_INITIALIZED",
+                message: "No GATT server is running",
+                details: nil
+            ))
+        case .unknownCharacteristic:
             result(FlutterError(
                 code: "SEND_FAILED",
-                message: "Failed to send data. GATT server may not be initialized or no devices connected",
+                message: "The GATT service does not notify on that characteristic",
+                details: nil
+            ))
+        case .ambiguousCharacteristic:
+            result(FlutterError(
+                code: "SEND_FAILED",
+                message: "The GATT service has several notifying characteristics; name one",
+                details: nil
+            ))
+        case .notSubscribed:
+            result(FlutterError(
+                code: "SEND_FAILED",
+                message: "No central is subscribed to that characteristic",
                 details: nil
             ))
         }

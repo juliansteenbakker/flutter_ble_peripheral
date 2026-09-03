@@ -190,7 +190,7 @@ class FlutterBlePeripheralPlugin :
             "openBluetoothSettings" -> handleOpenBluetoothSettings(result)
             "isAdvertising" -> handleIsAdvertising(result)
             "isConnected" -> handleIsConnected(result)
-            "isSubscribed" -> handleIsSubscribed(result)
+            "isSubscribed" -> handleIsSubscribed(call, result)
             "isBluetoothOn" -> handleIsBluetoothOn(result)
             "sendData" -> handleSendData(call, result)
             else -> handleNotImplemented(result)
@@ -291,17 +291,23 @@ class FlutterBlePeripheralPlugin :
      */
     private fun readGattService(arguments: Map<*, *>): GattServiceRequest? {
         val serviceUuid = arguments["gattServiceUuid"] as? String ?: return null
-        return GattServiceRequest(
-                serviceUuid = parseServiceUuid(serviceUuid),
-                txCharacteristicUuid = parseServiceUuid(
-                        arguments["gattTxCharacteristicUuid"] as? String
-                                ?: throw IllegalArgumentException("gattServiceUuid needs a gattTxCharacteristicUuid")
-                ),
-                rxCharacteristicUuid = parseServiceUuid(
-                        arguments["gattRxCharacteristicUuid"] as? String
-                                ?: throw IllegalArgumentException("gattServiceUuid needs a gattRxCharacteristicUuid")
-                ),
-        )
+        val characteristics = arguments["gattCharacteristics"] as? List<*>
+                ?: throw IllegalArgumentException("gattServiceUuid needs gattCharacteristics")
+        val parsed = characteristics.map { entry ->
+            val map = entry as? Map<*, *>
+                    ?: throw IllegalArgumentException("A gatt characteristic must be a map")
+            GattCharacteristicRequest(
+                    uuid = parseServiceUuid(
+                            map["uuid"] as? String
+                                    ?: throw IllegalArgumentException("A gatt characteristic needs a uuid")
+                    ),
+                    properties = map["properties"] as? Int ?: 0,
+            )
+        }
+        if (parsed.isEmpty()) {
+            throw IllegalArgumentException("gattServiceUuid needs at least one characteristic")
+        }
+        return GattServiceRequest(parseServiceUuid(serviceUuid), parsed)
     }
 
     /** Adds the service data under [prefix] to [builder]. */
@@ -480,8 +486,16 @@ class FlutterBlePeripheralPlugin :
         }
     }
 
-    private fun handleIsSubscribed(result: MethodChannel.Result) {
-        val isSubscribed = flutterBlePeripheralManager?.hasSubscribedDevices() ?: false
+    private fun handleIsSubscribed(call: MethodCall, result: MethodChannel.Result) {
+        val manager = flutterBlePeripheralManager
+        // A uuid asks about one characteristic; without one the answer covers
+        // every characteristic that can notify.
+        val uuid = (call.arguments as? String)?.let { parseServiceUuid(it) }
+        val isSubscribed = when {
+            manager == null -> false
+            uuid != null -> manager.hasSubscribedDevices(uuid)
+            else -> manager.hasSubscribedDevices()
+        }
         safeResult(result) {
             Log.i(tag, "Is a central subscribed: $isSubscribed")
             result.success(isSubscribed)
@@ -607,9 +621,10 @@ class FlutterBlePeripheralPlugin :
     
     private fun handleSendData(call: MethodCall, result: MethodChannel.Result) {
         safeResult(result) {
-            val data = call.arguments as? ByteArray
+            val arguments = call.arguments as? Map<*, *>
+            val data = arguments?.get("data") as? ByteArray
             if (data == null) {
-                Log.e(tag, "Send data error: arguments is not ByteArray")
+                Log.e(tag, "Send data error: no data byte array in the arguments")
                 result.error("INVALID_ARGUMENT", "Data must be a ByteArray", null)
                 return@safeResult
             }
@@ -620,15 +635,32 @@ class FlutterBlePeripheralPlugin :
                 return@safeResult
             }
 
-            Log.i(tag, "Trying to send ${data.size} bytes")
-            val success = flutterBlePeripheralManager!!.sendData(data)
+            val uuid = (arguments["characteristicUuid"] as? String)?.let { parseServiceUuid(it) }
 
-            if (success) {
-                Log.i(tag, "Data sent successfully")
-                result.success(null)
-            } else {
-                Log.w(tag, "Failed to send data")
-                result.error("SEND_FAILED", "Failed to send data. GATT server may not be initialized or no devices connected", null)
+            Log.i(tag, "Trying to send ${data.size} bytes")
+            when (flutterBlePeripheralManager!!.sendData(data, uuid)) {
+                SendResult.Sent -> {
+                    Log.i(tag, "Data sent successfully")
+                    result.success(null)
+                }
+
+                SendResult.NoServer -> result.error(
+                        "NOT_INITIALIZED", "No GATT server is running", null)
+
+                SendResult.UnknownCharacteristic -> result.error(
+                        "SEND_FAILED",
+                        "The GATT service does not notify on that characteristic",
+                        null)
+
+                SendResult.AmbiguousCharacteristic -> result.error(
+                        "SEND_FAILED",
+                        "The GATT service has several notifying characteristics; name one",
+                        null)
+
+                SendResult.NotSubscribed -> result.error(
+                        "SEND_FAILED",
+                        "No central is subscribed to that characteristic",
+                        null)
             }
         }
     }

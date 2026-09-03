@@ -39,6 +39,7 @@ import dev.steenbakker.flutter_ble_peripheral.handlers.SubscriptionChangedHandle
 import dev.steenbakker.flutter_ble_peripheral.handlers.PeripheralStateChangedHandler
 import dev.steenbakker.flutter_ble_peripheral.models.PeripheralBluetoothState
 import dev.steenbakker.flutter_ble_peripheral.models.GattServiceRequest
+import dev.steenbakker.flutter_ble_peripheral.models.SendResult
 import io.flutter.Log
 import java.util.UUID
 
@@ -92,25 +93,31 @@ class FlutterBlePeripheralManager(
     private var gattServerCallback: GattServerCallback? = null
 
     /**
-     * Payloads waiting to go out per central.
+     * Payloads waiting to go out per central, each with the characteristic it
+     * goes out on.
      *
-     * Android accepts one notification per central at a time and acknowledges it
-     * with onNotificationSent; sending again before that drops the payload, so
-     * back-to-back calls to [sendData] are queued instead.
+     * Android accepts one notification per central at a time, whichever
+     * characteristic it is for, and acknowledges it with onNotificationSent;
+     * sending again before that drops the payload, so back-to-back calls to
+     * [sendData] are queued instead. The queue is per central rather than per
+     * characteristic for that same reason.
      */
-    private val notifyQueues = mutableMapOf<String, ArrayDeque<ByteArray>>()
+    private val notifyQueues = mutableMapOf<String, ArrayDeque<Pair<UUID, ByteArray>>>()
 
     /** The centrals with a notification in flight, awaiting onNotificationSent. */
     private val notifyInFlight = mutableSetOf<String>()
 
-    /** The last payload [sendData] was given, returned to a central that reads TX. */
-    private var lastSentValue: ByteArray? = null
+    /**
+     * The last payload [sendData] was given per characteristic, returned to a
+     * central that reads that one.
+     */
+    private val lastSentValues = mutableMapOf<UUID, ByteArray>()
 
-    /** TX characteristic for sending data to centrals (notify/indicate). */
-    private var txCharacteristic: BluetoothGattCharacteristic? = null
+    /** The characteristics being served, by uuid. */
+    private val servedCharacteristics = mutableMapOf<UUID, BluetoothGattCharacteristic>()
 
-    /** RX characteristic for receiving data from centrals (write). */
-    private var rxCharacteristic: BluetoothGattCharacteristic? = null
+    /** The uuids of the characteristics `sendData` can deliver on. */
+    private val notifyingUuids = mutableSetOf<UUID>()
 
     // Permissions for Bluetooth API > 31
     @RequiresApi(Build.VERSION_CODES.S)
@@ -243,8 +250,6 @@ class FlutterBlePeripheralManager(
      */
     fun addService(request: GattServiceRequest) {
         val serviceUuid = request.serviceUuid
-        val txUuid = request.txCharacteristicUuid
-        val rxUuid = request.rxCharacteristicUuid
         try {
             // Create callback if not exists
             if (gattServerCallback == null) {
@@ -252,8 +257,7 @@ class FlutterBlePeripheralManager(
                     peripheralStateChangedHandler,
                     dataReceivedHandler,
                     mtuChangedHandler,
-                    txUuid,
-                    rxUuid
+                    request.characteristics
                 )
                 gattServerCallback!!.sendResponse = { device, requestId, status, offset, value ->
                     mBluetoothGattServer?.sendResponse(device, requestId, status, offset, value)
@@ -261,11 +265,11 @@ class FlutterBlePeripheralManager(
                 // A read gets the last value sendData pushed, so a central that
                 // subscribes late can still pick it up.
                 gattServerCallback!!.readCharacteristicValue = { uuid ->
-                    if (uuid == txUuid) lastSentValue else null
+                    lastSentValues[uuid]
                 }
                 gattServerCallback!!.onNotificationSent = { device -> onNotificationSent(device) }
-                gattServerCallback!!.onSubscriptionChanged = { subscribed ->
-                    subscriptionChangedHandler?.publish(subscribed)
+                gattServerCallback!!.onSubscriptionChanged = { uuid, subscribed, anySubscribed ->
+                    subscriptionChangedHandler?.publish(uuid, subscribed, anySubscribed)
                 }
             }
 
@@ -275,42 +279,42 @@ class FlutterBlePeripheralManager(
                 Log.i(TAG, "GATT server opened")
             }
 
-            // Create TX characteristic (for sending data to central)
-            txCharacteristic = BluetoothGattCharacteristic(
-                txUuid,
-                BluetoothGattCharacteristic.PROPERTY_READ or
-                BluetoothGattCharacteristic.PROPERTY_NOTIFY or
-                BluetoothGattCharacteristic.PROPERTY_INDICATE,
-                BluetoothGattCharacteristic.PERMISSION_READ
-            )
+            servedCharacteristics.clear()
+            notifyingUuids.clear()
 
-            // Add CCCD descriptor to TX characteristic for notifications
-            val cccdDescriptor = BluetoothGattDescriptor(
-                CCCD_UUID,
-                BluetoothGattDescriptor.PERMISSION_READ or BluetoothGattDescriptor.PERMISSION_WRITE
-            )
-            txCharacteristic?.addDescriptor(cccdDescriptor)
-
-            // Create RX characteristic (for receiving data from central)
-            rxCharacteristic = BluetoothGattCharacteristic(
-                rxUuid,
-                BluetoothGattCharacteristic.PROPERTY_WRITE or
-                BluetoothGattCharacteristic.PROPERTY_WRITE_NO_RESPONSE,
-                BluetoothGattCharacteristic.PERMISSION_WRITE
-            )
-
-            // Create service and add characteristics
             val service = BluetoothGattService(
                 serviceUuid,
                 BluetoothGattService.SERVICE_TYPE_PRIMARY
             )
-            service.addCharacteristic(txCharacteristic)
-            service.addCharacteristic(rxCharacteristic)
+
+            for (wanted in request.characteristics) {
+                val characteristic = BluetoothGattCharacteristic(
+                    wanted.uuid,
+                    wanted.androidProperties,
+                    wanted.androidPermissions
+                )
+
+                // A central subscribes by writing the CCCD, so a characteristic
+                // that notifies needs one to subscribe through.
+                if (wanted.canNotify) {
+                    characteristic.addDescriptor(
+                        BluetoothGattDescriptor(
+                            CCCD_UUID,
+                            BluetoothGattDescriptor.PERMISSION_READ or
+                                BluetoothGattDescriptor.PERMISSION_WRITE
+                        )
+                    )
+                    notifyingUuids.add(wanted.uuid)
+                }
+
+                service.addCharacteristic(characteristic)
+                servedCharacteristics[wanted.uuid] = characteristic
+            }
 
             // Add service to GATT server
             val added = mBluetoothGattServer?.addService(service)
             if (added == true) {
-                Log.i(TAG, "GATT service added: $serviceUuid with TX: $txUuid, RX: $rxUuid")
+                Log.i(TAG, "GATT service added: $serviceUuid with ${request.characteristics.size} characteristic(s)")
             } else {
                 Log.e(TAG, "Failed to add GATT service")
             }
@@ -329,37 +333,48 @@ class FlutterBlePeripheralManager(
      * @param data The data to send
      * @return true if the data was queued for at least one central
      */
-    fun sendData(data: ByteArray): Boolean {
+    fun sendData(data: ByteArray, characteristicUuid: UUID? = null): SendResult {
         val callback = gattServerCallback
 
-        if (txCharacteristic == null || mBluetoothGattServer == null || callback == null) {
-            Log.e(TAG, "Cannot send data: GATT server not initialized or no TX characteristic")
-            return false
+        if (mBluetoothGattServer == null || callback == null || notifyingUuids.isEmpty()) {
+            Log.e(TAG, "Cannot send data: no GATT server is running")
+            return SendResult.NoServer
         }
 
-        val devices = callback.getSubscribedDevices()
+        // Without a uuid there is an answer only while the service notifies on
+        // exactly one characteristic, which is the case for the default pair.
+        val uuid = characteristicUuid
+            ?: notifyingUuids.singleOrNull()
+            ?: return SendResult.AmbiguousCharacteristic
+
+        if (!notifyingUuids.contains(uuid)) {
+            Log.w(TAG, "Cannot send data: $uuid is not a notifying characteristic")
+            return SendResult.UnknownCharacteristic
+        }
+
+        val devices = callback.getSubscribedDevices(uuid)
         if (devices.isEmpty()) {
-            Log.w(TAG, "Cannot send data: no central is subscribed to the TX characteristic")
-            return false
+            Log.w(TAG, "Cannot send data: no central is subscribed to $uuid")
+            return SendResult.NotSubscribed
         }
 
-        lastSentValue = data
+        lastSentValues[uuid] = data
         devices.forEach { device ->
-            notifyQueues.getOrPut(device.address) { ArrayDeque() }.addLast(data)
+            notifyQueues.getOrPut(device.address) { ArrayDeque() }.addLast(uuid to data)
             drainNotifyQueue(device)
         }
-        Log.i(TAG, "Data queued for ${devices.size} device(s)")
-        return true
+        Log.i(TAG, "Data queued for ${devices.size} device(s) on $uuid")
+        return SendResult.Sent
     }
 
     /** Sends the next queued payload to [device], if it is not already busy. */
     private fun drainNotifyQueue(device: BluetoothDevice) {
-        val characteristic = txCharacteristic ?: return
         val server = mBluetoothGattServer ?: return
         if (notifyInFlight.contains(device.address)) return
 
         val queue = notifyQueues[device.address] ?: return
-        val next = queue.removeFirstOrNull() ?: return
+        val (uuid, next) = queue.removeFirstOrNull() ?: return
+        val characteristic = servedCharacteristics[uuid] ?: return
 
         notifyInFlight.add(device.address)
         try {
@@ -397,11 +412,11 @@ class FlutterBlePeripheralManager(
             mBluetoothGattServer?.close()
             mBluetoothGattServer = null
             gattServerCallback = null
-            txCharacteristic = null
-            rxCharacteristic = null
+            servedCharacteristics.clear()
+            notifyingUuids.clear()
             notifyQueues.clear()
             notifyInFlight.clear()
-            lastSentValue = null
+            lastSentValues.clear()
             Log.i(TAG, "GATT server closed")
         } catch (e: Exception) {
             Log.e(TAG, "Error closing GATT server: ${e.message}")
@@ -429,6 +444,11 @@ class FlutterBlePeripheralManager(
      * Whether any central subscribed to the TX characteristic, which is the
      * state in which [sendData] can deliver.
      */
+    fun hasSubscribedDevices(uuid: UUID): Boolean {
+        return gattServerCallback?.getSubscribedDevices(uuid)?.isNotEmpty() ?: false
+    }
+
+    /** Whether any central is subscribed to any notifying characteristic. */
     fun hasSubscribedDevices(): Boolean {
         return gattServerCallback?.hasSubscribedDevices() ?: false
     }
