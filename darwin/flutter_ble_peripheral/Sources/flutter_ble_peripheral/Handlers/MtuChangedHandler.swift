@@ -18,6 +18,9 @@ public class MtuChangedHandler: NSObject, FlutterStreamHandler {
     private var eventSink: FlutterEventSink?
     private var registrar: FlutterPluginRegistrar
 
+    /// The last mtu published, replayed to a new listener.
+    private var mtu: Int?
+
     init(registrar: FlutterPluginRegistrar) {
         self.registrar = registrar
         super.init()
@@ -37,6 +40,7 @@ public class MtuChangedHandler: NSObject, FlutterStreamHandler {
     }
 
     func publishMtu(mtu: Int) {
+        self.mtu = mtu
         DispatchQueue.main.async {
             if let eventSink = self.eventSink {
                 eventSink(mtu)
@@ -47,6 +51,12 @@ public class MtuChangedHandler: NSObject, FlutterStreamHandler {
     public func onListen(withArguments arguments: Any?,
                          eventSink: @escaping FlutterEventSink) -> FlutterError? {
         self.eventSink = eventSink
+        // The mtu is negotiated once, when the central connects, which after a
+        // background relaunch is before Dart attaches, so a new listener is given
+        // the last value rather than waiting for a connection it already has.
+        if let mtu = mtu {
+            eventSink(mtu)
+        }
         return nil
     }
 

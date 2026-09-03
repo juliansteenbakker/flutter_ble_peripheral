@@ -66,6 +66,21 @@ On macOS, also tick the Bluetooth entitlement in **both**
 <true/>
 ```
 
+To keep advertising once the app is no longer in front, add the background mode to
+`ios/Runner/Info.plist`:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+    <string>bluetooth-peripheral</string>
+</array>
+```
+
+Without it iOS stops the advertisement when the app leaves the foreground. What it
+does to the advertisement that stays on air, and what the plugin does with the key
+beyond that, is under [Background advertising](#background-advertising). macOS has no
+background modes, and keeps advertising for as long as the app runs.
+
 ### Windows
 
 No manifest changes are needed. Windows requires the location permission for BLE, which
@@ -228,6 +243,34 @@ the service carries itself, this is also the one case where Windows accepts an
 advertisement without manufacturer data or service data. The advertise timeout ends
 what the service has on air along with the publisher, leaving it serving whoever is
 already connected, the same as an Android advertise timeout does.
+
+### Background advertising
+
+On Android the advertisement belongs to the process, so it keeps going while the app
+sits in the background and ends when the system kills the process. Advertising from a
+service rather than from an activity is not supported yet: `start()` needs an activity
+to check permissions against, and answers with a `No activity` error without one.
+
+On iOS the advertisement ends with the foreground unless the app declares the
+`bluetooth-peripheral` background mode. With it, Core Bluetooth keeps advertising, but
+not the advertisement that was passed in:
+
+- The local name is dropped.
+- The service uuids move into the overflow area, where only an iOS central that scans
+  for those exact uuids can see them. A scan with no uuid filter, and every non-Apple
+  scanner, sees nothing at all. This is the usual reason background advertising looks
+  broken: it is on air, but nothing that is looking for it broadly will report it.
+- Advertising is slower and shares the radio with whatever else the system is doing.
+
+Declaring the background mode also lets the plugin register a restore identifier with
+Core Bluetooth, which is what allows iOS to relaunch the app into the background and
+hand back the advertisement and the GATT service, including the centrals that were
+subscribed to TX. The state, mtu and subscription streams replay their last value to a
+new listener, so an app that comes back this way sees `advertising` or `connected` on
+`onPeripheralStateChanged` and can carry on with `sendData` without calling `start()`
+again. Calling it again is safe: the advertisement is replaced rather than rejected,
+and a service that already matches is left in place, so a central stays connected
+across it.
 
 ### Streams
 

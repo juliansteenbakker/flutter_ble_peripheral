@@ -58,6 +58,12 @@ public class SubscriptionChangedHandler: NSObject, FlutterStreamHandler {
     public func onListen(withArguments arguments: Any?,
                          eventSink: @escaping FlutterEventSink) -> FlutterError? {
         self.eventSink = eventSink
+        // A new listener is given the current value, since the subscription it
+        // describes may predate it: after a background relaunch the central is
+        // already subscribed before Dart attaches.
+        if let subscribed = subscribed {
+            eventSink(subscribed)
+        }
         return nil
     }
 
