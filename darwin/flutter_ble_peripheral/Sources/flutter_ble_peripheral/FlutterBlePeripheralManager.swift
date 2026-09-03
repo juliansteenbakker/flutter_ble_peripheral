@@ -44,6 +44,18 @@ class FlutterBlePeripheralManager: NSObject {
     /// The CoreBluetooth peripheral manager instance responsible for advertising and GATT management.
     var peripheralManager: CBPeripheralManager!
 
+    /// The identifier Core Bluetooth hands the advertisement and the served
+    /// services back under, after it relaunched the app into the background.
+    static let restoreIdentifier = "dev.steenbakker.flutter_ble_peripheral.peripheral_manager"
+
+    /// Whether the app declares the `bluetooth-peripheral` background mode, which
+    /// is what keeps the advertisement on air once the app is no longer in front,
+    /// and what lets Core Bluetooth relaunch the app to hand its state back.
+    static var declaresPeripheralBackgroundMode: Bool {
+        let modes = Bundle.main.object(forInfoDictionaryKey: "UIBackgroundModes") as? [String]
+        return modes?.contains("bluetooth-peripheral") ?? false
+    }
+
     // MARK: - GATT Attributes
 
     /// The currently active GATT service.
@@ -135,10 +147,22 @@ class FlutterBlePeripheralManager: NSObject {
         self.subscriptionChangedHandler = subscriptionChangedHandler
         super.init()
 
+        var options: [String: Any] = [CBPeripheralManagerOptionShowPowerAlertKey: true]
+#if os(iOS)
+        // Only an app that advertises in the background is ever relaunched to be
+        // handed its state back, so the identifier is set exactly when it asked for
+        // that. Handing one to an app without the background mode would make Core
+        // Bluetooth keep state it can never restore.
+        if FlutterBlePeripheralManager.declaresPeripheralBackgroundMode {
+            options[CBPeripheralManagerOptionRestoreIdentifierKey] =
+                FlutterBlePeripheralManager.restoreIdentifier
+        }
+#endif
+
         self.peripheralManager = CBPeripheralManager(
             delegate: self,
             queue: nil,
-            options: [CBPeripheralManagerOptionShowPowerAlertKey: true]
+            options: options
         )
     }
 
@@ -170,6 +194,14 @@ class FlutterBlePeripheralManager: NSObject {
 
         pendingAdvertisement = nil
         pendingGattService = nil
+
+        // Core Bluetooth answers a second startAdvertising with "advertising is
+        // already started" and keeps what it has, rather than replacing it, so it is
+        // stopped first. An app that comes back from a background relaunch is in
+        // exactly that state before it starts again.
+        if peripheralManager.isAdvertising {
+            peripheralManager.stopAdvertising()
+        }
         peripheralManager.startAdvertising(advertisementData)
 
         if let gattService = gattService {
@@ -188,6 +220,20 @@ class FlutterBlePeripheralManager: NSObject {
         let serviceUuid = request.serviceUuid
         let txUuid = request.txCharacteristicUuid
         let rxUuid = request.rxCharacteristicUuid
+
+        // A restored service is already being served, and adding the same layout a
+        // second time fails, so it is left alone. A different layout replaces it.
+        if let existing = currentService {
+            let sameLayout =
+                FlutterBlePeripheralManager.parseServiceUuid(serviceUuid) == existing.uuid
+                && FlutterBlePeripheralManager.parseServiceUuid(txUuid) == txCharacteristic?.uuid
+                && FlutterBlePeripheralManager.parseServiceUuid(rxUuid) == rxCharacteristic?.uuid
+            if sameLayout {
+                print("[flutter_ble_peripheral] GATT service \(serviceUuid) is already served")
+                return
+            }
+            peripheralManager.remove(existing)
+        }
 
         // TX characteristic: notify central devices of updates
         let mutableTxCharacteristic = CBMutableCharacteristic(
@@ -444,6 +490,52 @@ class FlutterBlePeripheralManager: NSObject {
             throw FlutterBlePeripheralError.invalidServiceUuid(value)
         }
         return uuid
+    }
+
+    // MARK: - Background Restoration
+
+    /**
+     Takes back the advertisement and the service Core Bluetooth kept running while
+     the app was not there, after it relaunched the app into the background.
+
+     The advertisement is already on air by the time this is called, so it is not
+     started again; what is missing is everything this class tracks about it, which
+     the restored service and its subscribed centrals give back.
+     */
+    func restoreState(_ state: [String: Any]) {
+        let services = state[CBPeripheralManagerRestoredStateServicesKey] as? [CBMutableService] ?? []
+
+        for service in services {
+            let characteristics = service.characteristics?
+                .compactMap { $0 as? CBMutableCharacteristic } ?? []
+
+            // The uuids are chosen by Dart and are not known here until it calls
+            // start again, but the properties are: TX is the notifying half of the
+            // pair and RX the written one.
+            let tx = characteristics.first { $0.properties.contains(.notify) }
+            let rx = characteristics.first {
+                $0.properties.contains(.write) || $0.properties.contains(.writeWithoutResponse)
+            }
+            guard tx != nil || rx != nil else { continue }
+
+            currentService = service
+            txCharacteristic = tx
+            rxCharacteristic = rx
+            break
+        }
+
+        // The centrals that were subscribed come back too, and that is what decides
+        // whether sendData can deliver.
+        let subscribed = txCharacteristic?.subscribedCentrals ?? []
+        txSubscriptions = Set(subscribed.map { $0.identifier })
+        connectedCentrals.formUnion(txSubscriptions)
+        if let central = subscribed.first {
+            maximumNotificationSize = central.maximumUpdateValueLength
+        }
+        txSubscribed = !txSubscriptions.isEmpty
+
+        print("[flutter_ble_peripheral] Restored \(services.count) service(s), "
+              + "\(txSubscriptions.count) subscribed central(s)")
     }
 
     /// Issues the advertisement that was queued while the radio was still coming up.
