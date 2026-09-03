@@ -4,6 +4,8 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+import CoreBluetooth
+
 #if os(iOS)
 import Flutter
 #else
@@ -24,8 +26,11 @@ public class SubscriptionChangedHandler: NSObject, FlutterStreamHandler {
     private var eventSink: FlutterEventSink?
     private var registrar: FlutterPluginRegistrar
 
-    /// The last value published, so that only changes are sent.
-    private var subscribed: Bool?
+    /// The last value published per characteristic, so only changes are sent.
+    private var subscribed: [CBUUID: Bool] = [:]
+
+    /// The last aggregate published, replayed to a new listener.
+    private var anySubscribed: Bool?
 
     init(registrar: FlutterPluginRegistrar) {
         self.registrar = registrar
@@ -47,17 +52,33 @@ public class SubscriptionChangedHandler: NSObject, FlutterStreamHandler {
         eventChannel.setStreamHandler(self)
     }
 
-    func publish(subscribed: Bool) {
-        guard self.subscribed != subscribed else { return }
-        self.subscribed = subscribed
+    func publish(characteristicUuid: CBUUID, subscribed: Bool, anySubscribed: Bool) {
+        guard self.subscribed[characteristicUuid] != subscribed else { return }
+        self.subscribed[characteristicUuid] = subscribed
+        self.anySubscribed = anySubscribed
+        let event: [String: Any] = [
+            "characteristicUuid": FlutterBlePeripheralManager.fullUuid(characteristicUuid),
+            "subscribed": subscribed,
+            "anySubscribed": anySubscribed,
+        ]
         DispatchQueue.main.async {
-            self.eventSink?(subscribed)
+            self.eventSink?(event)
         }
     }
 
     public func onListen(withArguments arguments: Any?,
                          eventSink: @escaping FlutterEventSink) -> FlutterError? {
         self.eventSink = eventSink
+        // A new listener is given the current state, since the subscription it
+        // describes may predate it: after a background relaunch the central is
+        // already subscribed before Dart attaches.
+        for (uuid, subscribed) in self.subscribed {
+            eventSink([
+                "characteristicUuid": FlutterBlePeripheralManager.fullUuid(uuid),
+                "subscribed": subscribed,
+                "anySubscribed": anySubscribed ?? subscribed,
+            ] as [String: Any])
+        }
         return nil
     }
 

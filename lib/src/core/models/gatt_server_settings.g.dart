@@ -15,6 +15,9 @@ GattServerSettings _$GattServerSettingsFromJson(Map<String, dynamic> json) =>
           defaultTxCharacteristicUuid,
       rxCharacteristicUuid: json['rxCharacteristicUuid'] as String? ??
           defaultRxCharacteristicUuid,
+      characteristics: (json['characteristics'] as List<dynamic>?)
+          ?.map((e) => GattCharacteristic.fromJson(e as Map<String, dynamic>))
+          .toList(),
     );
 
 Map<String, dynamic> _$GattServerSettingsToJson(GattServerSettings instance) =>
@@ -22,4 +25,6 @@ Map<String, dynamic> _$GattServerSettingsToJson(GattServerSettings instance) =>
       'serviceUuid': instance.serviceUuid,
       'txCharacteristicUuid': instance.txCharacteristicUuid,
       'rxCharacteristicUuid': instance.rxCharacteristicUuid,
+      'characteristics':
+          instance.characteristics?.map((e) => e.toJson()).toList(),
     };

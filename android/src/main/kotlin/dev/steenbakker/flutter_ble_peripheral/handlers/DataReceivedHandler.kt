@@ -4,6 +4,7 @@ import android.os.Handler
 import android.os.Looper
 import io.flutter.embedding.engine.plugins.FlutterPlugin
 import io.flutter.plugin.common.EventChannel
+import java.util.UUID
 
 /**
  * Handles broadcasting data received over a BLE (Bluetooth Low Energy)
@@ -13,7 +14,8 @@ import io.flutter.plugin.common.EventChannel
  * by the BLE peripheral through the [FlutterBlePeripheralManager]
  * to the Flutter layer for processing or display.
  *
- * The event stream sends a `ByteArray` representing the received data.
+ * The event stream sends a map of the characteristic uuid the write landed on
+ * and the `ByteArray` that was written.
  *
  * Event channel name: `dev.steenbakker.flutter_ble_peripheral/ble_data_received`
  */
@@ -41,11 +43,16 @@ class DataReceivedHandler(
      * This method posts the data to the main thread (required for Flutter platform channels)
      * and sends it through the event sink if a listener is active.
      *
+     * @param uuid The characteristic the central wrote to.
      * @param data The raw data received over BLE, represented as a [ByteArray].
      */
-    fun publish(data: ByteArray) {
+    fun publish(uuid: UUID, data: ByteArray) {
+        val event = mapOf(
+            "characteristicUuid" to uuid.toString(),
+            "data" to data,
+        )
         Handler(Looper.getMainLooper()).post {
-            eventSink?.success(data)
+            eventSink?.success(event)
         }
     }
 

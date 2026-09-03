@@ -4,6 +4,7 @@
  * BSD-style license that can be found in the LICENSE file.
  */
 
+import 'package:flutter_ble_peripheral/src/core/models/gatt_characteristic.dart';
 import 'package:json_annotation/json_annotation.dart';
 
 part 'gatt_server_settings.g.dart';
@@ -30,21 +31,33 @@ const String defaultRxCharacteristicUuid =
 /// Asks `FlutterBlePeripheral.start` to serve a GATT service alongside the
 /// advertisement.
 ///
-/// The service holds two characteristics: a TX one the peripheral notifies on,
-/// and an RX one a central writes to. Both default to the Nordic UART Service
-/// characteristics, so a central that knows that profile can talk to this
-/// peripheral without being told the uuids out of band. Pass your own to serve
-/// a different layout.
+/// By default the service holds two characteristics: a TX one the peripheral
+/// notifies on, and an RX one a central writes to. Both default to the Nordic
+/// UART Service characteristics, so a central that knows that profile can talk
+/// to this peripheral without being told the uuids out of band. Pass your own
+/// to serve a different layout.
+///
+/// Pass [characteristics] instead to serve a layout of your own, of any size:
+/// a heart rate service is one notifying characteristic, and a profile that
+/// separates commands from telemetry is several. It replaces the TX and RX
+/// pair rather than adding to it.
+///
+/// One service is served at a time. A second service cannot be added, since
+/// on Windows a service is advertised by its own provider and several
+/// providers on air at once is not something this package can promise.
 ///
 /// The uuids are the contract between the two sides of the link and must be
-/// stable, so they are never derived from the service uuid.
-@JsonSerializable()
+/// stable, so they are never derived from the service uuid. The 16 bit
+/// (`'180d'`), 32 bit and 128 bit forms are all accepted, and a short one is
+/// expanded onto the Bluetooth Base UUID by the platform.
+@JsonSerializable(explicitToJson: true)
 class GattServerSettings {
   /// Creates the settings for the GATT service to serve.
   const GattServerSettings({
     this.serviceUuid,
     this.txCharacteristicUuid = defaultTxCharacteristicUuid,
     this.rxCharacteristicUuid = defaultRxCharacteristicUuid,
+    this.characteristics,
   });
 
   /// Creates settings from the map [toJson] produces.
@@ -63,13 +76,36 @@ class GattServerSettings {
   ///
   /// Supports notify and indicate, and carries what
   /// `FlutterBlePeripheral.sendData` sends.
+  ///
+  /// Ignored when [characteristics] is set.
   final String txCharacteristicUuid;
 
   /// The uuid of the characteristic a central writes to.
   ///
   /// Supports write and write-without-response, and what arrives on it is
   /// reported by `FlutterBlePeripheral.onDataReceived`.
+  ///
+  /// Ignored when [characteristics] is set.
   final String rxCharacteristicUuid;
+
+  /// The characteristics to serve, in place of the TX and RX pair.
+  ///
+  /// Each one carries its own properties, so a single characteristic can be
+  /// both notified on and written to. `FlutterBlePeripheral.sendData` names
+  /// which one it delivers over, and every write reports the characteristic it
+  /// landed on.
+  final List<GattCharacteristic>? characteristics;
+
+  /// The characteristics this service actually serves: [characteristics] when
+  /// it is set, and otherwise the TX and RX pair.
+  List<GattCharacteristic> get effectiveCharacteristics {
+    final custom = characteristics;
+    if (custom != null && custom.isNotEmpty) return custom;
+    return [
+      GattCharacteristic.notify(txCharacteristicUuid),
+      GattCharacteristic.write(rxCharacteristicUuid),
+    ];
+  }
 
   /// The map sent over the method channel to the platform.
   Map<String, dynamic> toJson() => _$GattServerSettingsToJson(this);
@@ -79,11 +115,13 @@ class GattServerSettings {
     String? serviceUuid,
     String? txCharacteristicUuid,
     String? rxCharacteristicUuid,
+    List<GattCharacteristic>? characteristics,
   }) {
     return GattServerSettings(
       serviceUuid: serviceUuid ?? this.serviceUuid,
       txCharacteristicUuid: txCharacteristicUuid ?? this.txCharacteristicUuid,
       rxCharacteristicUuid: rxCharacteristicUuid ?? this.rxCharacteristicUuid,
+      characteristics: characteristics ?? this.characteristics,
     );
   }
 }

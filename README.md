@@ -66,6 +66,21 @@ On macOS, also tick the Bluetooth entitlement in **both**
 <true/>
 ```
 
+To keep advertising once the app is no longer in front, add the background mode to
+`ios/Runner/Info.plist`:
+
+```xml
+<key>UIBackgroundModes</key>
+<array>
+    <string>bluetooth-peripheral</string>
+</array>
+```
+
+Without it iOS stops the advertisement when the app leaves the foreground. What it
+does to the advertisement that stays on air, and what the plugin does with the key
+beyond that, is under [Background advertising](#background-advertising). macOS has no
+background modes, and keeps advertising for as long as the app runs.
+
 ### Windows
 
 No manifest changes are needed. Windows requires the location permission for BLE, which
@@ -215,11 +230,52 @@ layout. They are never derived from the service uuid, because a central caches t
 GATT database between connections and a characteristic uuid that moves breaks the
 link.
 
-`sendData` only reaches a central that subscribed to TX, which is not the same as one
-that merely connected, and throws a `PlatformException` when none has. Watch
-`onSubscriptionChanged`, or check `isSubscribed`, to know when it can deliver.
+Pass `characteristics` to serve a layout of your own instead of the TX and RX pair,
+of any size and with the properties you choose. A heart rate peripheral is one
+notifying characteristic:
+
+```dart
+await peripheral.start(
+  advertiseData: const AdvertiseDataCore(serviceUuid: '180d'),
+  gattServer: const GattServerSettings(
+    characteristics: [
+      GattCharacteristic.notify('2a37'),
+    ],
+  ),
+);
+
+// The flags byte, then the bpm as a uint8.
+await peripheral.sendData(Uint8List.fromList([0x00, 72]));
+```
+
+`GattCharacteristic.notify` and `GattCharacteristic.write` are the two shapes the
+default pair uses; the unnamed constructor takes any set of
+`GattCharacteristicProperty` values, so one characteristic can be both notified on
+and written to. The 16 bit, 32 bit and 128 bit uuid forms are all accepted.
+
+With more than one notifying characteristic, `sendData` needs to be told which one it
+is delivering on, and answers with a `SEND_FAILED` `PlatformException` if it is not:
+
+```dart
+await peripheral.sendData(bytes, characteristicUuid: '2a37');
+```
+
+Which characteristic a write landed on comes through `onGattWrite`, and
+`onCharacteristicSubscriptionChanged` reports subscriptions per characteristic;
+`isSubscribedTo` asks about one of them. `onDataReceived`, `onSubscriptionChanged`
+and `isSubscribed` still answer for the service as a whole, so a peripheral serving
+one pair needs none of this.
+
+One service is served at a time. A second service cannot be added: on Windows a
+service is advertised by its own provider, and several providers on air at once is
+not something this package can promise.
+
+`sendData` only reaches a central that subscribed to the characteristic, which is not
+the same as one that merely connected, and throws a `PlatformException` when none has.
+Watch `onSubscriptionChanged`, or check `isSubscribed`, to know when it can deliver.
 Payloads are queued per central, so back-to-back calls arrive in order rather than
-overwriting each other, and a central that reads TX gets the payload sent last.
+overwriting each other, and a central that reads a characteristic gets the payload
+sent last on it.
 
 On Windows the service is advertised by the GATT service provider rather than by the
 advertisement publisher, which is also what makes the peripheral connectable there and
@@ -229,6 +285,43 @@ advertisement without manufacturer data or service data. The advertise timeout e
 what the service has on air along with the publisher, leaving it serving whoever is
 already connected, the same as an Android advertise timeout does.
 
+### Background advertising
+
+On Android the advertisement belongs to the process, so it keeps going while the app
+sits in the background and ends when the system kills the process.
+
+`start()` also works from a foreground service, or any other engine with no activity
+attached, since advertising and the GATT server need none. What does need one is asking
+the user for something, and a service cannot ask: the permissions have to be granted
+already, by a screen that ran earlier, and `start()` answers
+`PeripheralBluetoothState.denied` rather than prompting when they are not. Bluetooth
+has to be on for the same reason — below Android 13 `enableBluetooth()` can still turn
+it on without asking, and above it that was removed, so from a service it answers
+`false`. `hasPermission()` and `requestPermission()` both report what is granted
+without an activity, but cannot tell a first refusal from a permanent one, since that
+distinction comes from the rationale check an activity provides.
+
+On iOS the advertisement ends with the foreground unless the app declares the
+`bluetooth-peripheral` background mode. With it, Core Bluetooth keeps advertising, but
+not the advertisement that was passed in:
+
+- The local name is dropped.
+- The service uuids move into the overflow area, where only an iOS central that scans
+  for those exact uuids can see them. A scan with no uuid filter, and every non-Apple
+  scanner, sees nothing at all. This is the usual reason background advertising looks
+  broken: it is on air, but nothing that is looking for it broadly will report it.
+- Advertising is slower and shares the radio with whatever else the system is doing.
+
+Declaring the background mode also lets the plugin register a restore identifier with
+Core Bluetooth, which is what allows iOS to relaunch the app into the background and
+hand back the advertisement and the GATT service, including the centrals that were
+subscribed to TX. The state, mtu and subscription streams replay their last value to a
+new listener, so an app that comes back this way sees `advertising` or `connected` on
+`onPeripheralStateChanged` and can carry on with `sendData` without calling `start()`
+again. Calling it again is safe: the advertisement is replaced rather than rejected,
+and a service that already matches is left in place, so a central stays connected
+across it.
+
 ### Streams
 
 | Stream | Type | Description |
@@ -236,7 +329,9 @@ already connected, the same as an Android advertise timeout does.
 | `onPeripheralStateChanged` | `PeripheralState` | Adapter and advertising state |
 | `onMtuChanged` | `int` | Negotiated MTU, after a central connects |
 | `onSubscriptionChanged` | `bool` | Whether a central is subscribed to TX |
-| `onDataReceived` | `Uint8List` | Bytes a central wrote to the RX characteristic |
+| `onDataReceived` | `Uint8List` | Bytes a central wrote to a writable characteristic |
+| `onGattWrite` | `GattWrite` | As above, with the characteristic it landed on |
+| `onCharacteristicSubscriptionChanged` | `GattSubscription` | Per-characteristic subscription changes |
 
 ## API
 
@@ -247,8 +342,9 @@ already connected, the same as an Android advertise timeout does.
 | `isSupported` | `bool` | Whether BLE advertising is available on this device |
 | `isAdvertising` | `bool` | Whether an advertisement is running |
 | `isConnected` | `bool` | Whether a central is connected (Android and Apple) |
-| `isSubscribed` | `bool` | Whether a central subscribed to TX, so `sendData` can deliver |
-| `sendData(Uint8List)` | `void` | Notifies the subscribed centrals on the TX characteristic |
+| `isSubscribed` | `bool` | Whether a central subscribed to any notifying characteristic, so `sendData` can deliver |
+| `isSubscribedTo(uuid)` | `bool` | As above, for one characteristic |
+| `sendData(Uint8List, {characteristicUuid})` | `void` | Notifies the centrals subscribed to that characteristic |
 | `isBluetoothOn` | `bool` | Whether the adapter is powered on |
 | `hasPermission()` | `PeripheralBluetoothState` | Current permission and adapter state |
 | `requestPermission()` | `PeripheralBluetoothState` | Prompts for the required permissions |
