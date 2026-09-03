@@ -290,13 +290,17 @@ class FlutterBlePeripheralPlugin :
      * from the service uuid.
      */
     private fun readGattService(arguments: Map<*, *>): GattServiceRequest? {
-        val serviceUuid = arguments["gattServiceUuid"] as String? ?: return null
+        val serviceUuid = arguments["gattServiceUuid"] as? String ?: return null
         return GattServiceRequest(
-                serviceUuid = serviceUuid,
-                txCharacteristicUuid = arguments["gattTxCharacteristicUuid"] as String
-                        ?: throw IllegalArgumentException("gattServiceUuid needs a gattTxCharacteristicUuid"),
-                rxCharacteristicUuid = arguments["gattRxCharacteristicUuid"] as String
-                        ?: throw IllegalArgumentException("gattServiceUuid needs a gattRxCharacteristicUuid"),
+                serviceUuid = parseServiceUuid(serviceUuid),
+                txCharacteristicUuid = parseServiceUuid(
+                        arguments["gattTxCharacteristicUuid"] as? String
+                                ?: throw IllegalArgumentException("gattServiceUuid needs a gattTxCharacteristicUuid")
+                ),
+                rxCharacteristicUuid = parseServiceUuid(
+                        arguments["gattRxCharacteristicUuid"] as? String
+                                ?: throw IllegalArgumentException("gattServiceUuid needs a gattRxCharacteristicUuid")
+                ),
         )
     }
 
