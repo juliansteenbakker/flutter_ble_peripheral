@@ -3,7 +3,14 @@
 // It is not a demo. It starts advertising and serving the GATT service as soon
 // as it launches, echoes back anything a central writes, and reports what it
 // sees on stdout as `HARNESS|` lines for `tool/interop_test.dart` in
-// flutter_ble_central to read. Run it with:
+// flutter_ble_central to read.
+//
+// Two things it cannot cover, because a scripted run cannot background or kill
+// an app and then talk to it: advertising from a foreground service with no
+// activity attached, and the state restoration that hands a relaunched app its
+// advertisement back. Both stay manual.
+//
+// Run it with:
 //
 //     flutter run -d <device> -t lib/interop_harness.dart
 //
@@ -23,6 +30,18 @@ const harnessServiceUuid = 'bf27730d-860a-4e09-889c-2d8b6a9e0fe7';
 /// The name advertised alongside it, so a person watching a scanner can tell
 /// the harness apart from the example app.
 const harnessLocalName = 'BLE Interop';
+
+/// A third characteristic, served alongside the default TX and RX pair.
+///
+/// It carries three things the pair cannot prove on its own: that a layout of
+/// more than two characteristics is served, that one characteristic can be both
+/// written to and notified on, which is the shape BLE-MIDI needs, and that a 16
+/// bit uuid reaches the same characteristic as its 128 bit form. It is declared
+/// here in the short form and reported back by the plugin in the long one.
+const harnessComboUuidShort = 'ff01';
+
+/// [harnessComboUuidShort] as the platform reports it back.
+const harnessComboUuid = '0000ff01-0000-1000-8000-00805f9b34fb';
 
 void main() => runApp(const InteropHarnessApp());
 
@@ -103,11 +122,34 @@ class _InteropHarnessAppState extends State<InteropHarnessApp> {
           serviceUuid: harnessServiceUuid,
           localName: harnessLocalName,
         ),
-        gattServer: const GattServerSettings(),
+        gattServer: const GattServerSettings(
+          characteristics: [
+            GattCharacteristic.notify(defaultTxCharacteristicUuid),
+            GattCharacteristic.write(defaultRxCharacteristicUuid),
+            GattCharacteristic(
+              uuid: harnessComboUuidShort,
+              properties: {
+                GattCharacteristicProperty.read,
+                GattCharacteristicProperty.write,
+                GattCharacteristicProperty.writeWithoutResponse,
+                GattCharacteristicProperty.notify,
+                GattCharacteristicProperty.indicate,
+              },
+            ),
+          ],
+        ),
         androidSettings: const AndroidAdvertiseSettings(
           advertiseSettings: AdvertiseSettings(connectable: true),
         ),
       );
+
+      // What the central should find, so a discovery that disagrees is the
+      // plugin's fault rather than a stale harness.
+      _record('LAYOUT', [
+        defaultTxCharacteristicUuid,
+        defaultRxCharacteristicUuid,
+        harnessComboUuid,
+      ]);
 
       _record('READY', [platformName, harnessServiceUuid]);
     } on Object catch (error) {
@@ -163,16 +205,48 @@ class _InteropHarnessAppState extends State<InteropHarnessApp> {
       ),
     );
 
-    // The echo is what lets the central prove a write arrived and a
-    // notification comes back, in one round trip.
+    // Per characteristic, and asked back through isSubscribedTo, so the two
+    // ways of answering the same question are checked against each other.
     _subscriptions.add(
-      _peripheral.onDataReceived.listen((data) async {
-        _record('EVENT', ['received', _hex(data)]);
+      _peripheral.onCharacteristicSubscriptionChanged.listen((event) async {
+        _record('EVENT', [
+          'subscribed_to',
+          event.characteristicUuid,
+          '${event.subscribed}',
+        ]);
         try {
-          await _peripheral.sendData(data);
-          _record('EVENT', ['echoed', _hex(data)]);
+          final live = await _peripheral.isSubscribedTo(
+            event.characteristicUuid,
+          );
+          _record('EVENT', [
+            'is_subscribed_to',
+            event.characteristicUuid,
+            '$live',
+          ]);
         } on Object catch (error) {
-          _record('EVENT', ['echo_failed', '$error']);
+          _record('EVENT', ['is_subscribed_to_failed', '$error']);
+        }
+      }),
+    );
+
+    // The echo is what lets the central prove a write arrived and a
+    // notification comes back, in one round trip. It goes out on the
+    // characteristic that was written where that one notifies, so the central
+    // can tell per-characteristic routing from a single shared channel; a
+    // write-only characteristic has nowhere to answer, and those go back on TX.
+    _subscriptions.add(
+      _peripheral.onGattWrite.listen((write) async {
+        final source = write.characteristicUuid.toLowerCase();
+        _record('EVENT', ['received', source, _hex(write.data)]);
+
+        final target = source == harnessComboUuid
+            ? harnessComboUuid
+            : defaultTxCharacteristicUuid;
+        try {
+          await _peripheral.sendData(write.data, characteristicUuid: target);
+          _record('EVENT', ['echoed', target, _hex(write.data)]);
+        } on Object catch (error) {
+          _record('EVENT', ['echo_failed', target, '$error']);
         }
       }),
     );
