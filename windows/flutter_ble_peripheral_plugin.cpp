@@ -950,12 +950,14 @@ namespace flutter_ble_peripheral {
                         int bits = 0;
                         auto properties = map->find(EncodableValue("properties"));
                         if (properties != map->end()) {
-                            if (const auto* small = std::get_if<std::int32_t>(&properties->second)) {
-                                bits = *small;
+                            // Not named `small`: windows.h typedefs that to char.
+                            if (const auto* bits32 =
+                                std::get_if<std::int32_t>(&properties->second)) {
+                                bits = *bits32;
                             }
-                            else if (const auto* large =
+                            else if (const auto* bits64 =
                                 std::get_if<std::int64_t>(&properties->second)) {
-                                bits = static_cast<int>(*large);
+                                bits = static_cast<int>(*bits64);
                             }
                         }
                         characteristics.push_back(GattCharacteristicRequest{
