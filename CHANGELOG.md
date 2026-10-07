@@ -1,5 +1,12 @@
 # Changelog
 
+## [3.1.1](https://github.com/juliansteenbakker/flutter_ble_peripheral/compare/v3.1.0...v3.1.1) (2026-10-07)
+
+
+### Dependencies
+
+* bump very_good_analysis from 10.3.0 to 11.0.0 ([#330](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/330)) ([a47bfa6](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/a47bfa6c1220457d04fcefd7da94d78fd3936b60))
+
 ## [3.1.0](https://github.com/juliansteenbakker/flutter_ble_peripheral/compare/v3.0.0...v3.1.0) (2026-09-03)
 
 
