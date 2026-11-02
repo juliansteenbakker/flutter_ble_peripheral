@@ -373,15 +373,19 @@ TextTheme _textTheme(InstrumentTokens tokens) {
   return TextTheme(
     // Reserved for the few places a panel leads with a word rather than a
     // value, such as a device name.
-    titleLarge: _archivo(size: 20, weight: 600, tracking: -0.2).copyWith(
-      color: ink,
-    ),
+    titleLarge: _archivo(
+      size: 20,
+      weight: 600,
+      tracking: -0.2,
+    ).copyWith(color: ink),
     titleMedium: _archivo(size: 15, weight: 600).copyWith(color: ink),
     bodyMedium: _archivo(size: 14, height: 1.45).copyWith(color: ink),
     bodySmall: _archivo(size: 12.5, height: 1.4).copyWith(color: muted),
-    labelLarge: _archivo(size: 13, weight: 600, tracking: 0.2).copyWith(
-      color: ink,
-    ),
+    labelLarge: _archivo(
+      size: 13,
+      weight: 600,
+      tracking: 0.2,
+    ).copyWith(color: ink),
     labelSmall: tokens.panelLabel,
   );
 }

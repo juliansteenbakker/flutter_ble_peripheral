@@ -94,10 +94,7 @@ class _AdvertiseSettingsPanel extends StatelessWidget {
               ? null
               : (value) =>
                     controller.update(() => controller.useOverflowArea = value),
-          title: Text(
-            'Overflow area · Apple',
-            style: context.texts.labelLarge,
-          ),
+          title: Text('Overflow area · Apple', style: context.texts.labelLarge),
           subtitle: Text(
             'Keeps the service discoverable to other Apple devices while the '
             'app is in the background.',

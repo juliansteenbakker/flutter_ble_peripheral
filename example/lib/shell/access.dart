@@ -127,7 +127,7 @@ Future<AccessState> ensureRadioReady(
       barrierDismissible: false,
       builder: (context) => _PowerDialog(access: access),
     );
-    return access.check();
+    return await access.check();
   }
   return state;
 }

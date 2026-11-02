@@ -125,10 +125,7 @@ class Readout extends StatelessWidget {
       children: [
         Text(label, style: tokens.panelLabel),
         const SizedBox(height: 2),
-        Text(
-          value,
-          style: tint == null ? style : style.copyWith(color: tint),
-        ),
+        Text(value, style: tint == null ? style : style.copyWith(color: tint)),
       ],
     );
   }
@@ -146,9 +143,7 @@ class ReadoutRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (final readout in readouts) Expanded(child: readout),
-      ],
+      children: [for (final readout in readouts) Expanded(child: readout)],
     );
   }
 }

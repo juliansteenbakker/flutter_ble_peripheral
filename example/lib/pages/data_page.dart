@@ -50,11 +50,7 @@ class _DataPageState extends State<DataPage> {
     if (!_controller.isAdvertising) return const _OffAir();
     return ListView(
       padding: const EdgeInsets.fromLTRB(14, 14, 14, 24),
-      children: [
-        _exchange(context),
-        const SizedBox(height: 12),
-        _queries(),
-      ],
+      children: [_exchange(context), const SizedBox(height: 12), _queries()],
     );
   }
 
