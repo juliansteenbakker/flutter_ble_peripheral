@@ -1,5 +1,11 @@
 targets:
   $default:
+    sources:
+      # The example targets a newer Dart than the package's floor, and its
+      # Windows build links the package back in under example/, so neither
+      # can be compiled at the package's language version.
+      exclude:
+        - "example/**"
     builders:
       source_gen:combining_builder:
         options:
