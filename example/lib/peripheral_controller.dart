@@ -340,10 +340,11 @@ final class PeripheralController extends ChangeNotifier implements RadioAccess {
   // Housekeeping ------------------------------------------------------------
 
   void _record(Uint8List bytes, PacketDirection direction) {
-    _traffic.insert(
-      0,
-      (bytes: bytes, direction: direction, at: DateTime.now()),
-    );
+    _traffic.insert(0, (
+      bytes: bytes,
+      direction: direction,
+      at: DateTime.now(),
+    ));
     if (_traffic.length > 50) _traffic.removeLast();
   }
 
