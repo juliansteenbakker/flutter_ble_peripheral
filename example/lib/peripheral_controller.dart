@@ -316,6 +316,21 @@ final class PeripheralController extends ChangeNotifier implements RadioAccess {
     return enabled ? 'on, which can block advertising' : 'off';
   });
 
+  /// Whether Windows Share across devices is on, whose beacon takes turns with
+  /// the advertisement.
+  Future<void> readShareAcrossDevices() =>
+      _call('Share across devices', () async {
+        final enabled = await _ble.isShareAcrossDevicesEnabled();
+        return enabled ? 'on, which starves advertising' : 'off';
+      });
+
+  /// Turns Windows Share across devices off.
+  Future<void> turnOffShareAcrossDevices() =>
+      _call('Share across devices', () async {
+        final written = await _ble.setShareAcrossDevicesEnabled(enabled: false);
+        return written ? 'turned off' : 'could not be changed';
+      });
+
   /// Opens the Windows sharing settings.
   Future<void> openNearbyShareSettings() => _ble.openNearbyShareSettings();
 

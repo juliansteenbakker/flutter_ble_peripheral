@@ -236,6 +236,13 @@ namespace flutter_ble_peripheral {
     constexpr uint8_t kServiceData32Bit = 0x20;
     constexpr uint8_t kServiceData128Bit = 0x21;
 
+    // Where Settings keeps the connected devices switches. Share across devices
+    // makes Windows broadcast a beacon of its own, which on an adapter with a
+    // single advertising set takes turns with the app's advertisement: about one
+    // second of every six goes to the app.
+    constexpr auto kCdpKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\CDP";
+    constexpr auto kShareAcrossDevicesValue = L"RomeSdkChannelUserAuthzPolicy";
+
     // A service uuid, with the width it was written in, which decides how a
     // service data section encodes it.
     struct ServiceUuid {
@@ -1172,6 +1179,28 @@ namespace flutter_ble_peripheral {
                 RegCloseKey(hKey);
             }
             result->Success(enabled);
+        }
+        else if (method_call.method_name().compare("isShareAcrossDevicesEnabled") == 0) {
+            // Windows ships with this on, so a value that was never written
+            // counts as on.
+            DWORD value = 1;
+            DWORD size = sizeof(value);
+            RegGetValueW(HKEY_CURRENT_USER, kCdpKey, kShareAcrossDevicesValue,
+                RRF_RT_REG_DWORD, nullptr, &value, &size);
+            result->Success(value > 0);
+        }
+        else if (method_call.method_name().compare("setShareAcrossDevicesEnabled") == 0) {
+            const auto* enabled = std::get_if<bool>(method_call.arguments());
+            if (!enabled) {
+                result->Error("INVALID_ARGUMENT", "Expected a bool");
+                return;
+            }
+            // 1 is "My devices only", the Windows default. The connected
+            // devices service watches the value, so the change is live.
+            DWORD value = *enabled ? 1 : 0;
+            auto written = RegSetKeyValueW(HKEY_CURRENT_USER, kCdpKey,
+                kShareAcrossDevicesValue, REG_DWORD, &value, sizeof(value));
+            result->Success(written == ERROR_SUCCESS);
         }
         else if (method_call.method_name().compare("enableBluetooth") == 0) {
             // Move result to shared_ptr for use in async coroutine

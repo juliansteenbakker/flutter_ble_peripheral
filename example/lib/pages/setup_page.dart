@@ -310,8 +310,9 @@ class _AdapterPanel extends StatelessWidget {
   }
 }
 
-/// Windows shares one radio between BLE advertising and Nearby Sharing, and
-/// the two fight. This is the one panel with no counterpart on the central.
+/// Windows shares the radio between BLE advertising and its own connected
+/// devices features, and they fight. This is the one panel with no counterpart
+/// on the central.
 class _WindowsPanel extends StatelessWidget {
   const _WindowsPanel({required this.controller});
 
@@ -322,9 +323,21 @@ class _WindowsPanel extends StatelessWidget {
     return Panel(
       label: 'WINDOWS',
       footnote:
-          'Nearby Sharing holds the advertising slot open for itself. '
-          'If advertising starts and nothing ever sees it, turn it off.',
+          'Share across devices makes Windows broadcast a beacon of its own, '
+          'which on most adapters takes turns with the advertisement. If '
+          'advertising starts and nothing ever sees it, turn it off.',
       children: [
+        ActionRow(
+          icon: Icons.devices,
+          title: 'Check Share across devices',
+          onTap: controller.readShareAcrossDevices,
+        ),
+        ActionRow(
+          icon: Icons.block,
+          title: 'Turn off Share across devices',
+          subtitle: 'Changes the Windows setting for this user',
+          onTap: controller.turnOffShareAcrossDevices,
+        ),
         ActionRow(
           icon: Icons.share,
           title: 'Check Nearby Sharing',

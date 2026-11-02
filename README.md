@@ -90,6 +90,13 @@ Nearby Sharing can hold the Bluetooth resources that advertising needs, which su
 a `ResourceInUse` failure. Use `isNearbyShareEnabled()` to detect it and
 `openNearbyShareSettings()` to send the user to the right settings page.
 
+Share across devices makes Windows broadcast a beacon of its own. On an adapter with a
+single advertising set the two take turns, and your advertisement is on air for only
+about one second in every six, so a scanner sees it rarely or not at all. Use
+`isShareAcrossDevicesEnabled()` to detect it and
+`setShareAcrossDevicesEnabled(enabled: false)` to turn it off. That changes the user's
+Windows setting, so ask first.
+
 ## Usage
 
 ### Getting started
@@ -353,6 +360,8 @@ across it.
 | `openAppSettings()` | `void` | Opens this app's settings page |
 | `isNearbyShareEnabled()` | `bool` | Windows only, `false` elsewhere |
 | `openNearbyShareSettings()` | `void` | Windows only, no-op elsewhere |
+| `isShareAcrossDevicesEnabled()` | `bool` | Windows only, `false` elsewhere |
+| `setShareAcrossDevicesEnabled({enabled})` | `bool` | Windows only, `false` elsewhere |
 | `openLocationSettings()` | `void` | Windows only, no-op elsewhere |
 
 ## Example

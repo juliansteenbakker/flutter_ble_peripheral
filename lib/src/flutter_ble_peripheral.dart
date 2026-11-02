@@ -406,6 +406,38 @@ class FlutterBlePeripheral {
         false;
   }
 
+  /// Checks if Windows "Share across devices" is enabled.
+  ///
+  /// While it is on, Windows broadcasts a beacon of its own. On an adapter
+  /// with a single advertising set it takes turns with this plugin's
+  /// advertisement, which is then on air for only about one second in every
+  /// six. Returns `false` on non-Windows platforms.
+  Future<bool> isShareAcrossDevicesEnabled() async {
+    if (!Platform.isWindows) return false;
+    return await _methodChannel.invokeMethod<bool>(
+          'isShareAcrossDevicesEnabled',
+        ) ??
+        false;
+  }
+
+  /// Turns Windows "Share across devices" on or off.
+  ///
+  /// This changes a per-user Windows setting, the same one as the switch in
+  /// Settings, and it stays changed after the app exits. Turning it on sets it
+  /// to "My devices only", the Windows default. See
+  /// [isShareAcrossDevicesEnabled] for why it matters.
+  ///
+  /// Returns `true` once the setting is written. Does nothing and returns
+  /// `false` on non-Windows platforms.
+  Future<bool> setShareAcrossDevicesEnabled({required bool enabled}) async {
+    if (!Platform.isWindows) return false;
+    return await _methodChannel.invokeMethod<bool>(
+          'setShareAcrossDevicesEnabled',
+          enabled,
+        ) ??
+        false;
+  }
+
   /// Opens the Windows Location privacy settings page.
   ///
   /// Useful when the user has denied location permission and needs to manually
