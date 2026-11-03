@@ -86,9 +86,15 @@ background modes, and keeps advertising for as long as the app runs.
 No manifest changes are needed. Windows requires the location permission for BLE, which
 `requestPermission()` asks for.
 
-Nearby Sharing can hold the Bluetooth resources that advertising needs, which surfaces as
-a `ResourceInUse` failure. Use `isNearbyShareEnabled()` to detect it and
-`openNearbyShareSettings()` to send the user to the right settings page.
+Share across devices and Nearby Sharing each make Windows broadcast a beacon of its own.
+On an adapter with a single advertising set the beacon takes turns with your
+advertisement, which is then on air for only about one second in every six, so a scanner
+sees it rarely or not at all. Use `isShareAcrossDevicesEnabled()` and
+`isNearbyShareEnabled()` to detect them, and `setShareAcrossDevicesEnabled(enabled:
+false)` and `setNearbyShareEnabled(enabled: false)` to turn them off. Those change the
+user's Windows settings, so ask first, or send them to the settings page with
+`openNearbyShareSettings()`. An adapter where `isExtendedAdvertisingSupported` is `false`
+advertises from that single set, so that is where to expect it.
 
 ## Usage
 
@@ -352,7 +358,11 @@ across it.
 | `openBluetoothSettings()` | `void` | Opens the system Bluetooth settings |
 | `openAppSettings()` | `void` | Opens this app's settings page |
 | `isNearbyShareEnabled()` | `bool` | Windows only, `false` elsewhere |
+| `setNearbyShareEnabled({enabled})` | `bool` | Windows only, `false` elsewhere |
 | `openNearbyShareSettings()` | `void` | Windows only, no-op elsewhere |
+| `isShareAcrossDevicesEnabled()` | `bool` | Windows only, `false` elsewhere |
+| `setShareAcrossDevicesEnabled({enabled})` | `bool` | Windows only, `false` elsewhere |
+| `isExtendedAdvertisingSupported` | `bool` | Windows only, `false` elsewhere |
 | `openLocationSettings()` | `void` | Windows only, no-op elsewhere |
 
 ## Example

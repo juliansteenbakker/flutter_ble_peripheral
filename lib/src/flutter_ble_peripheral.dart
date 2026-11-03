@@ -399,10 +399,78 @@ class FlutterBlePeripheral {
   /// Returns `true` if Nearby Sharing is set to "My devices only" or "Everyone
   /// nearby". Returns `false` if it's off or on non-Windows platforms.
   ///
-  /// Nearby Sharing can interfere with BLE advertising on Windows.
+  /// Like Share across devices, Nearby Sharing makes Windows broadcast a
+  /// beacon of its own, which takes turns with this plugin's advertisement on
+  /// an adapter with a single advertising set. See
+  /// [isShareAcrossDevicesEnabled].
   Future<bool> isNearbyShareEnabled() async {
     if (!Platform.isWindows) return false;
     return await _methodChannel.invokeMethod<bool>('isNearbyShareEnabled') ??
+        false;
+  }
+
+  /// Turns Windows Nearby Sharing on or off.
+  ///
+  /// This changes a per-user Windows setting, the same one as the switch in
+  /// Settings, and it stays changed after the app exits. Turning it on sets it
+  /// to "My devices only". See [isNearbyShareEnabled] for why it matters.
+  ///
+  /// Returns `true` once the setting is written. Does nothing and returns
+  /// `false` on non-Windows platforms.
+  Future<bool> setNearbyShareEnabled({required bool enabled}) async {
+    if (!Platform.isWindows) return false;
+    return await _methodChannel.invokeMethod<bool>(
+          'setNearbyShareEnabled',
+          enabled,
+        ) ??
+        false;
+  }
+
+  /// Checks if Windows "Share across devices" is enabled.
+  ///
+  /// While it is on, Windows broadcasts a beacon of its own. On an adapter
+  /// with a single advertising set it takes turns with this plugin's
+  /// advertisement, which is then on air for only about one second in every
+  /// six. Nearby Sharing starts the same beacon, so check
+  /// [isNearbyShareEnabled] as well. Returns `false` on non-Windows platforms.
+  Future<bool> isShareAcrossDevicesEnabled() async {
+    if (!Platform.isWindows) return false;
+    return await _methodChannel.invokeMethod<bool>(
+          'isShareAcrossDevicesEnabled',
+        ) ??
+        false;
+  }
+
+  /// Returns `true` if the Windows Bluetooth adapter supports the Bluetooth 5
+  /// extended advertising format.
+  ///
+  /// An adapter without it advertises from a single set, which is the case in
+  /// which the beacons described under [isShareAcrossDevicesEnabled] take
+  /// turns with this plugin's advertisement. Windows only; returns `false`
+  /// elsewhere.
+  Future<bool> get isExtendedAdvertisingSupported async {
+    if (!Platform.isWindows) return false;
+    return await _methodChannel.invokeMethod<bool>(
+          'isExtendedAdvertisingSupported',
+        ) ??
+        false;
+  }
+
+  /// Turns Windows "Share across devices" on or off.
+  ///
+  /// This changes a per-user Windows setting, the same one as the switch in
+  /// Settings, and it stays changed after the app exits. Turning it on sets it
+  /// to "My devices only", the Windows default. See
+  /// [isShareAcrossDevicesEnabled] for why it matters.
+  ///
+  /// Returns `true` once the setting is written. Does nothing and returns
+  /// `false` on non-Windows platforms.
+  Future<bool> setShareAcrossDevicesEnabled({required bool enabled}) async {
+    if (!Platform.isWindows) return false;
+    return await _methodChannel.invokeMethod<bool>(
+          'setShareAcrossDevicesEnabled',
+          enabled,
+        ) ??
         false;
   }
 

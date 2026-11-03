@@ -637,6 +637,16 @@ void main() {
         await blePeripheral.openLocationSettings();
 
         expect(await blePeripheral.isNearbyShareEnabled(), false);
+        expect(await blePeripheral.isShareAcrossDevicesEnabled(), false);
+        expect(
+          await blePeripheral.setShareAcrossDevicesEnabled(enabled: false),
+          false,
+        );
+        expect(
+          await blePeripheral.setNearbyShareEnabled(enabled: false),
+          false,
+        );
+        expect(await blePeripheral.isExtendedAdvertisingSupported, false);
         expect(calls, isEmpty);
       },
       skip: Platform.isWindows,
@@ -650,12 +660,28 @@ void main() {
         await blePeripheral.openNearbyShareSettings();
         await blePeripheral.openLocationSettings();
         expect(await blePeripheral.isNearbyShareEnabled(), true);
+        expect(await blePeripheral.isShareAcrossDevicesEnabled(), true);
+        expect(
+          await blePeripheral.setShareAcrossDevicesEnabled(enabled: false),
+          true,
+        );
+        expect(
+          await blePeripheral.setNearbyShareEnabled(enabled: true),
+          true,
+        );
+        expect(await blePeripheral.isExtendedAdvertisingSupported, true);
 
         expect(calls.map((c) => c.method), [
           'openNearbyShareSettings',
           'openLocationSettings',
           'isNearbyShareEnabled',
+          'isShareAcrossDevicesEnabled',
+          'setShareAcrossDevicesEnabled',
+          'setNearbyShareEnabled',
+          'isExtendedAdvertisingSupported',
         ]);
+        expect(calls[4].arguments, false);
+        expect(calls[5].arguments, true);
       },
       skip: !Platform.isWindows,
     );
