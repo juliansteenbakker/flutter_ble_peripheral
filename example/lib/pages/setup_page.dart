@@ -323,9 +323,10 @@ class _WindowsPanel extends StatelessWidget {
     return Panel(
       label: 'WINDOWS',
       footnote:
-          'Share across devices makes Windows broadcast a beacon of its own, '
-          'which on most adapters takes turns with the advertisement. If '
-          'advertising starts and nothing ever sees it, turn it off.',
+          'Share across devices and Nearby Sharing each make Windows '
+          'broadcast a beacon of its own, which on many adapters takes turns '
+          'with the advertisement. If advertising starts and nothing ever '
+          'sees it, turn both off.',
       children: [
         ActionRow(
           icon: Icons.devices,
@@ -342,6 +343,12 @@ class _WindowsPanel extends StatelessWidget {
           icon: Icons.share,
           title: 'Check Nearby Sharing',
           onTap: controller.readNearbyShare,
+        ),
+        ActionRow(
+          icon: Icons.block,
+          title: 'Turn off Nearby Sharing',
+          subtitle: 'Changes the Windows setting for this user',
+          onTap: controller.turnOffNearbyShare,
         ),
         ActionRow(
           icon: Icons.settings,

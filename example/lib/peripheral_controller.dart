@@ -310,10 +310,17 @@ final class PeripheralController extends ChangeNotifier implements RadioAccess {
     return advertising ? 'yes' : 'no';
   });
 
-  /// Whether Windows Nearby Sharing is on, which competes for the radio.
+  /// Whether Windows Nearby Sharing is on, whose beacon takes turns with the
+  /// advertisement.
   Future<void> readNearbyShare() => _call('Nearby Sharing', () async {
     final enabled = await _ble.isNearbyShareEnabled();
-    return enabled ? 'on, which can block advertising' : 'off';
+    return enabled ? 'on, which starves advertising' : 'off';
+  });
+
+  /// Turns Windows Nearby Sharing off.
+  Future<void> turnOffNearbyShare() => _call('Nearby Sharing', () async {
+    final written = await _ble.setNearbyShareEnabled(enabled: false);
+    return written ? 'turned off' : 'could not be changed';
   });
 
   /// Whether Windows Share across devices is on, whose beacon takes turns with

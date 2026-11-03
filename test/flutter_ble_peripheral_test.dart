@@ -642,6 +642,10 @@ void main() {
           await blePeripheral.setShareAcrossDevicesEnabled(enabled: false),
           false,
         );
+        expect(
+          await blePeripheral.setNearbyShareEnabled(enabled: false),
+          false,
+        );
         expect(calls, isEmpty);
       },
       skip: Platform.isWindows,
@@ -660,6 +664,10 @@ void main() {
           await blePeripheral.setShareAcrossDevicesEnabled(enabled: false),
           true,
         );
+        expect(
+          await blePeripheral.setNearbyShareEnabled(enabled: true),
+          true,
+        );
 
         expect(calls.map((c) => c.method), [
           'openNearbyShareSettings',
@@ -667,8 +675,10 @@ void main() {
           'isNearbyShareEnabled',
           'isShareAcrossDevicesEnabled',
           'setShareAcrossDevicesEnabled',
+          'setNearbyShareEnabled',
         ]);
-        expect(calls.last.arguments, false);
+        expect(calls[4].arguments, false);
+        expect(calls[5].arguments, true);
       },
       skip: !Platform.isWindows,
     );
