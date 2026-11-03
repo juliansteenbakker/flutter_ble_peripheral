@@ -9,8 +9,5 @@ import 'package:flutter_ble_peripheral_example/peripheral_app.dart';
 import 'package:flutter_ble_peripheral_example/shell/shell.dart';
 
 void main() => runApp(
-  const InstrumentApp(
-    role: DeviceRole.peripheral,
-    home: PeripheralHome(),
-  ),
+  const InstrumentApp(role: DeviceRole.peripheral, home: PeripheralHome()),
 );

@@ -7,6 +7,7 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_ble_peripheral/flutter_ble_peripheral.dart';
+import 'package:flutter_ble_peripheral_example/pages/windows_beacon_dialog.dart';
 import 'package:flutter_ble_peripheral_example/peripheral_controller.dart';
 import 'package:flutter_ble_peripheral_example/shell/shell.dart';
 
@@ -38,6 +39,32 @@ class _AdvertisePanel extends StatelessWidget {
 
   final PeripheralController controller;
 
+  /// Starts advertising, first warning about Windows sharing features that
+  /// would take turns with it.
+  Future<void> _start(BuildContext context) async {
+    final beacon = await controller.checkWindowsBeacon();
+    if (beacon != null) {
+      if (!context.mounted) return;
+      final choice = await showWindowsBeaconDialog(
+        context,
+        shareAcrossDevices: beacon.shareAcrossDevices,
+        nearbyShare: beacon.nearbyShare,
+      );
+      switch (choice) {
+        case BeaconChoice.turnOff:
+          await controller.turnOffWindowsBeacon();
+        case BeaconChoice.advertiseAnyway:
+          controller.dismissBeaconWarning();
+        case BeaconChoice.openSettings:
+          await controller.openNearbyShareSettings();
+          return;
+        case null:
+          return;
+      }
+    }
+    await controller.startAdvertising();
+  }
+
   @override
   Widget build(BuildContext context) {
     final advertising = controller.isAdvertising;
@@ -57,7 +84,7 @@ class _AdvertisePanel extends StatelessWidget {
           children: [
             Expanded(
               child: FilledButton(
-                onPressed: advertising ? null : controller.startAdvertising,
+                onPressed: advertising ? null : () => _start(context),
                 child: const Text('Start advertising'),
               ),
             ),

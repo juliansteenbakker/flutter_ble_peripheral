@@ -1,5 +1,22 @@
 # Changelog
 
+## [3.2.0](https://github.com/juliansteenbakker/flutter_ble_peripheral/compare/v3.1.0...v3.2.0) (2026-11-03)
+
+
+### Features
+
+* **windows:** detect and turn off the sharing features that starve advertising ([#340](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/340)) ([67c41ee](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/67c41eeff354ec106c98c9316de3f1868cbdc0f0))
+
+
+### Bug Fixes
+
+* restrict build_runner target sources to lib ([#339](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/339)) ([179fdeb](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/179fdeb7385d263f5a460e989f816c261e8d7297))
+
+
+### Dependencies
+
+* bump very_good_analysis from 10.3.0 to 11.0.0 ([#330](https://github.com/juliansteenbakker/flutter_ble_peripheral/issues/330)) ([a47bfa6](https://github.com/juliansteenbakker/flutter_ble_peripheral/commit/a47bfa6c1220457d04fcefd7da94d78fd3936b60))
+
 ## [3.1.0](https://github.com/juliansteenbakker/flutter_ble_peripheral/compare/v3.0.0...v3.1.0) (2026-09-03)
 
 

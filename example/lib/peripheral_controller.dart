@@ -310,11 +310,65 @@ final class PeripheralController extends ChangeNotifier implements RadioAccess {
     return advertising ? 'yes' : 'no';
   });
 
-  /// Whether Windows Nearby Sharing is on, which competes for the radio.
+  /// Whether Windows Nearby Sharing is on, whose beacon takes turns with the
+  /// advertisement.
   Future<void> readNearbyShare() => _call('Nearby Sharing', () async {
     final enabled = await _ble.isNearbyShareEnabled();
-    return enabled ? 'on, which can block advertising' : 'off';
+    return enabled ? 'on, which starves advertising' : 'off';
   });
+
+  /// Whether "Advertise anyway" was chosen, so the warning is not shown again
+  /// until the app restarts.
+  bool _beaconWarningDismissed = false;
+
+  /// Which Windows sharing features are on and will take turns with the
+  /// advertisement, or null when there is nothing to warn about.
+  ///
+  /// An adapter with extended advertising can give their beacon a set of its
+  /// own, so only one without it is asked about.
+  Future<({bool shareAcrossDevices, bool nearbyShare})?>
+  checkWindowsBeacon() async {
+    if (defaultTargetPlatform != TargetPlatform.windows ||
+        _beaconWarningDismissed ||
+        await _ble.isExtendedAdvertisingSupported) {
+      return null;
+    }
+    final shareAcrossDevices = await _ble.isShareAcrossDevicesEnabled();
+    final nearbyShare = await _ble.isNearbyShareEnabled();
+    if (!shareAcrossDevices && !nearbyShare) return null;
+    return (shareAcrossDevices: shareAcrossDevices, nearbyShare: nearbyShare);
+  }
+
+  /// Leaves the sharing features alone for the rest of this run.
+  void dismissBeaconWarning() => _beaconWarningDismissed = true;
+
+  /// Turns off both Windows sharing features that start the beacon.
+  Future<void> turnOffWindowsBeacon() => _call('Windows sharing', () async {
+    final share = await _ble.setShareAcrossDevicesEnabled(enabled: false);
+    final nearby = await _ble.setNearbyShareEnabled(enabled: false);
+    return share && nearby ? 'turned off' : 'could not be changed';
+  });
+
+  /// Turns Windows Nearby Sharing off.
+  Future<void> turnOffNearbyShare() => _call('Nearby Sharing', () async {
+    final written = await _ble.setNearbyShareEnabled(enabled: false);
+    return written ? 'turned off' : 'could not be changed';
+  });
+
+  /// Whether Windows Share across devices is on, whose beacon takes turns with
+  /// the advertisement.
+  Future<void> readShareAcrossDevices() =>
+      _call('Share across devices', () async {
+        final enabled = await _ble.isShareAcrossDevicesEnabled();
+        return enabled ? 'on, which starves advertising' : 'off';
+      });
+
+  /// Turns Windows Share across devices off.
+  Future<void> turnOffShareAcrossDevices() =>
+      _call('Share across devices', () async {
+        final written = await _ble.setShareAcrossDevicesEnabled(enabled: false);
+        return written ? 'turned off' : 'could not be changed';
+      });
 
   /// Opens the Windows sharing settings.
   Future<void> openNearbyShareSettings() => _ble.openNearbyShareSettings();
@@ -340,10 +394,11 @@ final class PeripheralController extends ChangeNotifier implements RadioAccess {
   // Housekeeping ------------------------------------------------------------
 
   void _record(Uint8List bytes, PacketDirection direction) {
-    _traffic.insert(
-      0,
-      (bytes: bytes, direction: direction, at: DateTime.now()),
-    );
+    _traffic.insert(0, (
+      bytes: bytes,
+      direction: direction,
+      at: DateTime.now(),
+    ));
     if (_traffic.length > 50) _traffic.removeLast();
   }
 

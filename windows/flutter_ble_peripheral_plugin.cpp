@@ -236,6 +236,14 @@ namespace flutter_ble_peripheral {
     constexpr uint8_t kServiceData32Bit = 0x20;
     constexpr uint8_t kServiceData128Bit = 0x21;
 
+    // Where Settings keeps the connected devices switches. Share across devices
+    // and Nearby sharing each make Windows broadcast a beacon of its own, which
+    // on an adapter with a single advertising set takes turns with the app's
+    // advertisement: about one second of every six goes to the app.
+    constexpr auto kCdpKey = L"Software\\Microsoft\\Windows\\CurrentVersion\\CDP";
+    constexpr auto kShareAcrossDevicesValue = L"RomeSdkChannelUserAuthzPolicy";
+    constexpr auto kNearbyShareValue = L"NearShareChannelUserAuthzPolicy";
+
     // A service uuid, with the width it was written in, which decides how a
     // service data section encodes it.
     struct ServiceUuid {
@@ -1173,6 +1181,37 @@ namespace flutter_ble_peripheral {
             }
             result->Success(enabled);
         }
+        else if (method_call.method_name().compare("isShareAcrossDevicesEnabled") == 0) {
+            // Windows ships with this on, so a value that was never written
+            // counts as on.
+            DWORD value = 1;
+            DWORD size = sizeof(value);
+            RegGetValueW(HKEY_CURRENT_USER, kCdpKey, kShareAcrossDevicesValue,
+                RRF_RT_REG_DWORD, nullptr, &value, &size);
+            result->Success(value > 0);
+        }
+        else if (method_call.method_name().compare("setShareAcrossDevicesEnabled") == 0 ||
+            method_call.method_name().compare("setNearbyShareEnabled") == 0) {
+            const auto* enabled = std::get_if<bool>(method_call.arguments());
+            if (!enabled) {
+                result->Error("INVALID_ARGUMENT", "Expected a bool");
+                return;
+            }
+            const auto name =
+                method_call.method_name().compare("setNearbyShareEnabled") == 0
+                    ? kNearbyShareValue
+                    : kShareAcrossDevicesValue;
+            // 1 is "My devices only". The connected devices service watches
+            // the value, so the change is live.
+            DWORD value = *enabled ? 1 : 0;
+            auto written = RegSetKeyValueW(HKEY_CURRENT_USER, kCdpKey, name,
+                REG_DWORD, &value, sizeof(value));
+            result->Success(written == ERROR_SUCCESS);
+        }
+        else if (method_call.method_name().compare("isExtendedAdvertisingSupported") == 0) {
+            auto shared_result = std::make_shared<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(std::move(result));
+            IsExtendedAdvertisingSupportedAsync(std::move(shared_result));
+        }
         else if (method_call.method_name().compare("enableBluetooth") == 0) {
             // Move result to shared_ptr for use in async coroutine
             auto shared_result = std::make_shared<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(std::move(result));
@@ -1419,6 +1458,28 @@ namespace flutter_ble_peripheral {
             (*result)->Success(flutter::EncodableValue(success));
         }
 
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::IsExtendedAdvertisingSupportedAsync(
+        std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result)
+    {
+        auto alive = alive_;
+        bool supported = false;
+
+        try {
+            auto adapter = co_await BluetoothAdapter::GetDefaultAsync();
+            supported = adapter && adapter.IsExtendedAdvertisingSupported();
+        }
+        catch (...) {
+            // Older than Windows 10 2004, which cannot ask.
+            supported = false;
+        }
+
+        co_await ui_thread_;
+        if (!*alive) co_return;
+        if (*result) {
+            (*result)->Success(flutter::EncodableValue(supported));
+        }
     }
 
     // Whether location access is allowed, read from the consent store Settings

@@ -169,10 +169,7 @@ final class PongHost extends PongPlayer {
       _engine.movePaddle(side, auto.follow(_state, delta));
     }
     if (peerIsAuto) {
-      _engine.movePaddle(
-        PongSide.guest,
-        autoPeer!.follow(_state, delta),
-      );
+      _engine.movePaddle(PongSide.guest, autoPeer!.follow(_state, delta));
     }
 
     _engine.tick(delta);
@@ -192,9 +189,7 @@ final class PongHost extends PongPlayer {
     if (_sending || !_transport.isReady) return;
     _sinceSend = Duration.zero;
     _sending = true;
-    unawaited(
-      _transport.send(_state).whenComplete(() => _sending = false),
-    );
+    unawaited(_transport.send(_state).whenComplete(() => _sending = false));
   }
 
   @override

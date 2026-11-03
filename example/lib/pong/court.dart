@@ -314,11 +314,7 @@ class _ControlPainter extends CustomPainter {
     for (final fraction in const [0.0, 0.25, 0.5, 0.75, 1.0]) {
       final x = (size.width * fraction).clamp(1.0, size.width - 1);
       final inset = fraction == 0.5 ? 12.0 : 20.0;
-      canvas.drawLine(
-        Offset(x, inset),
-        Offset(x, size.height - inset),
-        tick,
-      );
+      canvas.drawLine(Offset(x, inset), Offset(x, size.height - inset), tick);
     }
 
     // The thumb is drawn the width the paddle actually covers, so the control
@@ -372,10 +368,8 @@ class _CourtPainter extends CustomPainter {
 
   /// Turns a court position into a screen one, putting this player's wall at
   /// the bottom.
-  Offset _project(double x, double y, Size size) => Offset(
-    x * size.width,
-    (side == PongSide.host ? y : 1 - y) * size.height,
-  );
+  Offset _project(double x, double y, Size size) =>
+      Offset(x * size.width, (side == PongSide.host ? y : 1 - y) * size.height);
 
   @override
   void paint(Canvas canvas, Size size) {
