@@ -441,6 +441,21 @@ class FlutterBlePeripheral {
         false;
   }
 
+  /// Returns `true` if the Windows Bluetooth adapter supports the Bluetooth 5
+  /// extended advertising format.
+  ///
+  /// An adapter without it advertises from a single set, which is the case in
+  /// which the beacons described under [isShareAcrossDevicesEnabled] take
+  /// turns with this plugin's advertisement. Windows only; returns `false`
+  /// elsewhere.
+  Future<bool> get isExtendedAdvertisingSupported async {
+    if (!Platform.isWindows) return false;
+    return await _methodChannel.invokeMethod<bool>(
+          'isExtendedAdvertisingSupported',
+        ) ??
+        false;
+  }
+
   /// Turns Windows "Share across devices" on or off.
   ///
   /// This changes a per-user Windows setting, the same one as the switch in

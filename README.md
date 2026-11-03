@@ -93,7 +93,8 @@ sees it rarely or not at all. Use `isShareAcrossDevicesEnabled()` and
 `isNearbyShareEnabled()` to detect them, and `setShareAcrossDevicesEnabled(enabled:
 false)` and `setNearbyShareEnabled(enabled: false)` to turn them off. Those change the
 user's Windows settings, so ask first, or send them to the settings page with
-`openNearbyShareSettings()`.
+`openNearbyShareSettings()`. An adapter where `isExtendedAdvertisingSupported` is `false`
+advertises from that single set, so that is where to expect it.
 
 ## Usage
 
@@ -361,6 +362,7 @@ across it.
 | `openNearbyShareSettings()` | `void` | Windows only, no-op elsewhere |
 | `isShareAcrossDevicesEnabled()` | `bool` | Windows only, `false` elsewhere |
 | `setShareAcrossDevicesEnabled({enabled})` | `bool` | Windows only, `false` elsewhere |
+| `isExtendedAdvertisingSupported` | `bool` | Windows only, `false` elsewhere |
 | `openLocationSettings()` | `void` | Windows only, no-op elsewhere |
 
 ## Example

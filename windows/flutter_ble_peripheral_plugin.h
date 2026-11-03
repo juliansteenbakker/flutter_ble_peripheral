@@ -271,6 +271,10 @@ namespace flutter_ble_peripheral {
         // Async helper for enabling Bluetooth
         winrt::fire_and_forget EnableBluetoothAsync(std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
 
+        // Whether the default adapter supports the Bluetooth 5 extended
+        // advertising format.
+        winrt::fire_and_forget IsExtendedAdvertisingSupportedAsync(std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result);
+
         // Reads the location permission without asking for it.
         bool HasLocationConsent() const;
 

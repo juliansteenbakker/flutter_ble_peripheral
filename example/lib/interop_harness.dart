@@ -129,6 +129,18 @@ class _InteropHarnessAppState extends State<InteropHarnessApp> {
 
       if (!await _awaitPermission()) return;
 
+      // Nobody is in front of the host to answer a dialog, so a Windows beacon
+      // that will take turns with the advertisement is only reported.
+      if (Platform.isWindows &&
+          !await _peripheral.isExtendedAdvertisingSupported) {
+        if (await _peripheral.isShareAcrossDevicesEnabled()) {
+          _record('EVENT', ['beacon', 'share across devices is on']);
+        }
+        if (await _peripheral.isNearbyShareEnabled()) {
+          _record('EVENT', ['beacon', 'nearby sharing is on']);
+        }
+      }
+
       _listen();
 
       await _peripheral.start(

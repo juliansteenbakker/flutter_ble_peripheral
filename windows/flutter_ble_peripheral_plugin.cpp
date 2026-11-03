@@ -1208,6 +1208,10 @@ namespace flutter_ble_peripheral {
                 REG_DWORD, &value, sizeof(value));
             result->Success(written == ERROR_SUCCESS);
         }
+        else if (method_call.method_name().compare("isExtendedAdvertisingSupported") == 0) {
+            auto shared_result = std::make_shared<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(std::move(result));
+            IsExtendedAdvertisingSupportedAsync(std::move(shared_result));
+        }
         else if (method_call.method_name().compare("enableBluetooth") == 0) {
             // Move result to shared_ptr for use in async coroutine
             auto shared_result = std::make_shared<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>>(std::move(result));
@@ -1454,6 +1458,28 @@ namespace flutter_ble_peripheral {
             (*result)->Success(flutter::EncodableValue(success));
         }
 
+    }
+
+    winrt::fire_and_forget FlutterBlePeripheralPlugin::IsExtendedAdvertisingSupportedAsync(
+        std::shared_ptr<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>> result)
+    {
+        auto alive = alive_;
+        bool supported = false;
+
+        try {
+            auto adapter = co_await BluetoothAdapter::GetDefaultAsync();
+            supported = adapter && adapter.IsExtendedAdvertisingSupported();
+        }
+        catch (...) {
+            // Older than Windows 10 2004, which cannot ask.
+            supported = false;
+        }
+
+        co_await ui_thread_;
+        if (!*alive) co_return;
+        if (*result) {
+            (*result)->Success(flutter::EncodableValue(supported));
+        }
     }
 
     // Whether location access is allowed, read from the consent store Settings
